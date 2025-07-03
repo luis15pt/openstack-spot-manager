@@ -176,45 +176,58 @@ def get_host_vm_count(hostname):
             print(f"❌ No OpenStack connection available")
             return 0
         
-        # Try different approaches to get servers for a host
         print(f"🔍 Searching for VMs on host: {hostname}")
         
-        # Method 1: Filter by host (hypervisor) 
+        # Method 1: Direct host filtering with all_projects (admin required)
         try:
-            servers = list(conn.compute.servers(host=hostname))
+            servers = list(conn.compute.servers(host=hostname, all_projects=True))
             vm_count = len(servers)
-            print(f"📊 Method 1 (host={hostname}): Found {vm_count} VMs")
+            print(f"📊 SDK Method 1 (host + all_projects): Found {vm_count} VMs")
             if vm_count > 0:
+                for server in servers:
+                    print(f"   - {server.name} ({server.id}) - Status: {server.status}")
                 return vm_count
         except Exception as e:
             print(f"⚠️ Method 1 failed: {e}")
         
-        # Method 2: Get all servers and filter by hypervisor_hostname  
+        # Method 2: Try without all_projects
         try:
-            all_servers = list(conn.compute.servers(details=True))
-            filtered_servers = [s for s in all_servers if getattr(s, 'hypervisor_hostname', None) == hostname]
-            vm_count = len(filtered_servers)
-            print(f"📊 Method 2 (hypervisor filter): Found {vm_count} VMs")
+            servers = list(conn.compute.servers(host=hostname))
+            vm_count = len(servers)
+            print(f"📊 SDK Method 2 (host only): Found {vm_count} VMs")
             if vm_count > 0:
                 return vm_count
         except Exception as e:
             print(f"⚠️ Method 2 failed: {e}")
             
-        # Method 3: Get all servers and filter by OS-EXT-SRV-ATTR:host
+        # Method 3: Get all servers with details and filter by hypervisor_hostname
         try:
-            all_servers = list(conn.compute.servers(details=True))
+            print(f"🔍 Trying to get all servers and filter by hypervisor...")
+            all_servers = list(conn.compute.servers(details=True, all_projects=True))
+            print(f"🔍 Total servers found: {len(all_servers)}")
+            
+            # Debug: Show first server's attributes if any exist
+            if len(all_servers) > 0:
+                first_server = all_servers[0]
+                print(f"🔍 First server hypervisor_hostname: {getattr(first_server, 'hypervisor_hostname', 'NOT_FOUND')}")
+                print(f"🔍 First server host: {getattr(first_server, 'host', 'NOT_FOUND')}")
+                print(f"🔍 Available attributes: {[attr for attr in dir(first_server) if 'host' in attr.lower()]}")
+            
             filtered_servers = []
             for server in all_servers:
-                server_host = getattr(server, 'host', None) or getattr(server, 'OS-EXT-SRV-ATTR:host', None)
+                server_host = getattr(server, 'hypervisor_hostname', None)
                 if server_host == hostname:
                     filtered_servers.append(server)
+                    print(f"   - Match: {server.name} on {server_host}")
+            
             vm_count = len(filtered_servers)
-            print(f"📊 Method 3 (host attribute filter): Found {vm_count} VMs")
+            print(f"📊 SDK Method 3 (hypervisor filter): Found {vm_count} VMs")
             return vm_count
+            
         except Exception as e:
             print(f"⚠️ Method 3 failed: {e}")
             
-        print(f"📊 All methods exhausted. Host {hostname} has 0 VMs")
+        print(f"📊 Host {hostname} has 0 VMs")
         return 0
         
     except Exception as e:
