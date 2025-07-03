@@ -13,10 +13,11 @@ body {
     min-height: 200px;
     border: 2px dashed #dee2e6;
     border-radius: 8px;
-    padding: 20px;
+    padding: 15px;
     margin: 10px 0;
     transition: all 0.3s ease;
     position: relative;
+    background-color: #fafbfc;
 }
 
 .drop-zone.drag-over {
@@ -42,12 +43,15 @@ body {
     background: white;
     border: 1px solid #dee2e6;
     border-radius: 8px;
-    padding: 12px;
-    margin: 8px 0;
+    padding: 15px;
+    margin: 10px 5px;
     cursor: move;
     transition: all 0.3s ease;
     position: relative;
     user-select: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: block;
+    width: calc(100% - 10px);
 }
 
 .host-card:hover {
@@ -78,7 +82,9 @@ body {
 .host-name {
     font-weight: 600;
     font-size: 1.1em;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
+    color: #2c3e50;
+    padding-left: 25px;
 }
 
 .vm-count {
@@ -87,6 +93,7 @@ body {
     display: flex;
     align-items: center;
     gap: 5px;
+    padding-left: 25px;
 }
 
 .vm-count i {
@@ -116,12 +123,13 @@ body {
 
 .drag-handle {
     position: absolute;
-    left: 8px;
+    left: 12px;
     top: 50%;
     transform: translateY(-50%);
     color: #6c757d;
-    font-size: 1.2em;
+    font-size: 1.3em;
     cursor: move;
+    z-index: 1;
 }
 
 .host-card:hover .drag-handle {

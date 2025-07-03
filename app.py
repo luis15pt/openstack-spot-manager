@@ -44,6 +44,9 @@ def log_command(command, result, execution_type='executed'):
 
 def run_openstack_command(command, log_execution=True):
     """Execute OpenStack CLI command and return result"""
+    if log_execution:
+        print(f"\n🔄 EXECUTING: {command}")
+    
     try:
         result = subprocess.run(
             command, 
@@ -61,6 +64,14 @@ def run_openstack_command(command, log_execution=True):
         }
         
         if log_execution:
+            status = "✅ SUCCESS" if command_result['success'] else "❌ FAILED"
+            print(f"{status} (return code: {result.returncode})")
+            if command_result['stdout']:
+                print(f"📤 STDOUT:\n{command_result['stdout']}")
+            if command_result['stderr']:
+                print(f"📥 STDERR:\n{command_result['stderr']}")
+            print("-" * 60)
+            
             log_command(command, command_result, 'executed')
             
         return command_result
@@ -185,6 +196,8 @@ def preview_migration():
     source_aggregate = data.get('source_aggregate')
     target_aggregate = data.get('target_aggregate')
     
+    print(f"\n👁️  PREVIEW MIGRATION: {host} from {source_aggregate} to {target_aggregate}")
+    
     if not all([host, source_aggregate, target_aggregate]):
         return jsonify({'error': 'Missing required parameters'}), 400
     
@@ -192,6 +205,10 @@ def preview_migration():
         f"openstack aggregate remove host {source_aggregate} {host}",
         f"openstack aggregate add host {target_aggregate} {host}"
     ]
+    
+    print("📋 COMMANDS TO BE EXECUTED:")
+    for i, command in enumerate(commands, 1):
+        print(f"   {i}. {command}")
     
     # Log the preview (but don't execute)
     for command in commands:
@@ -211,6 +228,8 @@ def execute_migration():
     host = data.get('host')
     source_aggregate = data.get('source_aggregate')
     target_aggregate = data.get('target_aggregate')
+    
+    print(f"\n🚀 EXECUTING MIGRATION: {host} from {source_aggregate} to {target_aggregate}")
     
     if not all([host, source_aggregate, target_aggregate]):
         return jsonify({'error': 'Missing required parameters'}), 400
@@ -278,4 +297,11 @@ def clear_command_log():
     return jsonify({'message': 'Command log cleared'})
 
 if __name__ == '__main__':
+    print("=" * 60)
+    print("🚀 OpenStack Spot Manager Starting...")
+    print("=" * 60)
+    print("📊 Debug mode: ENABLED")
+    print("🌐 Server: http://0.0.0.0:5000")
+    print("🔍 Command logging: ENABLED")
+    print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000)
