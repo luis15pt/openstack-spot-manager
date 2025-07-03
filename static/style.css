@@ -39,6 +39,31 @@ body {
     font-weight: bold;
 }
 
+/* Machine grid layout */
+.machine-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    padding: 15px;
+}
+
+/* Individual machine cards */
+.machine-card {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    padding: 16px;
+    cursor: move;
+    transition: all 0.3s ease;
+    position: relative;
+    user-select: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
 .host-card {
     background: white;
     border: 1px solid #dee2e6;
@@ -54,29 +79,108 @@ body {
     width: calc(100% - 10px);
 }
 
+.machine-card:hover,
 .host-card:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     transform: translateY(-2px);
 }
 
+.machine-card.selected,
 .host-card.selected {
     border-color: #0d6efd;
     background-color: #e7f3ff;
     box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
 }
 
+.machine-card.dragging,
 .host-card.dragging {
     opacity: 0.5;
     transform: rotate(5deg);
 }
 
+.machine-card.has-vms,
 .host-card.has-vms {
     border-left: 4px solid #dc3545;
 }
 
+.machine-card.pending-operation,
+.host-card.pending-operation {
+    border: 2px solid #ffc107;
+    background: linear-gradient(45deg, #ffffff 25%, #fff3cd 25%, #fff3cd 50%, #ffffff 50%, #ffffff 75%, #fff3cd 75%, #fff3cd);
+    background-size: 8px 8px;
+    animation: pendingStripes 1s linear infinite;
+}
+
+@keyframes pendingStripes {
+    0% { background-position: 0 0; }
+    100% { background-position: 8px 8px; }
+}
+
+.machine-card.pending-operation::after,
+.host-card.pending-operation::after {
+    content: "QUEUED";
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: #ffc107;
+    color: #000;
+    font-size: 0.6em;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 8px;
+    z-index: 2;
+}
+
+.machine-card.has-vms .machine-name,
 .host-card.has-vms .host-name {
     color: #dc3545;
     font-weight: bold;
+}
+
+/* Machine card components */
+.machine-card-header {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    position: relative;
+}
+
+.machine-name {
+    font-weight: 600;
+    font-size: 1em;
+    color: #2c3e50;
+    padding-left: 25px;
+    flex-grow: 1;
+    line-height: 1.2;
+}
+
+.machine-status {
+    margin-top: auto;
+}
+
+.vm-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85em;
+    padding-left: 25px;
+}
+
+.status-dot {
+    font-size: 8px;
+}
+
+.status-dot.active {
+    color: #dc3545;
+}
+
+.status-dot.inactive {
+    color: #28a745;
+}
+
+.vm-label {
+    color: #6c757d;
+    font-size: 0.8em;
 }
 
 .host-name {
@@ -103,10 +207,16 @@ body {
 .vm-badge {
     background: #dc3545;
     color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.8em;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 0.75em;
     font-weight: bold;
+    min-width: 16px;
+    text-align: center;
+}
+
+.vm-badge.active {
+    background: #dc3545;
 }
 
 .vm-badge.zero {
@@ -123,20 +233,21 @@ body {
 
 .drag-handle {
     position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
+    left: 8px;
+    top: 2px;
     color: #6c757d;
-    font-size: 1.3em;
+    font-size: 1.1em;
     cursor: move;
     z-index: 1;
 }
 
+.machine-card:hover .drag-handle,
 .host-card:hover .drag-handle {
     color: #0d6efd;
 }
 
-/* Animation for host cards */
+/* Animation for cards */
+.machine-card,
 .host-card {
     animation: fadeIn 0.3s ease-in;
 }
@@ -195,6 +306,17 @@ body {
     .aggregate-column {
         min-height: 300px;
         margin-bottom: 20px;
+    }
+    
+    .machine-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        padding: 10px;
+    }
+    
+    .machine-card {
+        min-height: 100px;
+        padding: 12px;
     }
     
     .host-card {
@@ -511,4 +633,85 @@ body {
     0% { transform: scale(1); }
     50% { transform: scale(1.2); }
     100% { transform: scale(1); }
+}
+
+/* Pending Operations Styles */
+.pending-operation-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.pending-operation-item:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.operation-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-grow: 1;
+}
+
+.operation-details strong {
+    font-size: 1em;
+    color: #2c3e50;
+}
+
+.operation-flow {
+    display: flex;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.operation-flow .fas {
+    color: #6c757d;
+    font-size: 0.8em;
+}
+
+#pendingOperationsSection {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#pendingCount {
+    transition: all 0.3s ease;
+}
+
+#pendingCount.updated {
+    animation: pulse 0.5s ease-in-out;
+}
+
+/* Responsive adjustments for pending operations */
+@media (max-width: 768px) {
+    .operation-details {
+        gap: 4px;
+    }
+    
+    .operation-flow {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    
+    .operation-flow .fas {
+        transform: rotate(90deg);
+    }
 }

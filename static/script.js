@@ -3,6 +3,7 @@
 let currentGpuType = '';
 let selectedHosts = new Set();
 let aggregateData = {};
+let pendingOperations = [];
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -32,6 +33,10 @@ function initializeEventListeners() {
     // Command log buttons
     document.getElementById('refreshLogBtn').addEventListener('click', loadCommandLog);
     document.getElementById('clearLogBtn').addEventListener('click', clearCommandLog);
+    
+    // Pending operations buttons
+    document.getElementById('commitBtn').addEventListener('click', commitAllOperations);
+    document.getElementById('clearPendingBtn').addEventListener('click', clearPendingOperations);
     
     // Tab switching - refresh data when switching to command log or results
     document.getElementById('commands-tab').addEventListener('click', loadCommandLog);
@@ -93,9 +98,10 @@ function renderHosts(containerId, hosts, type) {
         return;
     }
     
+    // Create individual machine cards for each host
     const hostCards = hosts.map(host => createHostCard(host, type)).join('');
     container.innerHTML = `
-        <div class="drop-zone" data-type="${type}">
+        <div class="drop-zone machine-grid" data-type="${type}">
             ${hostCards}
         </div>
     `;
@@ -103,9 +109,9 @@ function renderHosts(containerId, hosts, type) {
 
 function createHostCard(host, type) {
     const hasVms = host.has_vms;
-    const vmBadgeClass = hasVms ? 'vm-badge' : 'vm-badge zero';
+    const vmBadgeClass = hasVms ? 'vm-badge active' : 'vm-badge zero';
     const warningIcon = hasVms ? '<i class="fas fa-exclamation-triangle warning-icon"></i>' : '';
-    const cardClass = hasVms ? 'host-card has-vms' : 'host-card';
+    const cardClass = hasVms ? 'machine-card has-vms' : 'machine-card';
     
     return `
         <div class="${cardClass}" 
@@ -113,22 +119,26 @@ function createHostCard(host, type) {
              data-host="${host.name}" 
              data-type="${type}"
              data-has-vms="${hasVms}">
-            <i class="fas fa-grip-vertical drag-handle"></i>
-            ${warningIcon}
-            <div class="host-name">${host.name}</div>
-            <div class="vm-count ${host.vm_count > 0 ? 'clickable-vm-count' : ''}" 
-                 ${host.vm_count > 0 ? `onclick="showVmDetails('${host.name}')"` : ''}>
-                <i class="fas fa-desktop"></i>
-                <span class="${vmBadgeClass}">${host.vm_count}</span>
-                ${host.vm_count > 0 ? 'VMs' : 'No VMs'}
+            <div class="machine-card-header">
+                <i class="fas fa-grip-vertical drag-handle"></i>
+                <div class="machine-name">${host.name}</div>
+                ${warningIcon}
+            </div>
+            <div class="machine-status">
+                <div class="vm-info ${host.vm_count > 0 ? 'clickable-vm-count' : ''}" 
+                     ${host.vm_count > 0 ? `onclick="showVmDetails('${host.name}')"` : ''}>
+                    <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
+                    <span class="${vmBadgeClass}">${host.vm_count}</span>
+                    <span class="vm-label">${host.vm_count > 0 ? 'VMs' : 'No VMs'}</span>
+                </div>
             </div>
         </div>
     `;
 }
 
 function setupDragAndDrop() {
-    // Add event listeners to host cards
-    document.querySelectorAll('.host-card').forEach(card => {
+    // Add event listeners to both machine cards and host cards
+    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
         card.addEventListener('dragstart', handleDragStart);
         card.addEventListener('dragend', handleDragEnd);
         card.addEventListener('click', handleHostClick);
@@ -177,7 +187,7 @@ function handleDrop(e) {
     const targetType = this.dataset.type;
     
     if (sourceType !== targetType) {
-        previewMigration(hostname, sourceType, targetType);
+        addToPendingOperations(hostname, sourceType, targetType);
     }
 }
 
@@ -223,12 +233,17 @@ function moveSelectedHosts(targetType) {
     
     if (hostsToMove.length === 0) return;
     
-    // For multiple hosts, show a combined preview
-    if (hostsToMove.length === 1) {
-        previewMigration(hostsToMove[0], sourceType, targetType);
-    } else {
-        previewMultipleMigration(hostsToMove, sourceType, targetType);
-    }
+    // Add all selected hosts to pending operations
+    hostsToMove.forEach(hostname => {
+        addToPendingOperations(hostname, sourceType, targetType);
+    });
+    
+    // Clear selections
+    selectedHosts.clear();
+    document.querySelectorAll('.machine-card.selected, .host-card.selected').forEach(card => {
+        card.classList.remove('selected');
+    });
+    updateControlButtons();
 }
 
 function previewMigration(hostname, sourceType, targetType) {
@@ -753,11 +768,201 @@ function previewMigration(hostname, sourceType, targetType) {
     }, 100);
 }
 
+// Pending Operations Management
+function addToPendingOperations(hostname, sourceType, targetType) {
+    const sourceAggregate = sourceType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
+    const targetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
+    
+    // Check if operation already exists
+    const existingIndex = pendingOperations.findIndex(op => op.hostname === hostname);
+    if (existingIndex !== -1) {
+        // Update existing operation
+        pendingOperations[existingIndex] = {
+            hostname,
+            sourceType,
+            targetType,
+            sourceAggregate,
+            targetAggregate,
+            timestamp: new Date().toISOString()
+        };
+    } else {
+        // Add new operation
+        pendingOperations.push({
+            hostname,
+            sourceType,
+            targetType,
+            sourceAggregate,
+            targetAggregate,
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    updatePendingOperationsDisplay();
+    showNotification(`Added ${hostname} to pending operations (${sourceType} → ${targetType})`, 'info');
+}
+
+function updatePendingOperationsDisplay() {
+    const section = document.getElementById('pendingOperationsSection');
+    const list = document.getElementById('pendingOperationsList');
+    const count = document.getElementById('pendingCount');
+    
+    count.textContent = pendingOperations.length;
+    count.classList.add('updated');
+    setTimeout(() => count.classList.remove('updated'), 500);
+    
+    // Update visual indicators on cards
+    updateCardPendingIndicators();
+    
+    if (pendingOperations.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    
+    section.style.display = 'block';
+    
+    const operationsHtml = pendingOperations.map((op, index) => `
+        <div class="pending-operation-item" data-index="${index}">
+            <div class="operation-details">
+                <strong>${op.hostname}</strong>
+                <span class="operation-flow">
+                    <span class="badge bg-${op.sourceType === 'ondemand' ? 'primary' : 'warning'}">${op.sourceAggregate}</span>
+                    <i class="fas fa-arrow-right mx-2"></i>
+                    <span class="badge bg-${op.targetType === 'ondemand' ? 'primary' : 'warning'}">${op.targetAggregate}</span>
+                </span>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" onclick="removePendingOperation(${index})">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `).join('');
+    
+    list.innerHTML = operationsHtml;
+}
+
+function updateCardPendingIndicators() {
+    // Remove all pending indicators
+    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
+        card.classList.remove('pending-operation');
+    });
+    
+    // Add pending indicators to cards with pending operations
+    pendingOperations.forEach(op => {
+        const card = document.querySelector(`[data-host="${op.hostname}"]`);
+        if (card) {
+            card.classList.add('pending-operation');
+        }
+    });
+}
+
+function removePendingOperation(index) {
+    if (index >= 0 && index < pendingOperations.length) {
+        const operation = pendingOperations[index];
+        pendingOperations.splice(index, 1);
+        updatePendingOperationsDisplay();
+        showNotification(`Removed ${operation.hostname} from pending operations`, 'info');
+    }
+}
+
+function clearPendingOperations() {
+    if (pendingOperations.length === 0) return;
+    
+    if (confirm(`Clear all ${pendingOperations.length} pending operations?`)) {
+        pendingOperations = [];
+        updatePendingOperationsDisplay();
+        showNotification('Cleared all pending operations', 'info');
+    }
+}
+
+function commitAllOperations() {
+    if (pendingOperations.length === 0) {
+        showNotification('No pending operations to commit', 'warning');
+        return;
+    }
+    
+    const operationCount = pendingOperations.length;
+    const confirmMessage = `Execute ${operationCount} pending operation${operationCount > 1 ? 's' : ''}?`;
+    
+    if (!confirm(confirmMessage)) return;
+    
+    const commitBtn = document.getElementById('commitBtn');
+    commitBtn.disabled = true;
+    commitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Executing...';
+    
+    executeAllPendingOperations();
+}
+
+function executeAllPendingOperations() {
+    const operations = [...pendingOperations]; // Copy the array
+    let completed = 0;
+    let errors = [];
+    
+    const executeNext = (index) => {
+        if (index >= operations.length) {
+            // All operations completed
+            const commitBtn = document.getElementById('commitBtn');
+            commitBtn.disabled = false;
+            commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit All Operations';
+            
+            if (errors.length > 0) {
+                showNotification(`Completed with ${errors.length} errors: ${errors.join(', ')}`, 'warning');
+            } else {
+                showNotification(`Successfully executed ${completed} operations`, 'success');
+                pendingOperations = []; // Clear pending operations on success
+                updatePendingOperationsDisplay();
+            }
+            
+            refreshData();
+            loadCommandLog();
+            loadResultsSummary();
+            return;
+        }
+        
+        const operation = operations[index];
+        
+        fetch('/api/execute-migration', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                host: operation.hostname,
+                source_aggregate: operation.sourceAggregate,
+                target_aggregate: operation.targetAggregate
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                errors.push(operation.hostname);
+            } else {
+                completed++;
+                // Remove this operation from pending list
+                const pendingIndex = pendingOperations.findIndex(op => 
+                    op.hostname === operation.hostname && 
+                    op.sourceAggregate === operation.sourceAggregate &&
+                    op.targetAggregate === operation.targetAggregate
+                );
+                if (pendingIndex !== -1) {
+                    pendingOperations.splice(pendingIndex, 1);
+                    updatePendingOperationsDisplay();
+                }
+            }
+            executeNext(index + 1);
+        })
+        .catch(error => {
+            errors.push(operation.hostname);
+            executeNext(index + 1);
+        });
+    };
+    
+    executeNext(0);
+}
+
 // Clear selections when clicking outside
 document.addEventListener('click', function(e) {
-    if (!e.target.closest('.host-card') && !e.target.closest('.btn')) {
+    if (!e.target.closest('.machine-card') && !e.target.closest('.host-card') && !e.target.closest('.btn')) {
         selectedHosts.clear();
-        document.querySelectorAll('.host-card.selected').forEach(card => {
+        document.querySelectorAll('.machine-card.selected, .host-card.selected').forEach(card => {
             card.classList.remove('selected');
         });
         updateControlButtons();
