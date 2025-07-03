@@ -47,6 +47,41 @@ body {
     padding: 15px;
 }
 
+/* Host group styling */
+.host-group {
+    margin-bottom: 20px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #fafbfc;
+}
+
+.host-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    border-radius: 8px 8px 0 0;
+}
+
+.host-group-header h6 {
+    color: #495057;
+    font-weight: 600;
+}
+
+.host-group-header small {
+    margin-left: auto;
+    font-style: italic;
+}
+
+.host-group-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    padding: 15px;
+}
+
 /* Individual machine cards */
 .machine-card {
     background: white;
@@ -312,6 +347,20 @@ body {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
         gap: 10px;
         padding: 10px;
+    }
+    
+    .host-group-content {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        padding: 10px;
+    }
+    
+    .host-group-header {
+        padding: 10px 12px;
+    }
+    
+    .host-group-header h6 {
+        font-size: 0.9rem;
     }
     
     .machine-card {

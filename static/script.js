@@ -98,11 +98,50 @@ function renderHosts(containerId, hosts, type) {
         return;
     }
     
-    // Create individual machine cards for each host
-    const hostCards = hosts.map(host => createHostCard(host, type)).join('');
+    // Separate hosts into groups
+    const availableHosts = hosts.filter(host => !host.has_vms);
+    const inUseHosts = hosts.filter(host => host.has_vms);
+    
+    // Create sections
+    let sectionsHtml = '';
+    
+    // Available hosts section (shown first - most likely to be moved)
+    if (availableHosts.length > 0) {
+        const availableCards = availableHosts.map(host => createHostCard(host, type)).join('');
+        sectionsHtml += `
+            <div class="host-group">
+                <div class="host-group-header">
+                    <i class="fas fa-circle-check text-success"></i>
+                    <h6 class="mb-0">Available (${availableHosts.length})</h6>
+                    <small class="text-muted">No VMs - Ready to move</small>
+                </div>
+                <div class="host-group-content">
+                    ${availableCards}
+                </div>
+            </div>
+        `;
+    }
+    
+    // In-use hosts section
+    if (inUseHosts.length > 0) {
+        const inUseCards = inUseHosts.map(host => createHostCard(host, type)).join('');
+        sectionsHtml += `
+            <div class="host-group">
+                <div class="host-group-header">
+                    <i class="fas fa-circle-exclamation text-warning"></i>
+                    <h6 class="mb-0">In Use (${inUseHosts.length})</h6>
+                    <small class="text-muted">Has running VMs</small>
+                </div>
+                <div class="host-group-content">
+                    ${inUseCards}
+                </div>
+            </div>
+        `;
+    }
+    
     container.innerHTML = `
-        <div class="drop-zone machine-grid" data-type="${type}">
-            ${hostCards}
+        <div class="drop-zone" data-type="${type}">
+            ${sectionsHtml}
         </div>
     `;
 }
