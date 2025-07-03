@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenStack Spot Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="text-center my-4">
+                    <i class="fas fa-server"></i> OpenStack Spot Manager
+                </h1>
+                
+                <!-- GPU Type Selector -->
+                <div class="row mb-4">
+                    <div class="col-md-6 offset-md-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <label for="gpuTypeSelect" class="form-label">Select GPU Type:</label>
+                                <select id="gpuTypeSelect" class="form-select">
+                                    <option value="">Choose GPU type...</option>
+                                    <option value="L40">L40</option>
+                                    <option value="RTX-A6000">RTX-A6000</option>
+                                    <option value="A100">A100</option>
+                                    <option value="H100">H100</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Loading Indicator -->
+                <div id="loadingIndicator" class="text-center d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading aggregate data...</p>
+                </div>
+                
+                <!-- Main Content -->
+                <div id="mainContent" class="d-none">
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="hosts-tab" data-bs-toggle="tab" data-bs-target="#hosts" type="button" role="tab">
+                                <i class="fas fa-server"></i> Host Management
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="commands-tab" data-bs-toggle="tab" data-bs-target="#commands" type="button" role="tab">
+                                <i class="fas fa-terminal"></i> Command Log
+                                <span class="badge bg-secondary ms-1" id="commandCount">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="results-tab" data-bs-toggle="tab" data-bs-target="#results" type="button" role="tab">
+                                <i class="fas fa-chart-line"></i> Results
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="mainTabContent">
+                        <!-- Hosts Tab -->
+                        <div class="tab-pane fade show active" id="hosts" role="tabpanel">
+                            <div class="row mt-3">
+                                <!-- On-Demand Column -->
+                                <div class="col-md-6">
+                                    <div class="aggregate-column" id="ondemandColumn">
+                                        <div class="card">
+                                            <div class="card-header bg-primary text-white">
+                                                <h4 class="mb-0">
+                                                    <i class="fas fa-server"></i> 
+                                                    On-Demand <span id="ondemandName"></span>
+                                                    <span class="badge bg-light text-dark ms-2" id="ondemandCount">0</span>
+                                                </h4>
+                                            </div>
+                                            <div class="card-body" id="ondemandHosts">
+                                                <div class="drop-zone" data-type="ondemand">
+                                                    <p class="text-muted text-center">Drop hosts here or select and move</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Spot Column -->
+                                <div class="col-md-6">
+                                    <div class="aggregate-column" id="spotColumn">
+                                        <div class="card">
+                                            <div class="card-header bg-warning text-dark">
+                                                <h4 class="mb-0">
+                                                    <i class="fas fa-flash"></i> 
+                                                    Spot <span id="spotName"></span>
+                                                    <span class="badge bg-light text-dark ms-2" id="spotCount">0</span>
+                                                </h4>
+                                            </div>
+                                            <div class="card-body" id="spotHosts">
+                                                <div class="drop-zone" data-type="spot">
+                                                    <p class="text-muted text-center">Drop hosts here or select and move</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Control Buttons -->
+                            <div class="row mt-4">
+                                <div class="col-md-12 text-center">
+                                    <button id="moveToSpotBtn" class="btn btn-warning me-2" disabled>
+                                        <i class="fas fa-arrow-right"></i> Move to Spot
+                                    </button>
+                                    <button id="moveToOndemandBtn" class="btn btn-primary me-2" disabled>
+                                        <i class="fas fa-arrow-left"></i> Move to On-Demand
+                                    </button>
+                                    <button id="refreshBtn" class="btn btn-secondary">
+                                        <i class="fas fa-sync"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Commands Tab -->
+                        <div class="tab-pane fade" id="commands" role="tabpanel">
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-terminal"></i> Command Execution Log
+                                            </h5>
+                                            <div>
+                                                <button id="refreshLogBtn" class="btn btn-sm btn-outline-secondary me-2">
+                                                    <i class="fas fa-sync"></i> Refresh
+                                                </button>
+                                                <button id="clearLogBtn" class="btn btn-sm btn-outline-danger">
+                                                    <i class="fas fa-trash"></i> Clear Log
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="commandLogContainer">
+                                                <div class="text-center text-muted">
+                                                    <i class="fas fa-terminal fa-3x mb-3"></i>
+                                                    <p>No commands executed yet. Commands will appear here when you perform migrations.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Results Tab -->
+                        <div class="tab-pane fade" id="results" role="tabpanel">
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-chart-line"></i> Execution Results Summary
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="resultsSummary">
+                                                <div class="row">
+                                                    <div class="col-md-3">
+                                                        <div class="stat-card success">
+                                                            <div class="stat-value" id="successCount">0</div>
+                                                            <div class="stat-label">Successful</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="stat-card error">
+                                                            <div class="stat-value" id="errorCount">0</div>
+                                                            <div class="stat-label">Failed</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="stat-card preview">
+                                                            <div class="stat-value" id="previewCount">0</div>
+                                                            <div class="stat-label">Previewed</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="stat-card total">
+                                                            <div class="stat-value" id="totalCount">0</div>
+                                                            <div class="stat-label">Total</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-4" id="recentResults">
+                                                <h6>Recent Command Results</h6>
+                                                <div id="recentResultsList">
+                                                    <div class="text-center text-muted">
+                                                        <i class="fas fa-chart-line fa-3x mb-3"></i>
+                                                        <p>No results yet. Execute some commands to see results here.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VM Details Modal -->
+    <div class="modal fade" id="vmDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">VMs on Host</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="vmDetailsBody">
+                    <!-- VM details will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Migration Preview Modal -->
+    <div class="modal fade" id="migrationModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Migration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="migrationWarning" class="alert alert-warning d-none">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Warning:</strong> This host has running VMs!
+                    </div>
+                    <p>The following OpenStack commands will be executed:</p>
+                    <div id="commandPreview" class="bg-light p-3 rounded">
+                        <!-- Commands will be shown here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmMigrationBtn">Execute Migration</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success/Error Toast -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastBody">
+                <!-- Notification message -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
