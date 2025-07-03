@@ -769,6 +769,14 @@ function previewMigration(hostname, sourceType, targetType) {
 }
 
 // Pending Operations Management
+function generateCommandsForOperation(operation) {
+    const commands = [
+        `openstack aggregate remove host ${operation.sourceAggregate} ${operation.hostname}`,
+        `openstack aggregate add host ${operation.targetAggregate} ${operation.hostname}`
+    ];
+    return commands;
+}
+
 function addToPendingOperations(hostname, sourceType, targetType) {
     const sourceAggregate = sourceType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
     const targetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
@@ -820,23 +828,57 @@ function updatePendingOperationsDisplay() {
     
     section.style.display = 'block';
     
-    const operationsHtml = pendingOperations.map((op, index) => `
+    const operationsHtml = pendingOperations.map((op, index) => {
+        const commands = generateCommandsForOperation(op);
+        return `
         <div class="pending-operation-item" data-index="${index}">
             <div class="operation-details">
-                <strong>${op.hostname}</strong>
-                <span class="operation-flow">
-                    <span class="badge bg-${op.sourceType === 'ondemand' ? 'primary' : 'warning'}">${op.sourceAggregate}</span>
-                    <i class="fas fa-arrow-right mx-2"></i>
-                    <span class="badge bg-${op.targetType === 'ondemand' ? 'primary' : 'warning'}">${op.targetAggregate}</span>
-                </span>
+                <div class="operation-header">
+                    <strong>${op.hostname}</strong>
+                    <span class="operation-flow">
+                        <span class="badge bg-${op.sourceType === 'ondemand' ? 'primary' : 'warning'}">${op.sourceAggregate}</span>
+                        <i class="fas fa-arrow-right mx-2"></i>
+                        <span class="badge bg-${op.targetType === 'ondemand' ? 'primary' : 'warning'}">${op.targetAggregate}</span>
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="toggleCommands(${index})" title="Show/hide commands">
+                        <i class="fas fa-code"></i>
+                    </button>
+                </div>
+                <div class="operation-commands" id="commands-${index}" style="display: none;">
+                    <div class="command-list">
+                        ${commands.map((cmd, cmdIndex) => `
+                            <div class="command-item">
+                                <span class="command-number">${cmdIndex + 1}.</span>
+                                <code class="command-text">${cmd}</code>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
             </div>
             <button class="btn btn-sm btn-outline-danger" onclick="removePendingOperation(${index})">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-    `).join('');
+        `;
+    }).join('');
     
     list.innerHTML = operationsHtml;
+}
+
+function toggleCommands(index) {
+    const commandsDiv = document.getElementById(`commands-${index}`);
+    const toggleBtn = commandsDiv.parentElement.querySelector('button[onclick*="toggleCommands"]');
+    const icon = toggleBtn.querySelector('i');
+    
+    if (commandsDiv.style.display === 'none') {
+        commandsDiv.style.display = 'block';
+        icon.className = 'fas fa-code-branch';
+        toggleBtn.title = 'Hide commands';
+    } else {
+        commandsDiv.style.display = 'none';
+        icon.className = 'fas fa-code';
+        toggleBtn.title = 'Show commands';
+    }
 }
 
 function updateCardPendingIndicators() {

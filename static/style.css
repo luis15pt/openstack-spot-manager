@@ -699,6 +699,52 @@ body {
     animation: pulse 0.5s ease-in-out;
 }
 
+/* Command display styling */
+.operation-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 10px;
+}
+
+.operation-commands {
+    margin-top: 10px;
+    padding: 8px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border-left: 3px solid #007bff;
+}
+
+.command-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.command-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+}
+
+.command-number {
+    color: #6c757d;
+    font-weight: bold;
+    min-width: 20px;
+}
+
+.command-text {
+    background-color: #e9ecef;
+    padding: 2px 6px;
+    border-radius: 3px;
+    word-break: break-all;
+    flex: 1;
+    color: #333;
+}
+
 /* Responsive adjustments for pending operations */
 @media (max-width: 768px) {
     .operation-details {
@@ -713,5 +759,15 @@ body {
     
     .operation-flow .fas {
         transform: rotate(90deg);
+    }
+    
+    .operation-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .command-text {
+        font-size: 0.75em;
     }
 }

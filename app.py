@@ -108,7 +108,17 @@ def get_aggregate_hosts(aggregate_name):
     result = run_openstack_command(command, log_execution=False)  # Don't log routine queries
     
     if result['success']:
-        hosts = [host.strip() for host in result['stdout'].split('\n') if host.strip()]
+        stdout = result['stdout'].strip()
+        if not stdout:
+            return []
+        
+        # OpenStack CLI outputs hosts as comma-separated values, not newline-separated
+        # Handle both formats for compatibility
+        if ',' in stdout:
+            hosts = [host.strip() for host in stdout.split(',') if host.strip()]
+        else:
+            hosts = [host.strip() for host in stdout.split('\n') if host.strip()]
+        
         return hosts
     return []
 
