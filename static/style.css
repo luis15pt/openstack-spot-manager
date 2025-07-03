@@ -63,6 +63,12 @@ body {
     background: #f8f9fa;
     border-bottom: 1px solid #e9ecef;
     border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.host-group-header:hover {
+    background: #e9ecef;
 }
 
 .host-group-header h6 {
@@ -80,6 +86,94 @@ body {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 15px;
     padding: 15px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.host-group-content.collapsed {
+    max-height: 0;
+    padding: 0 15px;
+    opacity: 0;
+}
+
+.toggle-icon {
+    margin-left: auto;
+    transition: transform 0.2s ease;
+    color: #6c757d;
+    font-size: 0.8rem;
+}
+
+.clickable {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Host sub-group styling */
+.host-subgroup {
+    margin-bottom: 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: white;
+}
+
+.host-subgroup.priority-high {
+    border-color: #0dcaf0;
+    background: #f8feff;
+}
+
+.host-subgroup.priority-medium {
+    border-color: #ffc107;
+    background: #fffef8;
+}
+
+.host-subgroup.priority-low {
+    border-color: #6c757d;
+    background: #f8f9fa;
+}
+
+.host-subgroup-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.host-subgroup-header:hover {
+    background: #e9ecef;
+}
+
+.host-subgroup.priority-high .host-subgroup-header {
+    background: #e7f9ff;
+}
+
+.host-subgroup.priority-medium .host-subgroup-header {
+    background: #fff9e6;
+}
+
+.subgroup-title {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.9rem;
+}
+
+.host-subgroup-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    padding: 12px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.host-subgroup-content.collapsed {
+    max-height: 0;
+    padding: 0 12px;
+    opacity: 0;
 }
 
 /* Individual machine cards */
@@ -361,6 +455,20 @@ body {
     
     .host-group-header h6 {
         font-size: 0.9rem;
+    }
+    
+    .host-subgroup-content {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 8px;
+        padding: 8px;
+    }
+    
+    .host-subgroup-header {
+        padding: 6px 10px;
+    }
+    
+    .subgroup-title {
+        font-size: 0.8rem;
     }
     
     .machine-card {

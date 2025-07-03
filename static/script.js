@@ -108,32 +108,72 @@ function renderHosts(containerId, hosts, type) {
     // Available hosts section (shown first - most likely to be moved)
     if (availableHosts.length > 0) {
         const availableCards = availableHosts.map(host => createHostCard(host, type)).join('');
+        const availableId = `available-${type}`;
         sectionsHtml += `
             <div class="host-group">
-                <div class="host-group-header">
+                <div class="host-group-header clickable" onclick="toggleGroup('${availableId}')">
                     <i class="fas fa-circle-check text-success"></i>
                     <h6 class="mb-0">Available (${availableHosts.length})</h6>
                     <small class="text-muted">No VMs - Ready to move</small>
+                    <i class="fas fa-chevron-down toggle-icon" id="${availableId}-icon"></i>
                 </div>
-                <div class="host-group-content">
+                <div class="host-group-content" id="${availableId}">
                     ${availableCards}
                 </div>
             </div>
         `;
     }
     
-    // In-use hosts section
+    // In-use hosts section with sub-grouping by VM count
     if (inUseHosts.length > 0) {
-        const inUseCards = inUseHosts.map(host => createHostCard(host, type)).join('');
+        // Group hosts by VM count
+        const hostsByVmCount = {};
+        inUseHosts.forEach(host => {
+            const vmCount = host.vm_count;
+            if (!hostsByVmCount[vmCount]) {
+                hostsByVmCount[vmCount] = [];
+            }
+            hostsByVmCount[vmCount].push(host);
+        });
+        
+        // Sort by VM count (1 VM first, then 2, 3, etc.)
+        const sortedVmCounts = Object.keys(hostsByVmCount).sort((a, b) => parseInt(a) - parseInt(b));
+        
+        const inUseId = `inuse-${type}`;
+        let inUseSubGroups = '';
+        
+        sortedVmCounts.forEach(vmCount => {
+            const hosts = hostsByVmCount[vmCount];
+            const hostCards = hosts.map(host => createHostCard(host, type)).join('');
+            const subGroupId = `inuse-${vmCount}vm-${type}`;
+            const vmLabel = vmCount === '1' ? '1 VM' : `${vmCount} VMs`;
+            const priorityClass = vmCount === '1' ? 'priority-high' : vmCount <= '3' ? 'priority-medium' : 'priority-low';
+            
+            inUseSubGroups += `
+                <div class="host-subgroup ${priorityClass}">
+                    <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
+                        <i class="fas fa-server text-muted"></i>
+                        <span class="subgroup-title">${vmLabel} (${hosts.length} host${hosts.length !== 1 ? 's' : ''})</span>
+                        ${vmCount === '1' ? '<span class="badge bg-info ms-2">Easier to migrate</span>' : ''}
+                        <i class="fas fa-chevron-down toggle-icon" id="${subGroupId}-icon"></i>
+                    </div>
+                    <div class="host-subgroup-content" id="${subGroupId}">
+                        ${hostCards}
+                    </div>
+                </div>
+            `;
+        });
+        
         sectionsHtml += `
             <div class="host-group">
-                <div class="host-group-header">
+                <div class="host-group-header clickable" onclick="toggleGroup('${inUseId}')">
                     <i class="fas fa-circle-exclamation text-warning"></i>
                     <h6 class="mb-0">In Use (${inUseHosts.length})</h6>
-                    <small class="text-muted">Has running VMs</small>
+                    <small class="text-muted">Has running VMs - Click to expand</small>
+                    <i class="fas fa-chevron-right toggle-icon" id="${inUseId}-icon"></i>
                 </div>
-                <div class="host-group-content">
-                    ${inUseCards}
+                <div class="host-group-content collapsed" id="${inUseId}">
+                    ${inUseSubGroups}
                 </div>
             </div>
         `;
@@ -144,6 +184,21 @@ function renderHosts(containerId, hosts, type) {
             ${sectionsHtml}
         </div>
     `;
+}
+
+function toggleGroup(groupId) {
+    const content = document.getElementById(groupId);
+    const icon = document.getElementById(`${groupId}-icon`);
+    
+    if (content.classList.contains('collapsed')) {
+        content.classList.remove('collapsed');
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-down');
+    } else {
+        content.classList.add('collapsed');
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-right');
+    }
 }
 
 function createHostCard(host, type) {
