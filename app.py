@@ -176,10 +176,46 @@ def get_host_vm_count(hostname):
             print(f"❌ No OpenStack connection available")
             return 0
         
-        servers = list(conn.compute.servers(host=hostname))
-        vm_count = len(servers)
-        print(f"📊 Host {hostname} has {vm_count} VMs")
-        return vm_count
+        # Try different approaches to get servers for a host
+        print(f"🔍 Searching for VMs on host: {hostname}")
+        
+        # Method 1: Filter by host (hypervisor) 
+        try:
+            servers = list(conn.compute.servers(host=hostname))
+            vm_count = len(servers)
+            print(f"📊 Method 1 (host={hostname}): Found {vm_count} VMs")
+            if vm_count > 0:
+                return vm_count
+        except Exception as e:
+            print(f"⚠️ Method 1 failed: {e}")
+        
+        # Method 2: Get all servers and filter by hypervisor_hostname  
+        try:
+            all_servers = list(conn.compute.servers(details=True))
+            filtered_servers = [s for s in all_servers if getattr(s, 'hypervisor_hostname', None) == hostname]
+            vm_count = len(filtered_servers)
+            print(f"📊 Method 2 (hypervisor filter): Found {vm_count} VMs")
+            if vm_count > 0:
+                return vm_count
+        except Exception as e:
+            print(f"⚠️ Method 2 failed: {e}")
+            
+        # Method 3: Get all servers and filter by OS-EXT-SRV-ATTR:host
+        try:
+            all_servers = list(conn.compute.servers(details=True))
+            filtered_servers = []
+            for server in all_servers:
+                server_host = getattr(server, 'host', None) or getattr(server, 'OS-EXT-SRV-ATTR:host', None)
+                if server_host == hostname:
+                    filtered_servers.append(server)
+            vm_count = len(filtered_servers)
+            print(f"📊 Method 3 (host attribute filter): Found {vm_count} VMs")
+            return vm_count
+        except Exception as e:
+            print(f"⚠️ Method 3 failed: {e}")
+            
+        print(f"📊 All methods exhausted. Host {hostname} has 0 VMs")
+        return 0
         
     except Exception as e:
         print(f"❌ Error getting VM count for host {hostname}: {e}")
