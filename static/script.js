@@ -432,29 +432,67 @@ function showVmDetails(hostname) {
         .then(data => {
             const modal = new bootstrap.Modal(document.getElementById('vmDetailsModal'));
             const modalBody = document.getElementById('vmDetailsBody');
+            const modalTitle = document.querySelector('#vmDetailsModal .modal-title');
+            
+            // Update modal title
+            modalTitle.textContent = `VMs on Host: ${hostname}`;
             
             if (data.vms && data.vms.length > 0) {
-                const vmList = data.vms.map(vm => `
-                    <div class="card mb-2">
-                        <div class="card-body">
-                            <h6 class="card-title">${vm.Name}</h6>
-                            <p class="card-text">
-                                <span class="badge bg-${vm.Status === 'ACTIVE' ? 'success' : 'secondary'}">${vm.Status}</span>
-                                <small class="text-muted">ID: ${vm.ID}</small>
-                            </p>
-                        </div>
-                    </div>
-                `).join('');
+                const vmTableRows = data.vms.map(vm => {
+                    const statusClass = getStatusClass(vm.Status);
+                    const statusIcon = getStatusIcon(vm.Status);
+                    const created = formatDate(vm.Created);
+                    
+                    return `
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="fas ${statusIcon} me-2" style="color: ${getStatusColor(vm.Status)}"></i>
+                                    <div>
+                                        <strong>${vm.Name}</strong>
+                                        <br><small class="text-muted">${vm.ID}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-${statusClass}">${vm.Status}</span>
+                            </td>
+                            <td><small>${vm.Flavor}</small></td>
+                            <td><small>${vm.Image}</small></td>
+                            <td><small>${created}</small></td>
+                        </tr>
+                    `;
+                }).join('');
                 
                 modalBody.innerHTML = `
-                    <h6>Host: ${hostname}</h6>
-                    <p>Running VMs (${data.count}):</p>
-                    ${vmList}
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-0">Host: ${hostname}</h6>
+                        <small class="text-muted">${data.count} VM${data.count !== 1 ? 's' : ''} running</small>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>VM Name</th>
+                                    <th>Status</th>
+                                    <th>Flavor</th>
+                                    <th>Image</th>
+                                    <th>Created</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${vmTableRows}
+                            </tbody>
+                        </table>
+                    </div>
                 `;
             } else {
                 modalBody.innerHTML = `
-                    <h6>Host: ${hostname}</h6>
-                    <p>No VMs running on this host.</p>
+                    <div class="text-center py-4">
+                        <i class="fas fa-server text-muted" style="font-size: 2rem;"></i>
+                        <h6 class="mt-2">No VMs Running</h6>
+                        <p class="text-muted">Host ${hostname} has no virtual machines currently running.</p>
+                    </div>
                 `;
             }
             
@@ -463,6 +501,55 @@ function showVmDetails(hostname) {
         .catch(error => {
             showNotification('Error loading VM details: ' + error.message, 'danger');
         });
+}
+
+function getStatusClass(status) {
+    switch (status) {
+        case 'ACTIVE': return 'success';
+        case 'BUILD': return 'warning';
+        case 'ERROR': return 'danger';
+        case 'SHUTOFF': return 'secondary';
+        case 'PAUSED': return 'info';
+        case 'SUSPENDED': return 'dark';
+        default: return 'secondary';
+    }
+}
+
+function getStatusIcon(status) {
+    switch (status) {
+        case 'ACTIVE': return 'fa-play-circle';
+        case 'BUILD': return 'fa-hammer';
+        case 'ERROR': return 'fa-exclamation-circle';
+        case 'SHUTOFF': return 'fa-stop-circle';
+        case 'PAUSED': return 'fa-pause-circle';
+        case 'SUSPENDED': return 'fa-sleep';
+        default: return 'fa-question-circle';
+    }
+}
+
+function getStatusColor(status) {
+    switch (status) {
+        case 'ACTIVE': return '#198754';
+        case 'BUILD': return '#fd7e14';
+        case 'ERROR': return '#dc3545';
+        case 'SHUTOFF': return '#6c757d';
+        case 'PAUSED': return '#0dcaf0';
+        case 'SUSPENDED': return '#212529';
+        default: return '#6c757d';
+    }
+}
+
+function formatDate(dateString) {
+    if (!dateString || dateString === 'N/A') return 'N/A';
+    try {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    } catch (e) {
+        return dateString;
+    }
 }
 
 function refreshData() {

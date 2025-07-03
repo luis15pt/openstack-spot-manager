@@ -242,17 +242,33 @@ def get_host_vms(hostname):
             print(f"❌ No OpenStack connection available")
             return []
         
-        servers = list(conn.compute.servers(host=hostname))
-        vm_list = []
-        for server in servers:
-            vm_list.append({
-                'Name': server.name,
-                'Status': server.status,
-                'ID': server.id
-            })
+        print(f"🔍 Getting VM details for host: {hostname}")
         
-        print(f"📋 Found {len(vm_list)} VMs on host {hostname}")
-        return vm_list
+        # Use same method as get_host_vm_count that works
+        try:
+            servers = list(conn.compute.servers(host=hostname, all_projects=True))
+            vm_list = []
+            for server in servers:
+                # Get additional server details
+                vm_info = {
+                    'Name': server.name,
+                    'Status': server.status,
+                    'ID': server.id,
+                    'Created': getattr(server, 'created', 'N/A'),
+                    'Updated': getattr(server, 'updated', 'N/A'),
+                    'Flavor': getattr(server, 'flavor', {}).get('original_name', 'N/A') if hasattr(getattr(server, 'flavor', {}), 'get') else 'N/A',
+                    'Image': getattr(server, 'image', {}).get('name', 'N/A') if hasattr(getattr(server, 'image', {}), 'get') else 'N/A',
+                    'Project': getattr(server, 'project_id', 'N/A'),
+                    'User': getattr(server, 'user_id', 'N/A')
+                }
+                vm_list.append(vm_info)
+            
+            print(f"📋 Found {len(vm_list)} VMs on host {hostname}")
+            return vm_list
+            
+        except Exception as e:
+            print(f"❌ Error getting VMs for host {hostname}: {e}")
+            return []
         
     except Exception as e:
         print(f"❌ Error getting VMs for host {hostname}: {e}")
