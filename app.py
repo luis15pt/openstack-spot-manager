@@ -5,11 +5,43 @@ import subprocess
 import json
 import re
 from datetime import datetime
+import openstack
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 
 # Global command log storage
 command_log = []
+
+# OpenStack connection - initialized lazily
+_openstack_connection = None
+
+def get_openstack_connection():
+    """Get or create OpenStack connection"""
+    global _openstack_connection
+    if _openstack_connection is None:
+        try:
+            _openstack_connection = openstack.connect(
+                auth_url=os.getenv('OS_AUTH_URL'),
+                username=os.getenv('OS_USERNAME'),
+                password=os.getenv('OS_PASSWORD'),
+                project_name=os.getenv('OS_PROJECT_NAME'),
+                user_domain_name=os.getenv('OS_USER_DOMAIN_NAME', 'Default'),
+                project_domain_name=os.getenv('OS_PROJECT_DOMAIN_NAME', 'Default'),
+                region_name=os.getenv('OS_REGION_NAME', 'RegionOne'),
+                interface=os.getenv('OS_INTERFACE', 'public'),
+                identity_api_version=os.getenv('OS_IDENTITY_API_VERSION', '3')
+            )
+            print("✅ OpenStack SDK connection established")
+        except Exception as e:
+            print(f"❌ Failed to connect to OpenStack: {e}")
+            _openstack_connection = None
+    
+    return _openstack_connection
 
 # Define aggregate pairs
 AGGREGATE_PAIRS = {
@@ -103,46 +135,66 @@ def run_openstack_command(command, log_execution=True):
         return command_result
 
 def get_aggregate_hosts(aggregate_name):
-    """Get hosts in an aggregate"""
-    command = f"openstack aggregate show {aggregate_name} -c hosts -f value"
-    result = run_openstack_command(command, log_execution=False)  # Don't log routine queries
-    
-    if result['success']:
-        stdout = result['stdout'].strip()
-        if not stdout:
+    """Get hosts in an aggregate using OpenStack SDK"""
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            print(f"❌ No OpenStack connection available")
             return []
         
-        # OpenStack CLI outputs hosts as comma-separated values, not newline-separated
-        # Handle both formats for compatibility
-        if ',' in stdout:
-            hosts = [host.strip() for host in stdout.split(',') if host.strip()]
+        aggregate = conn.compute.find_aggregate(aggregate_name)
+        if aggregate:
+            hosts = aggregate.hosts or []
+            print(f"📋 Found {len(hosts)} hosts in aggregate {aggregate_name}: {hosts}")
+            return hosts
         else:
-            hosts = [host.strip() for host in stdout.split('\n') if host.strip()]
-        
-        return hosts
-    return []
+            print(f"⚠️ Aggregate {aggregate_name} not found")
+            return []
+            
+    except Exception as e:
+        print(f"❌ Error getting hosts for aggregate {aggregate_name}: {e}")
+        return []
 
 def get_host_vm_count(hostname):
-    """Get VM count for a specific host"""
-    command = f"openstack server list --host {hostname} -f value -c ID"
-    result = run_openstack_command(command, log_execution=False)  # Don't log routine queries
-    
-    if result['success']:
-        vm_ids = [vm.strip() for vm in result['stdout'].split('\n') if vm.strip()]
-        return len(vm_ids)
-    return 0
+    """Get VM count for a specific host using OpenStack SDK"""
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            print(f"❌ No OpenStack connection available")
+            return 0
+        
+        servers = list(conn.compute.servers(host=hostname))
+        vm_count = len(servers)
+        print(f"📊 Host {hostname} has {vm_count} VMs")
+        return vm_count
+        
+    except Exception as e:
+        print(f"❌ Error getting VM count for host {hostname}: {e}")
+        return 0
 
 def get_host_vms(hostname):
-    """Get VMs running on a specific host"""
-    command = f"openstack server list --host {hostname} -f json -c Name -c Status -c ID"
-    result = run_openstack_command(command, log_execution=False)  # Don't log routine queries
-    
-    if result['success']:
-        try:
-            return json.loads(result['stdout'])
-        except json.JSONDecodeError:
+    """Get VMs running on a specific host using OpenStack SDK"""
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            print(f"❌ No OpenStack connection available")
             return []
-    return []
+        
+        servers = list(conn.compute.servers(host=hostname))
+        vm_list = []
+        for server in servers:
+            vm_list.append({
+                'Name': server.name,
+                'Status': server.status,
+                'ID': server.id
+            })
+        
+        print(f"📋 Found {len(vm_list)} VMs on host {hostname}")
+        return vm_list
+        
+    except Exception as e:
+        print(f"❌ Error getting VMs for host {hostname}: {e}")
+        return []
 
 @app.route('/')
 def index():
@@ -233,7 +285,7 @@ def preview_migration():
 
 @app.route('/api/execute-migration', methods=['POST'])
 def execute_migration():
-    """Execute the migration commands"""
+    """Execute the migration commands using OpenStack SDK"""
     data = request.json
     host = data.get('host')
     source_aggregate = data.get('source_aggregate')
@@ -253,43 +305,111 @@ def execute_migration():
                 'vm_count': vm_count
             }), 400
     
-    results = []
-    
-    # Remove from source aggregate
-    remove_command = f"openstack aggregate remove host {source_aggregate} {host}"
-    remove_result = run_openstack_command(remove_command)
-    results.append({
-        'command': remove_command,
-        'success': remove_result['success'],
-        'output': remove_result['stdout'] or remove_result['stderr']
-    })
-    
-    if not remove_result['success']:
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'error': 'No OpenStack connection available'}), 500
+        
+        results = []
+        
+        # Remove from source aggregate
+        remove_command = f"openstack aggregate remove host {source_aggregate} {host}"
+        try:
+            source_agg = conn.compute.find_aggregate(source_aggregate)
+            if not source_agg:
+                return jsonify({'error': f'Source aggregate {source_aggregate} not found'}), 404
+            
+            conn.compute.remove_host_from_aggregate(source_agg, host)
+            
+            results.append({
+                'command': remove_command,
+                'success': True,
+                'output': f'Successfully removed {host} from {source_aggregate}'
+            })
+            
+            # Log the successful command
+            log_command(remove_command, {
+                'success': True,
+                'stdout': f'Successfully removed {host} from {source_aggregate}',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+        except Exception as e:
+            error_msg = f'Failed to remove {host} from {source_aggregate}: {str(e)}'
+            results.append({
+                'command': remove_command,
+                'success': False,
+                'output': error_msg
+            })
+            
+            # Log the failed command
+            log_command(remove_command, {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': 1
+            }, 'error')
+            
+            return jsonify({
+                'error': 'Failed to remove host from source aggregate',
+                'results': results
+            }), 500
+        
+        # Add to target aggregate
+        add_command = f"openstack aggregate add host {target_aggregate} {host}"
+        try:
+            target_agg = conn.compute.find_aggregate(target_aggregate)
+            if not target_agg:
+                return jsonify({'error': f'Target aggregate {target_aggregate} not found'}), 404
+            
+            conn.compute.add_host_to_aggregate(target_agg, host)
+            
+            results.append({
+                'command': add_command,
+                'success': True,
+                'output': f'Successfully added {host} to {target_aggregate}'
+            })
+            
+            # Log the successful command
+            log_command(add_command, {
+                'success': True,
+                'stdout': f'Successfully added {host} to {target_aggregate}',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+        except Exception as e:
+            error_msg = f'Failed to add {host} to {target_aggregate}: {str(e)}'
+            results.append({
+                'command': add_command,
+                'success': False,
+                'output': error_msg
+            })
+            
+            # Log the failed command
+            log_command(add_command, {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': 1
+            }, 'error')
+            
+            return jsonify({
+                'error': 'Failed to add host to target aggregate',
+                'results': results
+            }), 500
+        
         return jsonify({
-            'error': 'Failed to remove host from source aggregate',
-            'results': results
-        }), 500
-    
-    # Add to target aggregate
-    add_command = f"openstack aggregate add host {target_aggregate} {host}"
-    add_result = run_openstack_command(add_command)
-    results.append({
-        'command': add_command,
-        'success': add_result['success'],
-        'output': add_result['stdout'] or add_result['stderr']
-    })
-    
-    if not add_result['success']:
-        return jsonify({
-            'error': 'Failed to add host to target aggregate',
-            'results': results
-        }), 500
-    
-    return jsonify({
-        'success': True,
-        'results': results,
-        'message': f'Successfully migrated {host} from {source_aggregate} to {target_aggregate}'
-    })
+            'success': True,
+            'results': results,
+            'message': f'Successfully migrated {host} from {source_aggregate} to {target_aggregate}'
+        })
+        
+    except Exception as e:
+        error_msg = f'Migration failed: {str(e)}'
+        print(f"❌ {error_msg}")
+        return jsonify({'error': error_msg}), 500
 
 @app.route('/api/command-log')
 def get_command_log():
@@ -311,7 +431,7 @@ if __name__ == '__main__':
     print("🚀 OpenStack Spot Manager Starting...")
     print("=" * 60)
     print("📊 Debug mode: ENABLED")
-    print("🌐 Server: http://0.0.0.0:5000")
+    print("🌐 Server: http://0.0.0.0:6969")
     print("🔍 Command logging: ENABLED")
     print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=6969)

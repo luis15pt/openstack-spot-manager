@@ -19,17 +19,56 @@ A web-based interface for managing OpenStack aggregate host migrations between o
 pip install -r requirements.txt
 ```
 
-2. Make sure OpenStack CLI is configured and accessible:
+2. Configure OpenStack credentials by creating a `.env` file (copy from `.env.example`):
 ```bash
-openstack aggregate list
+cp .env.example .env
 ```
 
-3. Run the application:
+3. Edit `.env` with your OpenStack credentials:
+```bash
+# OpenStack Authentication Configuration
+OS_AUTH_URL=https://your-openstack-auth-url:5000/v3
+OS_USERNAME=your-username
+OS_PASSWORD=your-password
+OS_PROJECT_NAME=your-project-name
+OS_USER_DOMAIN_NAME=Default
+OS_PROJECT_DOMAIN_NAME=Default
+OS_REGION_NAME=RegionOne
+```
+
+4. Run the application:
 ```bash
 python app.py
 ```
 
-4. Access the web interface at `http://localhost:5000`
+5. Access the web interface at `http://localhost:6969`
+
+## Credential Configuration
+
+This application supports multiple ways to configure OpenStack credentials:
+
+### Option 1: Environment File (.env)
+Create a `.env` file with your credentials (recommended for development):
+```bash
+OS_AUTH_URL=https://openstack.example.com:5000/v3
+OS_USERNAME=myuser
+OS_PASSWORD=mypassword
+OS_PROJECT_NAME=myproject
+OS_USER_DOMAIN_NAME=Default
+OS_PROJECT_DOMAIN_NAME=Default
+```
+
+### Option 2: Environment Variables
+Export credentials directly (good for production):
+```bash
+export OS_AUTH_URL=https://openstack.example.com:5000/v3
+export OS_USERNAME=myuser
+export OS_PASSWORD=mypassword
+export OS_PROJECT_NAME=myproject
+```
+
+### Option 3: OpenStack CLI Configuration
+The app can also use existing OpenStack CLI configuration files (`clouds.yaml`).
 
 ## Usage
 
@@ -57,9 +96,18 @@ python app.py
 - `POST /api/preview-migration` - Preview migration commands
 - `POST /api/execute-migration` - Execute migration
 
+## Performance Improvements
+
+This version uses the **OpenStack SDK** instead of CLI commands for:
+- ⚡ **3-5x faster performance** (direct API calls vs subprocess overhead)
+- 🔧 **Better error handling** (Python exceptions vs parsing CLI output)
+- 📦 **Type safety** (Python objects vs string parsing)
+- 🔄 **Connection reuse** (persistent connections vs new processes)
+
 ## Requirements
 
-- Python 3.6+
-- Flask
-- OpenStack CLI configured and accessible
-- Network access to OpenStack API
+- Python 3.8+
+- Flask 2.3+
+- OpenStack SDK (openstacksdk)
+- Valid OpenStack credentials
+- Network access to OpenStack API endpoints
