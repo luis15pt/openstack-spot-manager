@@ -43,6 +43,18 @@ def get_openstack_connection():
     
     return _openstack_connection
 
+def find_aggregate_by_name(conn, aggregate_name):
+    """Helper function to find aggregate by name"""
+    try:
+        aggregates = list(conn.compute.aggregates())
+        for agg in aggregates:
+            if agg.name == aggregate_name:
+                return agg
+        return None
+    except Exception as e:
+        print(f"❌ Error finding aggregate {aggregate_name}: {e}")
+        return None
+
 # Define aggregate pairs
 AGGREGATE_PAIRS = {
     'L40': {'ondemand': 'L40-n3', 'spot': 'L40-n3-spot'},
@@ -142,7 +154,8 @@ def get_aggregate_hosts(aggregate_name):
             print(f"❌ No OpenStack connection available")
             return []
         
-        aggregate = conn.compute.find_aggregate(aggregate_name)
+        aggregate = find_aggregate_by_name(conn, aggregate_name)
+        
         if aggregate:
             hosts = aggregate.hosts or []
             print(f"📋 Found {len(hosts)} hosts in aggregate {aggregate_name}: {hosts}")
@@ -315,7 +328,7 @@ def execute_migration():
         # Remove from source aggregate
         remove_command = f"openstack aggregate remove host {source_aggregate} {host}"
         try:
-            source_agg = conn.compute.find_aggregate(source_aggregate)
+            source_agg = find_aggregate_by_name(conn, source_aggregate)
             if not source_agg:
                 return jsonify({'error': f'Source aggregate {source_aggregate} not found'}), 404
             
@@ -359,7 +372,7 @@ def execute_migration():
         # Add to target aggregate
         add_command = f"openstack aggregate add host {target_aggregate} {host}"
         try:
-            target_agg = conn.compute.find_aggregate(target_aggregate)
+            target_agg = find_aggregate_by_name(conn, target_aggregate)
             if not target_agg:
                 return jsonify({'error': f'Target aggregate {target_aggregate} not found'}), 404
             
