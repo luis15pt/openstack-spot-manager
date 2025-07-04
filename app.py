@@ -55,12 +55,34 @@ def find_aggregate_by_name(conn, aggregate_name):
         print(f"❌ Error finding aggregate {aggregate_name}: {e}")
         return None
 
-# Define aggregate pairs
+# Define aggregate pairs - multiple on-demand variants share one spot aggregate
 AGGREGATE_PAIRS = {
-    'L40': {'ondemand': 'L40-n3', 'spot': 'L40-n3-spot'},
-    'RTX-A6000': {'ondemand': 'RTX-A6000-n3', 'spot': 'RTX-A6000-n3-spot'},
-    'A100': {'ondemand': 'A100-n3', 'spot': 'A100-n3-spot'},
-    'H100': {'ondemand': 'H100-n3', 'spot': 'H100-n3-spot'}
+    'L40': {
+        'spot': 'L40-n3-spot',
+        'ondemand_variants': [
+            {'aggregate': 'L40-n3', 'variant': 'L40-n3'}
+        ]
+    },
+    'RTX-A6000': {
+        'spot': 'RTX-A6000-n3-spot', 
+        'ondemand_variants': [
+            {'aggregate': 'RTX-A6000-n3', 'variant': 'RTX-A6000-n3'}
+        ]
+    },
+    'A100': {
+        'spot': 'A100-n3-spot',
+        'ondemand_variants': [
+            {'aggregate': 'A100-n3', 'variant': 'A100-n3'},
+            {'aggregate': 'A100-n3-NVLink', 'variant': 'A100-n3-NVLink'}
+        ]
+    },
+    'H100': {
+        'spot': 'H100-n3-spot',
+        'ondemand_variants': [
+            {'aggregate': 'H100-n3', 'variant': 'H100-n3'},
+            {'aggregate': 'H100-n3-NVLink', 'variant': 'H100-n3-NVLink'}
+        ]
+    }
 }
 
 def log_command(command, result, execution_type='executed'):
@@ -237,24 +259,14 @@ def index():
 
 @app.route('/api/aggregates/<gpu_type>')
 def get_aggregate_data(gpu_type):
-    """Get aggregate data for a specific GPU type"""
+    """Get aggregate data for a specific GPU type with multiple on-demand variants and one spot"""
     if gpu_type not in AGGREGATE_PAIRS:
         return jsonify({'error': 'Invalid GPU type'}), 400
     
-    pair = AGGREGATE_PAIRS[gpu_type]
-    ondemand_hosts = get_aggregate_hosts(pair['ondemand'])
-    spot_hosts = get_aggregate_hosts(pair['spot'])
+    config = AGGREGATE_PAIRS[gpu_type]
     
-    # Get VM counts for each host
-    ondemand_data = []
-    for host in ondemand_hosts:
-        vm_count = get_host_vm_count(host)
-        ondemand_data.append({
-            'name': host,
-            'vm_count': vm_count,
-            'has_vms': vm_count > 0
-        })
-    
+    # Get spot hosts (shared across all variants)
+    spot_hosts = get_aggregate_hosts(config['spot'])
     spot_data = []
     for host in spot_hosts:
         vm_count = get_host_vm_count(host)
@@ -264,15 +276,32 @@ def get_aggregate_data(gpu_type):
             'has_vms': vm_count > 0
         })
     
-    return jsonify({
-        'ondemand': {
-            'name': pair['ondemand'],
+    # Get on-demand variants
+    ondemand_variants = []
+    for variant_config in config['ondemand_variants']:
+        ondemand_hosts = get_aggregate_hosts(variant_config['aggregate'])
+        ondemand_data = []
+        for host in ondemand_hosts:
+            vm_count = get_host_vm_count(host)
+            ondemand_data.append({
+                'name': host,
+                'vm_count': vm_count,
+                'has_vms': vm_count > 0
+            })
+        
+        ondemand_variants.append({
+            'variant': variant_config['variant'],
+            'aggregate': variant_config['aggregate'],
             'hosts': ondemand_data
-        },
+        })
+    
+    return jsonify({
+        'gpu_type': gpu_type,
         'spot': {
-            'name': pair['spot'],
+            'name': config['spot'],
             'hosts': spot_data
-        }
+        },
+        'ondemand_variants': ondemand_variants
     })
 
 @app.route('/api/host-vms/<hostname>')

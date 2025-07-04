@@ -82,12 +82,30 @@ body {
 }
 
 .host-group-content {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 15px;
     padding: 15px;
     transition: all 0.3s ease;
     overflow: hidden;
+}
+
+.host-group-content:not(.collapsed) {
+    display: flex;
+}
+
+/* When host-group-content contains host cards directly (Available section) */
+.host-group-content:not(:has(.host-subgroup)) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+/* Container for vertical sub-groups layout */
+.subgroups-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
 }
 
 .host-group-content.collapsed {
@@ -110,7 +128,6 @@ body {
 
 /* Host sub-group styling */
 .host-subgroup {
-    margin-bottom: 15px;
     border: 1px solid #dee2e6;
     border-radius: 6px;
     background: white;
@@ -162,8 +179,9 @@ body {
 }
 
 .host-subgroup-content {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 12px;
     padding: 12px;
     transition: all 0.3s ease;
@@ -458,7 +476,7 @@ body {
     }
     
     .host-subgroup-content {
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        flex-direction: column;
         gap: 8px;
         padding: 8px;
     }
@@ -927,4 +945,32 @@ body {
     .command-text {
         font-size: 0.75em;
     }
+}
+
+/* Variant Section Styles */
+.variant-section {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: white;
+    margin-bottom: 15px;
+}
+
+.variant-header {
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    border-radius: 8px 8px 0 0;
+}
+
+.variant-header h6 {
+    margin: 0;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.variant-hosts {
+    padding: 15px;
+    min-height: 100px;
 }

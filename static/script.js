@@ -69,21 +69,72 @@ function loadAggregateData(gpuType) {
 }
 
 function renderAggregateData(data) {
-    // Update headers
-    document.getElementById('ondemandName').textContent = data.ondemand.name;
-    document.getElementById('spotName').textContent = data.spot.name;
-    document.getElementById('ondemandCount').textContent = data.ondemand.hosts.length;
-    document.getElementById('spotCount').textContent = data.spot.hosts.length;
+    // Clear existing content
+    document.getElementById('ondemandHosts').innerHTML = '';
+    document.getElementById('spotHosts').innerHTML = '';
     
-    // Render hosts
-    renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand');
-    renderHosts('spotHosts', data.spot.hosts, 'spot');
+    if (data.ondemand_variants && data.ondemand_variants.length > 0) {
+        // Render multiple on-demand variants with single spot
+        renderMultipleOndemandVariants(data.ondemand_variants, data.spot);
+    } else {
+        // Fallback for old single-variant data structure
+        document.getElementById('ondemandName').textContent = data.ondemand.name;
+        document.getElementById('spotName').textContent = data.spot.name;
+        document.getElementById('ondemandCount').textContent = data.ondemand.hosts.length;
+        document.getElementById('spotCount').textContent = data.spot.hosts.length;
+        
+        renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand');
+        renderHosts('spotHosts', data.spot.hosts, 'spot');
+    }
     
     // Setup drag and drop
     setupDragAndDrop();
 }
 
-function renderHosts(containerId, hosts, type) {
+function renderMultipleOndemandVariants(ondemandVariants, spotData) {
+    const ondemandContainer = document.getElementById('ondemandHosts');
+    const spotContainer = document.getElementById('spotHosts');
+    
+    // Update header to show total counts
+    const totalOndemandHosts = ondemandVariants.reduce((sum, variant) => sum + variant.hosts.length, 0);
+    
+    document.getElementById('ondemandName').textContent = `(${ondemandVariants.length} variants)`;
+    document.getElementById('spotName').textContent = spotData.name;
+    document.getElementById('ondemandCount').textContent = totalOndemandHosts;
+    document.getElementById('spotCount').textContent = spotData.hosts.length;
+    
+    // Create sections for each on-demand variant
+    let ondemandVariantsHtml = '';
+    
+    ondemandVariants.forEach((variant, index) => {
+        ondemandVariantsHtml += `
+            <div class="variant-section mb-3">
+                <div class="variant-header">
+                    <h6 class="mb-2 text-primary">
+                        <i class="fas fa-server"></i> 
+                        On-Demand ${variant.variant}
+                        <span class="badge bg-primary ms-2">${variant.hosts.length}</span>
+                    </h6>
+                </div>
+                <div class="variant-hosts" id="ondemand-variant-${index}">
+                    <!-- Hosts will be rendered here -->
+                </div>
+            </div>
+        `;
+    });
+    
+    ondemandContainer.innerHTML = ondemandVariantsHtml;
+    
+    // Render the single spot section
+    renderHosts('spotHosts', spotData.hosts, 'spot', spotData.name);
+    
+    // Render the actual hosts for each on-demand variant
+    ondemandVariants.forEach((variant, index) => {
+        renderHosts(`ondemand-variant-${index}`, variant.hosts, 'ondemand', variant.aggregate);
+    });
+}
+
+function renderHosts(containerId, hosts, type, aggregateName = null) {
     const container = document.getElementById(containerId);
     
     if (hosts.length === 0) {
@@ -107,7 +158,7 @@ function renderHosts(containerId, hosts, type) {
     
     // Available hosts section (shown first - most likely to be moved)
     if (availableHosts.length > 0) {
-        const availableCards = availableHosts.map(host => createHostCard(host, type)).join('');
+        const availableCards = availableHosts.map(host => createHostCard(host, type, aggregateName)).join('');
         const availableId = `available-${type}`;
         sectionsHtml += `
             <div class="host-group">
@@ -144,7 +195,7 @@ function renderHosts(containerId, hosts, type) {
         
         sortedVmCounts.forEach(vmCount => {
             const hosts = hostsByVmCount[vmCount];
-            const hostCards = hosts.map(host => createHostCard(host, type)).join('');
+            const hostCards = hosts.map(host => createHostCard(host, type, aggregateName)).join('');
             const subGroupId = `inuse-${vmCount}vm-${type}`;
             const vmLabel = vmCount === '1' ? '1 VM' : `${vmCount} VMs`;
             const priorityClass = vmCount === '1' ? 'priority-high' : vmCount <= '3' ? 'priority-medium' : 'priority-low';
@@ -173,7 +224,9 @@ function renderHosts(containerId, hosts, type) {
                     <i class="fas fa-chevron-right toggle-icon" id="${inUseId}-icon"></i>
                 </div>
                 <div class="host-group-content collapsed" id="${inUseId}">
-                    ${inUseSubGroups}
+                    <div class="subgroups-container">
+                        ${inUseSubGroups}
+                    </div>
                 </div>
             </div>
         `;
@@ -201,7 +254,7 @@ function toggleGroup(groupId) {
     }
 }
 
-function createHostCard(host, type) {
+function createHostCard(host, type, aggregateName = null) {
     const hasVms = host.has_vms;
     const vmBadgeClass = hasVms ? 'vm-badge active' : 'vm-badge zero';
     const warningIcon = hasVms ? '<i class="fas fa-exclamation-triangle warning-icon"></i>' : '';
@@ -212,6 +265,7 @@ function createHostCard(host, type) {
              draggable="true" 
              data-host="${host.name}" 
              data-type="${type}"
+             data-aggregate="${aggregateName || ''}"
              data-has-vms="${hasVms}">
             <div class="machine-card-header">
                 <i class="fas fa-grip-vertical drag-handle"></i>
@@ -341,8 +395,28 @@ function moveSelectedHosts(targetType) {
 }
 
 function previewMigration(hostname, sourceType, targetType) {
-    const sourceAggregate = sourceType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
-    const targetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
+    // Get aggregate names from card data
+    const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
+    const sourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
+    
+    let targetAggregate = '';
+    if (aggregateData.ondemand_variants && aggregateData.spot) {
+        if (targetType === 'spot') {
+            // Moving to spot - always use the single spot aggregate
+            targetAggregate = aggregateData.spot.name;
+        } else {
+            // Moving to on-demand - find the original variant for this host
+            const sourceVariant = aggregateData.ondemand_variants.find(variant => 
+                variant.aggregate === sourceAggregate
+            );
+            if (sourceVariant) {
+                targetAggregate = sourceVariant.aggregate;
+            }
+        }
+    } else {
+        // Fallback for old data structure
+        targetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
+    }
     
     fetch('/api/preview-migration', {
         method: 'POST',
@@ -370,13 +444,42 @@ function previewMigration(hostname, sourceType, targetType) {
 }
 
 function previewMultipleMigration(hostnames, sourceType, targetType) {
-    const sourceAggregate = sourceType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
-    const targetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
-    
     const commands = [];
+    let sourceAggregate = '';
+    let targetAggregate = '';
+    
+    // For multiple hosts, we need to handle each host individually since they might be in different variants
     hostnames.forEach(hostname => {
-        commands.push(`openstack aggregate remove host ${sourceAggregate} ${hostname}`);
-        commands.push(`openstack aggregate add host ${targetAggregate} ${hostname}`);
+        const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
+        const hostSourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
+        
+        let hostTargetAggregate = '';
+        if (aggregateData.ondemand_variants && aggregateData.spot) {
+            if (targetType === 'spot') {
+                // Moving to spot - always use the single spot aggregate
+                hostTargetAggregate = aggregateData.spot.name;
+            } else {
+                // Moving to on-demand - find the original variant for this host
+                const sourceVariant = aggregateData.ondemand_variants.find(variant => 
+                    variant.aggregate === hostSourceAggregate
+                );
+                if (sourceVariant) {
+                    hostTargetAggregate = sourceVariant.aggregate;
+                }
+            }
+        } else {
+            // Fallback for old data structure
+            hostTargetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
+        }
+        
+        commands.push(`openstack aggregate remove host ${hostSourceAggregate} ${hostname}`);
+        commands.push(`openstack aggregate add host ${hostTargetAggregate} ${hostname}`);
+        
+        // Set the aggregate names for the modal (use the first host's aggregates)
+        if (!sourceAggregate) {
+            sourceAggregate = hostSourceAggregate;
+            targetAggregate = hostTargetAggregate;
+        }
     });
     
     const data = {
@@ -959,8 +1062,29 @@ function generateCommandsForOperation(operation) {
 }
 
 function addToPendingOperations(hostname, sourceType, targetType) {
-    const sourceAggregate = sourceType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
-    const targetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
+    // Get the aggregate name from the card data
+    const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
+    const sourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
+    
+    // For target aggregate, determine based on new data structure
+    let targetAggregate = '';
+    if (aggregateData.ondemand_variants && aggregateData.spot) {
+        if (targetType === 'spot') {
+            // Moving to spot - always use the single spot aggregate
+            targetAggregate = aggregateData.spot.name;
+        } else {
+            // Moving to on-demand - find the original variant for this host
+            const sourceVariant = aggregateData.ondemand_variants.find(variant => 
+                variant.aggregate === sourceAggregate
+            );
+            if (sourceVariant) {
+                targetAggregate = sourceVariant.aggregate;
+            }
+        }
+    } else {
+        // Fallback for old data structure
+        targetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
+    }
     
     // Check if operation already exists
     const existingIndex = pendingOperations.findIndex(op => op.hostname === hostname);
