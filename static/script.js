@@ -112,7 +112,7 @@ function renderMultipleOndemandVariants(ondemandVariants, spotData) {
                 <div class="variant-header">
                     <h6 class="mb-2 text-primary">
                         <i class="fas fa-server"></i> 
-                        On-Demand ${variant.variant}
+                        ${variant.variant}
                         <span class="badge bg-primary ms-2">${variant.hosts.length}</span>
                     </h6>
                 </div>
