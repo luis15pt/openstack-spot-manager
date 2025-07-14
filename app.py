@@ -63,37 +63,69 @@ def find_aggregate_by_name(conn, aggregate_name):
         print(f"❌ Error finding aggregate {aggregate_name}: {e}")
         return None
 
-def get_netbox_tenant(hostname):
-    """Get tenant information from NetBox for a given hostname"""
+def get_netbox_tenants_bulk(hostnames):
+    """Get tenant information from NetBox for multiple hostnames at once"""
     global _tenant_cache
-    
-    # Check cache first
-    if hostname in _tenant_cache:
-        return _tenant_cache[hostname]
     
     # Return default if NetBox is not configured
     if not NETBOX_URL or not NETBOX_API_KEY:
         print("⚠️ NetBox not configured - using default tenant")
-        return {'tenant': 'Unknown', 'owner_group': 'Investors'}
+        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors'}
+        return {hostname: default_result for hostname in hostnames}
     
+    # Check cache first and separate cached vs uncached hostnames
+    cached_results = {}
+    uncached_hostnames = []
+    
+    for hostname in hostnames:
+        if hostname in _tenant_cache:
+            cached_results[hostname] = _tenant_cache[hostname]
+        else:
+            uncached_hostnames.append(hostname)
+    
+    # If all hostnames are cached, return cached results
+    if not uncached_hostnames:
+        return cached_results
+    
+    # Bulk query NetBox for uncached hostnames
+    bulk_results = {}
     try:
         url = f"{NETBOX_URL}/api/dcim/devices/"
         headers = {
             'Authorization': f'Token {NETBOX_API_KEY}',
             'Content-Type': 'application/json'
         }
-        params = {'name': hostname}
         
-        response = requests.get(url, headers=headers, params=params, timeout=5)
+        # NetBox API supports filtering by multiple names using name__in
+        # But since that might not work, we'll paginate through all results
+        params = {'limit': 1000}  # Get up to 1000 devices per page
         
-        if response.status_code == 200:
-            data = response.json()
-            if data['results']:
-                device = data['results'][0]
+        all_devices = []
+        page = 1
+        
+        while True:
+            params['offset'] = (page - 1) * 1000
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                all_devices.extend(data['results'])
+                
+                # If we got less than 1000 results, we're done
+                if len(data['results']) < 1000:
+                    break
+                page += 1
+            else:
+                print(f"❌ NetBox API error: {response.status_code}")
+                break
+        
+        # Create a mapping of device name to tenant info
+        device_map = {}
+        for device in all_devices:
+            device_name = device.get('name')
+            if device_name in uncached_hostnames:
                 tenant_data = device.get('tenant', {})
                 tenant_name = tenant_data.get('name', 'Unknown') if tenant_data else 'Unknown'
-                
-                # Determine owner group based on tenant name
                 owner_group = 'Nexgen Cloud' if tenant_name == 'Chris Starkey' else 'Investors'
                 
                 result = {
@@ -101,22 +133,37 @@ def get_netbox_tenant(hostname):
                     'owner_group': owner_group
                 }
                 
-                # Cache the result
-                _tenant_cache[hostname] = result
-                print(f"✅ NetBox lookup for {hostname}: {tenant_name} -> {owner_group}")
-                return result
+                device_map[device_name] = result
+                _tenant_cache[device_name] = result
+        
+        # Fill in results for uncached hostnames
+        for hostname in uncached_hostnames:
+            if hostname in device_map:
+                bulk_results[hostname] = device_map[hostname]
+                print(f"✅ NetBox lookup for {hostname}: {device_map[hostname]['tenant']} -> {device_map[hostname]['owner_group']}")
             else:
+                # Device not found in NetBox, use default
+                default_result = {'tenant': 'Unknown', 'owner_group': 'Investors'}
+                bulk_results[hostname] = default_result
+                _tenant_cache[hostname] = default_result
                 print(f"⚠️ Device {hostname} not found in NetBox")
-        else:
-            print(f"❌ NetBox API error for {hostname}: {response.status_code}")
-            
+        
+        print(f"📊 Bulk NetBox lookup completed: {len(bulk_results)} new devices processed")
+        
     except Exception as e:
-        print(f"❌ NetBox lookup failed for {hostname}: {e}")
+        print(f"❌ NetBox bulk lookup failed: {e}")
+        # Fall back to default for all uncached hostnames
+        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors'}
+        for hostname in uncached_hostnames:
+            bulk_results[hostname] = default_result
+            _tenant_cache[hostname] = default_result
     
-    # Default fallback
-    result = {'tenant': 'Unknown', 'owner_group': 'Investors'}
-    _tenant_cache[hostname] = result
-    return result
+    # Merge cached and bulk results
+    return {**cached_results, **bulk_results}
+
+def get_netbox_tenant(hostname):
+    """Get tenant information from NetBox for a single hostname (wrapper for backward compatibility)"""
+    return get_netbox_tenants_bulk([hostname])[hostname]
 
 # Define aggregate pairs - multiple on-demand variants share one spot aggregate
 AGGREGATE_PAIRS = {
@@ -330,10 +377,25 @@ def get_aggregate_data(gpu_type):
     
     # Get spot hosts (shared across all variants)
     spot_hosts = get_aggregate_hosts(config['spot'])
+    
+    # Collect all hostnames for bulk NetBox lookup
+    all_hostnames = spot_hosts.copy()
+    
+    # Get on-demand hosts for bulk lookup
+    ondemand_hosts_by_variant = {}
+    for variant_config in config['ondemand_variants']:
+        ondemand_hosts = get_aggregate_hosts(variant_config['aggregate'])
+        ondemand_hosts_by_variant[variant_config['variant']] = ondemand_hosts
+        all_hostnames.extend(ondemand_hosts)
+    
+    # Bulk NetBox lookup for all hostnames
+    tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
+    
+    # Process spot hosts
     spot_data = []
     for host in spot_hosts:
         vm_count = get_host_vm_count(host)
-        tenant_info = get_netbox_tenant(host)
+        tenant_info = tenant_info_bulk[host]
         spot_data.append({
             'name': host,
             'vm_count': vm_count,
@@ -342,14 +404,14 @@ def get_aggregate_data(gpu_type):
             'owner_group': tenant_info['owner_group']
         })
     
-    # Get on-demand variants
+    # Process on-demand variants
     ondemand_variants = []
     for variant_config in config['ondemand_variants']:
-        ondemand_hosts = get_aggregate_hosts(variant_config['aggregate'])
+        ondemand_hosts = ondemand_hosts_by_variant[variant_config['variant']]
         ondemand_data = []
         for host in ondemand_hosts:
             vm_count = get_host_vm_count(host)
-            tenant_info = get_netbox_tenant(host)
+            tenant_info = tenant_info_bulk[host]
             ondemand_data.append({
                 'name': host,
                 'vm_count': vm_count,
