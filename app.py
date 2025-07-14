@@ -94,7 +94,7 @@ def get_netbox_tenant(hostname):
                 tenant_name = tenant_data.get('name', 'Unknown') if tenant_data else 'Unknown'
                 
                 # Determine owner group based on tenant name
-                owner_group = 'Chris' if 'Chris' in tenant_name else 'Investors'
+                owner_group = 'Nexgen Cloud' if tenant_name == 'Chris Starkey' else 'Investors'
                 
                 result = {
                     'tenant': tenant_name,

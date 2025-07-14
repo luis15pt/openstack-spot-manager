@@ -159,26 +159,26 @@ function renderHosts(containerId, hosts, type, aggregateName = null) {
     // Available hosts section (shown first - most likely to be moved)
     if (availableHosts.length > 0) {
         // Group available hosts by owner
-        const chrisHosts = availableHosts.filter(host => host.owner_group === 'Chris');
+        const nexgenHosts = availableHosts.filter(host => host.owner_group === 'Nexgen Cloud');
         const investorHosts = availableHosts.filter(host => host.owner_group === 'Investors');
         
         const availableId = `available-${type}`;
         let availableSubGroups = '';
         
-        // Chris's devices sub-group
-        if (chrisHosts.length > 0) {
-            const chrisCards = chrisHosts.map(host => createHostCard(host, type, aggregateName)).join('');
-            const chrisSubGroupId = `available-chris-${type}`;
+        // Nexgen Cloud devices sub-group
+        if (nexgenHosts.length > 0) {
+            const nexgenCards = nexgenHosts.map(host => createHostCard(host, type, aggregateName)).join('');
+            const nexgenSubGroupId = `available-nexgen-${type}`;
             
             availableSubGroups += `
-                <div class="host-subgroup chris-group">
-                    <div class="host-subgroup-header clickable" onclick="toggleGroup('${chrisSubGroupId}')">
-                        <i class="fas fa-user text-info"></i>
-                        <span class="subgroup-title">Chris's Devices (${chrisHosts.length})</span>
-                        <i class="fas fa-chevron-down toggle-icon" id="${chrisSubGroupId}-icon"></i>
+                <div class="host-subgroup nexgen-group">
+                    <div class="host-subgroup-header clickable" onclick="toggleGroup('${nexgenSubGroupId}')">
+                        <i class="fas fa-cloud text-info"></i>
+                        <span class="subgroup-title">Nexgen Cloud (${nexgenHosts.length})</span>
+                        <i class="fas fa-chevron-down toggle-icon" id="${nexgenSubGroupId}-icon"></i>
                     </div>
-                    <div class="host-subgroup-content" id="${chrisSubGroupId}">
-                        ${chrisCards}
+                    <div class="host-subgroup-content" id="${nexgenSubGroupId}">
+                        ${nexgenCards}
                     </div>
                 </div>
             `;
@@ -306,8 +306,8 @@ function createHostCard(host, type, aggregateName = null) {
     // Create tenant badge
     const tenant = host.tenant || 'Unknown';
     const ownerGroup = host.owner_group || 'Investors';
-    const tenantBadgeClass = ownerGroup === 'Chris' ? 'tenant-badge chris' : 'tenant-badge investors';
-    const tenantIcon = ownerGroup === 'Chris' ? 'fas fa-user' : 'fas fa-users';
+    const tenantBadgeClass = ownerGroup === 'Nexgen Cloud' ? 'tenant-badge nexgen' : 'tenant-badge investors';
+    const tenantIcon = ownerGroup === 'Nexgen Cloud' ? 'fas fa-cloud' : 'fas fa-users';
     
     return `
         <div class="${cardClass}" 
