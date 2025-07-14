@@ -158,8 +158,51 @@ function renderHosts(containerId, hosts, type, aggregateName = null) {
     
     // Available hosts section (shown first - most likely to be moved)
     if (availableHosts.length > 0) {
-        const availableCards = availableHosts.map(host => createHostCard(host, type, aggregateName)).join('');
+        // Group available hosts by owner
+        const chrisHosts = availableHosts.filter(host => host.owner_group === 'Chris');
+        const investorHosts = availableHosts.filter(host => host.owner_group === 'Investors');
+        
         const availableId = `available-${type}`;
+        let availableSubGroups = '';
+        
+        // Chris's devices sub-group
+        if (chrisHosts.length > 0) {
+            const chrisCards = chrisHosts.map(host => createHostCard(host, type, aggregateName)).join('');
+            const chrisSubGroupId = `available-chris-${type}`;
+            
+            availableSubGroups += `
+                <div class="host-subgroup chris-group">
+                    <div class="host-subgroup-header clickable" onclick="toggleGroup('${chrisSubGroupId}')">
+                        <i class="fas fa-user text-info"></i>
+                        <span class="subgroup-title">Chris's Devices (${chrisHosts.length})</span>
+                        <i class="fas fa-chevron-down toggle-icon" id="${chrisSubGroupId}-icon"></i>
+                    </div>
+                    <div class="host-subgroup-content" id="${chrisSubGroupId}">
+                        ${chrisCards}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Investor devices sub-group
+        if (investorHosts.length > 0) {
+            const investorCards = investorHosts.map(host => createHostCard(host, type, aggregateName)).join('');
+            const investorSubGroupId = `available-investors-${type}`;
+            
+            availableSubGroups += `
+                <div class="host-subgroup investors-group">
+                    <div class="host-subgroup-header clickable" onclick="toggleGroup('${investorSubGroupId}')">
+                        <i class="fas fa-users text-warning"></i>
+                        <span class="subgroup-title">Investor Devices (${investorHosts.length})</span>
+                        <i class="fas fa-chevron-down toggle-icon" id="${investorSubGroupId}-icon"></i>
+                    </div>
+                    <div class="host-subgroup-content" id="${investorSubGroupId}">
+                        ${investorCards}
+                    </div>
+                </div>
+            `;
+        }
+        
         sectionsHtml += `
             <div class="host-group">
                 <div class="host-group-header clickable" onclick="toggleGroup('${availableId}')">
@@ -169,7 +212,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null) {
                     <i class="fas fa-chevron-down toggle-icon" id="${availableId}-icon"></i>
                 </div>
                 <div class="host-group-content" id="${availableId}">
-                    ${availableCards}
+                    ${availableSubGroups}
                 </div>
             </div>
         `;
@@ -260,13 +303,20 @@ function createHostCard(host, type, aggregateName = null) {
     const warningIcon = hasVms ? '<i class="fas fa-exclamation-triangle warning-icon"></i>' : '';
     const cardClass = hasVms ? 'machine-card has-vms' : 'machine-card';
     
+    // Create tenant badge
+    const tenant = host.tenant || 'Unknown';
+    const ownerGroup = host.owner_group || 'Investors';
+    const tenantBadgeClass = ownerGroup === 'Chris' ? 'tenant-badge chris' : 'tenant-badge investors';
+    const tenantIcon = ownerGroup === 'Chris' ? 'fas fa-user' : 'fas fa-users';
+    
     return `
         <div class="${cardClass}" 
              draggable="true" 
              data-host="${host.name}" 
              data-type="${type}"
              data-aggregate="${aggregateName || ''}"
-             data-has-vms="${hasVms}">
+             data-has-vms="${hasVms}"
+             data-owner-group="${ownerGroup}">
             <div class="machine-card-header">
                 <i class="fas fa-grip-vertical drag-handle"></i>
                 <div class="machine-name">${host.name}</div>
@@ -278,6 +328,12 @@ function createHostCard(host, type, aggregateName = null) {
                     <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
                     <span class="${vmBadgeClass}">${host.vm_count}</span>
                     <span class="vm-label">${host.vm_count > 0 ? 'VMs' : 'No VMs'}</span>
+                </div>
+                <div class="tenant-info">
+                    <span class="${tenantBadgeClass}" title="${tenant}">
+                        <i class="${tenantIcon}"></i>
+                        ${ownerGroup}
+                    </span>
                 </div>
             </div>
         </div>

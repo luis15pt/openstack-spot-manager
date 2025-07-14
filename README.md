@@ -11,6 +11,9 @@ A web-based interface for managing OpenStack aggregate host migrations between o
 - **VM safety checks**: Warns when spot hosts have running VMs
 - **Command preview**: Shows exact OpenStack commands before execution
 - **Real-time updates**: Live host counts and status indicators
+- **NetBox integration**: Device owner grouping and tenant information
+- **Owner-based grouping**: Available devices grouped by "Chris" vs "Investors"
+- **Tenant badges**: Visual indicators showing device ownership
 
 ## Installation
 
@@ -34,6 +37,10 @@ OS_PROJECT_NAME=your-project-name
 OS_USER_DOMAIN_NAME=Default
 OS_PROJECT_DOMAIN_NAME=Default
 OS_REGION_NAME=RegionOne
+
+# NetBox Integration (Optional)
+NETBOX_URL=https://your-netbox-instance.com
+NETBOX_API_KEY=your-netbox-api-key-here
 ```
 
 4. Run the application:
@@ -56,6 +63,10 @@ OS_PASSWORD=mypassword
 OS_PROJECT_NAME=myproject
 OS_USER_DOMAIN_NAME=Default
 OS_PROJECT_DOMAIN_NAME=Default
+
+# NetBox Integration (Optional)
+NETBOX_URL=https://netbox.example.com
+NETBOX_API_KEY=your-api-key
 ```
 
 ### Option 2: Environment Variables
@@ -69,6 +80,32 @@ export OS_PROJECT_NAME=myproject
 
 ### Option 3: OpenStack CLI Configuration
 The app can also use existing OpenStack CLI configuration files (`clouds.yaml`).
+
+## NetBox Integration
+
+The application supports optional NetBox integration for enhanced device management:
+
+### Features
+- **Device Owner Grouping**: Available devices are automatically grouped by owner ("Chris" vs "Investors")
+- **Tenant Information**: Each device card displays tenant information from NetBox
+- **Visual Indicators**: Color-coded badges and grouping based on device ownership
+- **API Caching**: NetBox API responses are cached to improve performance
+
+### Configuration
+Add NetBox credentials to your `.env` file:
+```bash
+NETBOX_URL=https://your-netbox-instance.com
+NETBOX_API_KEY=your-netbox-api-token
+```
+
+### How It Works
+1. The application queries NetBox API endpoint: `/api/dcim/devices/?name={hostname}`
+2. Extracts tenant information from device records
+3. Groups devices based on tenant name (contains "Chris" → Chris group, otherwise → Investors group)
+4. Displays tenant badges and owner-based grouping in the UI
+
+### Graceful Fallback
+If NetBox is not configured or unavailable, the application continues to function normally with all devices defaulting to the "Investors" group.
 
 ## Usage
 

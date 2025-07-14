@@ -8,6 +8,7 @@ from datetime import datetime
 import openstack
 from dotenv import load_dotenv
 import os
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -19,6 +20,13 @@ command_log = []
 
 # OpenStack connection - initialized lazily
 _openstack_connection = None
+
+# NetBox configuration
+NETBOX_URL = os.getenv('NETBOX_URL')
+NETBOX_API_KEY = os.getenv('NETBOX_API_KEY')
+
+# Cache for NetBox tenant lookups to avoid repeated API calls
+_tenant_cache = {}
 
 def get_openstack_connection():
     """Get or create OpenStack connection"""
@@ -54,6 +62,61 @@ def find_aggregate_by_name(conn, aggregate_name):
     except Exception as e:
         print(f"❌ Error finding aggregate {aggregate_name}: {e}")
         return None
+
+def get_netbox_tenant(hostname):
+    """Get tenant information from NetBox for a given hostname"""
+    global _tenant_cache
+    
+    # Check cache first
+    if hostname in _tenant_cache:
+        return _tenant_cache[hostname]
+    
+    # Return default if NetBox is not configured
+    if not NETBOX_URL or not NETBOX_API_KEY:
+        print("⚠️ NetBox not configured - using default tenant")
+        return {'tenant': 'Unknown', 'owner_group': 'Investors'}
+    
+    try:
+        url = f"{NETBOX_URL}/api/dcim/devices/"
+        headers = {
+            'Authorization': f'Token {NETBOX_API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        params = {'name': hostname}
+        
+        response = requests.get(url, headers=headers, params=params, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data['results']:
+                device = data['results'][0]
+                tenant_data = device.get('tenant', {})
+                tenant_name = tenant_data.get('name', 'Unknown') if tenant_data else 'Unknown'
+                
+                # Determine owner group based on tenant name
+                owner_group = 'Chris' if 'Chris' in tenant_name else 'Investors'
+                
+                result = {
+                    'tenant': tenant_name,
+                    'owner_group': owner_group
+                }
+                
+                # Cache the result
+                _tenant_cache[hostname] = result
+                print(f"✅ NetBox lookup for {hostname}: {tenant_name} -> {owner_group}")
+                return result
+            else:
+                print(f"⚠️ Device {hostname} not found in NetBox")
+        else:
+            print(f"❌ NetBox API error for {hostname}: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ NetBox lookup failed for {hostname}: {e}")
+    
+    # Default fallback
+    result = {'tenant': 'Unknown', 'owner_group': 'Investors'}
+    _tenant_cache[hostname] = result
+    return result
 
 # Define aggregate pairs - multiple on-demand variants share one spot aggregate
 AGGREGATE_PAIRS = {
@@ -270,10 +333,13 @@ def get_aggregate_data(gpu_type):
     spot_data = []
     for host in spot_hosts:
         vm_count = get_host_vm_count(host)
+        tenant_info = get_netbox_tenant(host)
         spot_data.append({
             'name': host,
             'vm_count': vm_count,
-            'has_vms': vm_count > 0
+            'has_vms': vm_count > 0,
+            'tenant': tenant_info['tenant'],
+            'owner_group': tenant_info['owner_group']
         })
     
     # Get on-demand variants
@@ -283,10 +349,13 @@ def get_aggregate_data(gpu_type):
         ondemand_data = []
         for host in ondemand_hosts:
             vm_count = get_host_vm_count(host)
+            tenant_info = get_netbox_tenant(host)
             ondemand_data.append({
                 'name': host,
                 'vm_count': vm_count,
-                'has_vms': vm_count > 0
+                'has_vms': vm_count > 0,
+                'tenant': tenant_info['tenant'],
+                'owner_group': tenant_info['owner_group']
             })
         
         ondemand_variants.append({

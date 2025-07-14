@@ -920,6 +920,72 @@ body {
     color: #333;
 }
 
+/* Tenant styling and badges */
+.tenant-info {
+    display: flex;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.tenant-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+}
+
+.tenant-badge.chris {
+    background-color: #e3f2fd;
+    color: #1976d2;
+    border: 1px solid #bbdefb;
+}
+
+.tenant-badge.investors {
+    background-color: #fff3e0;
+    color: #f57c00;
+    border: 1px solid #ffcc02;
+}
+
+.tenant-badge i {
+    font-size: 0.8em;
+}
+
+/* Owner group styling */
+.chris-group {
+    border-left: 3px solid #2196f3;
+}
+
+.investors-group {
+    border-left: 3px solid #ff9800;
+}
+
+.chris-group .host-subgroup-header {
+    background-color: #f8fbff;
+}
+
+.investors-group .host-subgroup-header {
+    background-color: #fffbf5;
+}
+
+/* Machine card layout adjustments for tenant info */
+.machine-status {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.machine-status .vm-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* Responsive adjustments for pending operations */
 @media (max-width: 768px) {
     .operation-details {
@@ -944,6 +1010,11 @@ body {
     
     .command-text {
         font-size: 0.75em;
+    }
+    
+    .tenant-badge {
+        font-size: 0.7em;
+        padding: 1px 6px;
     }
 }
 
