@@ -353,12 +353,12 @@ def build_flavor_name(hostname):
 def mask_api_key(api_key, prefix=""):
     """Mask API key for display purposes"""
     if not api_key:
-        return f"{prefix}***_KEY"
+        return "***_KEY"
     
     if len(api_key) <= 8:
-        return f"{prefix}***_KEY"
+        return "***_KEY"
     
-    return f"{prefix}{api_key[:4]}***{api_key[-4:]}"
+    return f"{api_key[:4]}***{api_key[-4:]}"
 
 # Define aggregate pairs - multiple on-demand variants share one spot aggregate
 AGGREGATE_PAIRS = {
@@ -916,11 +916,11 @@ def preview_runpod_launch():
     gpu_type = get_gpu_type_from_hostname_context(hostname)
     
     # Build the curl command for preview (with masked API keys)
-    masked_hyperstack_key = mask_api_key(HYPERSTACK_API_KEY, "HYPERSTACK_")
-    masked_runpod_key = mask_api_key(RUNPOD_API_KEY, "RUNPOD_")
+    masked_hyperstack_key = mask_api_key(HYPERSTACK_API_KEY)
+    masked_runpod_key = mask_api_key(RUNPOD_API_KEY)
     
     # Create user_data with masked API key for preview
-    user_data_preview = '"Content-Type: multipart/mixed...RUNPOD_' + masked_runpod_key + '...power_state: reboot"'
+    user_data_preview = '"Content-Type: multipart/mixed...RUNPOD_API_KEY=' + masked_runpod_key + '...power_state: reboot"'
     
     curl_command = f"""curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines \\
   -H "Authorization: {masked_hyperstack_key}" \\
@@ -1100,7 +1100,7 @@ power_state:
         )
         
         # Build command for logging (with masked API key)
-        masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines -H 'Authorization: {mask_api_key(HYPERSTACK_API_KEY, 'HYPERSTACK_')}' -d '{{\"name\": \"{hostname}\", \"flavor_name\": \"{flavor_name}\", ...}}'"
+        masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines -H 'Authorization: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"name\": \"{hostname}\", \"flavor_name\": \"{flavor_name}\", ...}}'"
         
         if response.status_code in [200, 201]:
             result_data = response.json()

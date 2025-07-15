@@ -557,7 +557,7 @@ function createHostCard(host, type, aggregateName = null) {
                         ${host.variant}
                     </span>
                 </div>` : ''}
-                ${!hasVms ? `
+                ${type === 'runpod' && !hasVms ? `
                 <div class="launch-runpod-info">
                     <button class="btn btn-sm btn-outline-primary launch-runpod-btn" 
                             onclick="scheduleRunpodLaunch('${host.name}')" 
@@ -1849,6 +1849,12 @@ function addToPendingOperations(hostname, sourceType, targetType, options = {}) 
             }
         }
         
+        // Preview migration commands
+        const migrationCommands = [
+            `openstack aggregate remove host ${sourceAggregate} ${hostname}`,
+            `openstack aggregate add host ${targetAggregate} ${hostname}`
+        ];
+        
         pendingOperations.push({
             type: 'migration',
             hostname: hostname,
@@ -1856,19 +1862,55 @@ function addToPendingOperations(hostname, sourceType, targetType, options = {}) 
             targetType: targetType,
             sourceAggregate: sourceAggregate,
             targetAggregate: targetAggregate,
+            commands: migrationCommands,
             timestamp: new Date().toISOString()
         });
     } else {
-        // Handle runpod launch operations
-        pendingOperations.push({
-            type: 'runpod-launch',
-            hostname: hostname,
-            vm_name: options.vm_name || hostname,
-            manual: options.manual || false,
-            auto_generated: options.auto_generated || false,
-            scheduled_time: options.scheduled_time || Date.now(),
-            timestamp: new Date().toISOString()
+        // Handle runpod launch operations - fetch preview command
+        fetch('/api/preview-runpod-launch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ hostname: hostname })
+        })
+        .then(response => response.json())
+        .then(previewData => {
+            const operation = {
+                type: 'runpod-launch',
+                hostname: hostname,
+                vm_name: options.vm_name || hostname,
+                manual: options.manual || false,
+                auto_generated: options.auto_generated || false,
+                scheduled_time: options.scheduled_time || Date.now(),
+                commands: previewData.command ? [previewData.command] : [`Launch VM ${hostname} via Hyperstack API`],
+                timestamp: new Date().toISOString()
+            };
+            
+            pendingOperations.push(operation);
+            updatePendingOperationsDisplay();
+        })
+        .catch(error => {
+            console.error('Error fetching runpod preview:', error);
+            // Fallback operation without detailed command
+            pendingOperations.push({
+                type: 'runpod-launch',
+                hostname: hostname,
+                vm_name: options.vm_name || hostname,
+                manual: options.manual || false,
+                auto_generated: options.auto_generated || false,
+                scheduled_time: options.scheduled_time || Date.now(),
+                commands: [`Launch VM ${hostname} via Hyperstack API`],
+                timestamp: new Date().toISOString()
+            });
+            updatePendingOperationsDisplay();
         });
+        
+        // Early return to avoid duplicate call to updatePendingOperationsDisplay
+        if (targetType === 'runpod-launch') {
+            showNotification(`Added VM launch for ${hostname} to pending operations`, 'info');
+            return;
+        }
     }
     
     updatePendingOperationsDisplay();
@@ -1900,6 +1942,19 @@ function updatePendingOperationsDisplay() {
     const currentTime = Date.now();
     const operationsHtml = pendingOperations.map((op, index) => {
         if (op.type === 'runpod-launch') {
+            const commandsHtml = op.commands ? `
+                <div class="operation-commands">
+                    <div class="command-list">
+                        ${op.commands.map((cmd, cmdIndex) => `
+                            <div class="command-item">
+                                <span class="command-number">${cmdIndex + 1}.</span>
+                                <span class="command-text">${cmd}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : '';
+            
             return `
                 <div class="pending-operation-item ready">
                     <div class="operation-details">
@@ -1912,6 +1967,7 @@ function updatePendingOperationsDisplay() {
                                 </button>
                             </div>
                         </div>
+                        ${commandsHtml}
                         <div class="operation-details-text">
                             <small class="text-muted">
                                 Manual VM launch • VM name: ${op.vm_name} • ${new Date(op.timestamp).toLocaleTimeString()}
@@ -1922,6 +1978,19 @@ function updatePendingOperationsDisplay() {
             `;
         } else {
             // Regular migration operation
+            const commandsHtml = op.commands ? `
+                <div class="operation-commands">
+                    <div class="command-list">
+                        ${op.commands.map((cmd, cmdIndex) => `
+                            <div class="command-item">
+                                <span class="command-number">${cmdIndex + 1}.</span>
+                                <span class="command-text">${cmd}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : '';
+            
             return `
                 <div class="pending-operation-item">
                     <div class="operation-details">
@@ -1938,6 +2007,7 @@ function updatePendingOperationsDisplay() {
                             <i class="fas fa-arrow-right mx-2"></i>
                             <span class="badge bg-primary">${op.targetType}</span>
                         </div>
+                        ${commandsHtml}
                         <div class="operation-details-text">
                             <small class="text-muted">${op.sourceAggregate} → ${op.targetAggregate} • ${new Date(op.timestamp).toLocaleTimeString()}</small>
                         </div>
