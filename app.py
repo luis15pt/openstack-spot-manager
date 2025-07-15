@@ -70,7 +70,7 @@ def get_netbox_tenants_bulk(hostnames):
     # Return default if NetBox is not configured
     if not NETBOX_URL or not NETBOX_API_KEY:
         print("⚠️ NetBox not configured - using default tenant")
-        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors'}
+        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False}
         return {hostname: default_result for hostname in hostnames}
     
     # Check cache first and separate cached vs uncached hostnames
@@ -128,9 +128,14 @@ def get_netbox_tenants_bulk(hostnames):
                 tenant_name = tenant_data.get('name', 'Unknown') if tenant_data else 'Unknown'
                 owner_group = 'Nexgen Cloud' if tenant_name == 'Chris Starkey' else 'Investors'
                 
+                # Get Nvlinks custom field
+                custom_fields = device.get('custom_fields', {})
+                nvlinks = custom_fields.get('Nvlinks', False)
+                
                 result = {
                     'tenant': tenant_name,
-                    'owner_group': owner_group
+                    'owner_group': owner_group,
+                    'nvlinks': nvlinks
                 }
                 
                 device_map[device_name] = result
@@ -143,7 +148,7 @@ def get_netbox_tenants_bulk(hostnames):
                 print(f"✅ NetBox lookup for {hostname}: {device_map[hostname]['tenant']} -> {device_map[hostname]['owner_group']}")
             else:
                 # Device not found in NetBox, use default
-                default_result = {'tenant': 'Unknown', 'owner_group': 'Investors'}
+                default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False}
                 bulk_results[hostname] = default_result
                 _tenant_cache[hostname] = default_result
                 print(f"⚠️ Device {hostname} not found in NetBox")
@@ -153,7 +158,7 @@ def get_netbox_tenants_bulk(hostnames):
     except Exception as e:
         print(f"❌ NetBox bulk lookup failed: {e}")
         # Fall back to default for all uncached hostnames
-        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors'}
+        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False}
         for hostname in uncached_hostnames:
             bulk_results[hostname] = default_result
             _tenant_cache[hostname] = default_result
@@ -401,7 +406,8 @@ def get_aggregate_data(gpu_type):
             'vm_count': vm_count,
             'has_vms': vm_count > 0,
             'tenant': tenant_info['tenant'],
-            'owner_group': tenant_info['owner_group']
+            'owner_group': tenant_info['owner_group'],
+            'nvlinks': tenant_info['nvlinks']
         })
     
     # Process on-demand variants
@@ -417,7 +423,8 @@ def get_aggregate_data(gpu_type):
                 'vm_count': vm_count,
                 'has_vms': vm_count > 0,
                 'tenant': tenant_info['tenant'],
-                'owner_group': tenant_info['owner_group']
+                'owner_group': tenant_info['owner_group'],
+                'nvlinks': tenant_info['nvlinks']
             })
         
         ondemand_variants.append({

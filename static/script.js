@@ -335,6 +335,12 @@ function createHostCard(host, type, aggregateName = null) {
                         ${ownerGroup}
                     </span>
                 </div>
+                <div class="nvlinks-info">
+                    <span class="nvlinks-badge ${host.nvlinks ? 'enabled' : 'disabled'}" title="NVLinks ${host.nvlinks ? 'Enabled' : 'Disabled'}">
+                        <i class="fas fa-link"></i>
+                        NVLinks: ${host.nvlinks ? 'Yes' : 'No'}
+                    </span>
+                </div>
             </div>
         </div>
     `;

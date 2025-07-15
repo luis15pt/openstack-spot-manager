@@ -986,6 +986,42 @@ body {
     gap: 8px;
 }
 
+/* NVLinks styling */
+.nvlinks-info {
+    display: flex;
+    align-items: center;
+    margin-top: 2px;
+}
+
+.nvlinks-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.7em;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
+}
+
+.nvlinks-badge.enabled {
+    background-color: #e8f5e8;
+    color: #2e7d32;
+    border: 1px solid #81c784;
+}
+
+.nvlinks-badge.disabled {
+    background-color: #fafafa;
+    color: #757575;
+    border: 1px solid #e0e0e0;
+}
+
+.nvlinks-badge i {
+    font-size: 0.9em;
+}
+
 /* Responsive adjustments for pending operations */
 @media (max-width: 768px) {
     .operation-details {
@@ -1015,6 +1051,11 @@ body {
     .tenant-badge {
         font-size: 0.7em;
         padding: 1px 6px;
+    }
+    
+    .nvlinks-badge {
+        font-size: 0.65em;
+        padding: 1px 4px;
     }
 }
 
