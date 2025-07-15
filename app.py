@@ -920,7 +920,7 @@ def preview_runpod_launch():
     masked_runpod_key = mask_api_key(RUNPOD_API_KEY)
     
     # Create user_data with masked API key for preview
-    user_data_preview = '"Content-Type: multipart/mixed...RUNPOD_API_KEY=' + masked_runpod_key + '...power_state: reboot"'
+    user_data_preview = '"Content-Type: multipart/mixed...api_key=' + masked_runpod_key + '...power_state: reboot"'
     
     curl_command = f"""curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines \\
   -H "Authorization: {masked_hyperstack_key}" \\
