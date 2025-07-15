@@ -68,27 +68,36 @@
                     <div class="tab-content" id="mainTabContent">
                         <!-- Hosts Tab -->
                         <div class="tab-pane fade show active" id="hosts" role="tabpanel">
+                            <!-- GPU Overview Banner -->
                             <div class="row mt-3">
-                                <!-- On-Demand Column -->
-                                <div class="col-md-4">
-                                    <div class="aggregate-column" id="ondemandColumn">
-                                        <div class="card">
-                                            <div class="card-header bg-primary text-white">
-                                                <h4 class="mb-0">
-                                                    <i class="fas fa-server"></i> 
-                                                    On-Demand <span id="ondemandName"></span>
-                                                    <span class="badge bg-light text-dark ms-2" id="ondemandCount">0</span>
-                                                </h4>
-                                            </div>
-                                            <div class="card-body" id="ondemandHosts">
-                                                <div class="drop-zone" data-type="ondemand">
-                                                    <p class="text-muted text-center">Drop hosts here or select and move</p>
+                                <div class="col-12">
+                                    <div class="card bg-light">
+                                        <div class="card-body py-3">
+                                            <div class="row text-center">
+                                                <div class="col-md-6">
+                                                    <h5 class="mb-1">
+                                                        <i class="fas fa-microchip text-info"></i> 
+                                                        GPU Usage Overview
+                                                    </h5>
+                                                    <div class="gpu-overview-stats">
+                                                        <span class="badge bg-primary fs-6" id="totalGpuUsage">0/0 GPUs</span>
+                                                        <span class="badge bg-success fs-6 ms-2" id="gpuUsagePercentage">0%</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="progress mt-2" style="height: 20px;">
+                                                        <div class="progress-bar" role="progressbar" style="width: 0%" id="gpuProgressBar">
+                                                            <span id="gpuProgressText">0%</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                
+                            </div>
+                            
+                            <div class="row mt-3">
                                 <!-- Runpod Column -->
                                 <div class="col-md-4">
                                     <div class="aggregate-column" id="runpodColumn">
@@ -109,6 +118,27 @@
                                     </div>
                                 </div>
                                 
+                                <!-- On-Demand Column -->
+                                <div class="col-md-4">
+                                    <div class="aggregate-column" id="ondemandColumn">
+                                        <div class="card">
+                                            <div class="card-header bg-primary text-white">
+                                                <h4 class="mb-0">
+                                                    <i class="fas fa-server"></i> 
+                                                    On-Demand <span id="ondemandName"></span>
+                                                    <span class="badge bg-light text-dark ms-2" id="ondemandCount">0</span>
+                                                    <span class="badge bg-info ms-2" id="ondemandGpuUsage">0/0</span>
+                                                </h4>
+                                            </div>
+                                            <div class="card-body" id="ondemandHosts">
+                                                <div class="drop-zone" data-type="ondemand">
+                                                    <p class="text-muted text-center">Drop hosts here or select and move</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <!-- Spot Column -->
                                 <div class="col-md-4">
                                     <div class="aggregate-column" id="spotColumn">
@@ -118,6 +148,7 @@
                                                     <i class="fas fa-flash"></i> 
                                                     Spot <span id="spotName"></span>
                                                     <span class="badge bg-light text-dark ms-2" id="spotCount">0</span>
+                                                    <span class="badge bg-info ms-2" id="spotGpuUsage">0/0</span>
                                                 </h4>
                                             </div>
                                             <div class="card-body" id="spotHosts">

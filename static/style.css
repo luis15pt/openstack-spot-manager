@@ -1009,6 +1009,33 @@ body {
     gap: 8px;
 }
 
+/* GPU badge styling */
+.gpu-badge {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    font-weight: bold;
+    min-width: 40px;
+    text-align: center;
+    display: inline-block;
+}
+
+.gpu-badge.active {
+    background-color: #dc3545;
+    color: white;
+}
+
+.gpu-badge.zero {
+    background-color: #28a745;
+    color: white;
+}
+
+.gpu-label {
+    font-size: 0.8em;
+    color: #6c757d;
+    margin-left: 4px;
+}
+
 /* NVLinks styling */
 .nvlinks-info {
     display: flex;

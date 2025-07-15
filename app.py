@@ -173,6 +173,51 @@ def get_netbox_tenant(hostname):
     """Get tenant information from NetBox for a single hostname (wrapper for backward compatibility)"""
     return get_netbox_tenants_bulk([hostname])[hostname]
 
+def extract_gpu_count_from_flavor(flavor_name):
+    """Extract GPU count from flavor name like 'n3-RTX-A6000x8' or 'n3-RTX-A6000x1-spot'"""
+    if not flavor_name or flavor_name == 'N/A':
+        return 0
+    
+    # Pattern to match GPU count from flavor names like n3-RTX-A6000x8, n3-RTX-A6000x1-spot
+    import re
+    match = re.search(r'x(\d+)', flavor_name)
+    if match:
+        return int(match.group(1))
+    return 0
+
+def get_host_gpu_info(hostname):
+    """Get GPU usage information for a host based on VM flavors"""
+    try:
+        # Get all VMs on this host
+        vms = get_host_vms(hostname)
+        
+        # Calculate total GPU usage from all VMs
+        total_gpu_used = 0
+        for vm in vms:
+            flavor_name = vm.get('Flavor', 'N/A')
+            gpu_count = extract_gpu_count_from_flavor(flavor_name)
+            total_gpu_used += gpu_count
+        
+        # Determine total GPU capacity based on host type
+        # Most hosts have 8 GPUs, RTX A4000 hosts have 10
+        host_gpu_capacity = 10 if 'A4000' in hostname else 8
+        
+        return {
+            'gpu_used': total_gpu_used,
+            'gpu_capacity': host_gpu_capacity,
+            'vm_count': len(vms),
+            'gpu_usage_ratio': f"{total_gpu_used}/{host_gpu_capacity}"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting GPU info for host {hostname}: {e}")
+        return {
+            'gpu_used': 0,
+            'gpu_capacity': 8,  # Default to 8 GPUs
+            'vm_count': 0,
+            'gpu_usage_ratio': "0/8"
+        }
+
 def discover_gpu_aggregates():
     """Dynamically discover GPU aggregates from OpenStack"""
     try:
@@ -459,32 +504,70 @@ def get_aggregate_data(gpu_type):
     # Bulk NetBox lookup for all hostnames
     tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
     
-    def process_hosts(hosts):
+    def process_hosts(hosts, aggregate_type):
         """Helper function to process hosts with consistent data structure"""
         processed = []
         for host in hosts:
             vm_count = get_host_vm_count(host)
             tenant_info = tenant_info_bulk[host]
-            processed.append({
-                'name': host,
-                'vm_count': vm_count,
-                'has_vms': vm_count > 0,
-                'tenant': tenant_info['tenant'],
-                'owner_group': tenant_info['owner_group'],
-                'nvlinks': tenant_info['nvlinks']
-            })
+            
+            # Get GPU information for Spot and On-Demand only
+            if aggregate_type in ['spot', 'ondemand']:
+                gpu_info = get_host_gpu_info(host)
+                host_data = {
+                    'name': host,
+                    'vm_count': vm_count,
+                    'has_vms': vm_count > 0,
+                    'tenant': tenant_info['tenant'],
+                    'owner_group': tenant_info['owner_group'],
+                    'nvlinks': tenant_info['nvlinks'],
+                    'gpu_used': gpu_info['gpu_used'],
+                    'gpu_capacity': gpu_info['gpu_capacity'],
+                    'gpu_usage_ratio': gpu_info['gpu_usage_ratio']
+                }
+            else:
+                # For Runpod, hosts are fully utilized
+                host_data = {
+                    'name': host,
+                    'vm_count': vm_count,
+                    'has_vms': vm_count > 0,
+                    'tenant': tenant_info['tenant'],
+                    'owner_group': tenant_info['owner_group'],
+                    'nvlinks': tenant_info['nvlinks']
+                }
+            
+            processed.append(host_data)
         return processed
     
     # Process all three aggregate types
-    ondemand_data = process_hosts(ondemand_hosts)
-    runpod_data = process_hosts(runpod_hosts)
-    spot_data = process_hosts(spot_hosts)
+    ondemand_data = process_hosts(ondemand_hosts, 'ondemand')
+    runpod_data = process_hosts(runpod_hosts, 'runpod')
+    spot_data = process_hosts(spot_hosts, 'spot')
+    
+    # Calculate GPU summary statistics for On-Demand and Spot only
+    def calculate_gpu_summary(data):
+        total_used = sum(host.get('gpu_used', 0) for host in data)
+        total_capacity = sum(host.get('gpu_capacity', 0) for host in data)
+        return {
+            'gpu_used': total_used,
+            'gpu_capacity': total_capacity,
+            'gpu_usage_ratio': f"{total_used}/{total_capacity}"
+        }
+    
+    ondemand_gpu_summary = calculate_gpu_summary(ondemand_data)
+    spot_gpu_summary = calculate_gpu_summary(spot_data)
+    
+    # Overall GPU summary (On-Demand + Spot)
+    total_gpu_used = ondemand_gpu_summary['gpu_used'] + spot_gpu_summary['gpu_used']
+    total_gpu_capacity = ondemand_gpu_summary['gpu_capacity'] + spot_gpu_summary['gpu_capacity']
+    gpu_usage_percentage = round((total_gpu_used / total_gpu_capacity * 100) if total_gpu_capacity > 0 else 0, 1)
     
     return jsonify({
         'gpu_type': gpu_type,
         'ondemand': {
             'name': config['ondemand'],
-            'hosts': ondemand_data
+            'hosts': ondemand_data,
+            'gpu_summary': ondemand_gpu_summary
         },
         'runpod': {
             'name': config['runpod'],
@@ -492,7 +575,14 @@ def get_aggregate_data(gpu_type):
         },
         'spot': {
             'name': config['spot'],
-            'hosts': spot_data
+            'hosts': spot_data,
+            'gpu_summary': spot_gpu_summary
+        },
+        'gpu_overview': {
+            'total_gpu_used': total_gpu_used,
+            'total_gpu_capacity': total_gpu_capacity,
+            'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}",
+            'gpu_usage_percentage': gpu_usage_percentage
         }
     })
 

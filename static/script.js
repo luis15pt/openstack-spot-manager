@@ -107,6 +107,34 @@ function renderAggregateData(data) {
     document.getElementById('runpodCount').textContent = data.runpod.hosts ? data.runpod.hosts.length : 0;
     document.getElementById('spotCount').textContent = data.spot.hosts ? data.spot.hosts.length : 0;
     
+    // Update GPU usage badges for On-Demand and Spot
+    if (data.ondemand.gpu_summary) {
+        document.getElementById('ondemandGpuUsage').textContent = data.ondemand.gpu_summary.gpu_usage_ratio;
+    }
+    if (data.spot.gpu_summary) {
+        document.getElementById('spotGpuUsage').textContent = data.spot.gpu_summary.gpu_usage_ratio;
+    }
+    
+    // Update GPU overview banner
+    if (data.gpu_overview) {
+        document.getElementById('totalGpuUsage').textContent = data.gpu_overview.gpu_usage_ratio + ' GPUs';
+        document.getElementById('gpuUsagePercentage').textContent = data.gpu_overview.gpu_usage_percentage + '%';
+        document.getElementById('gpuProgressBar').style.width = data.gpu_overview.gpu_usage_percentage + '%';
+        document.getElementById('gpuProgressText').textContent = data.gpu_overview.gpu_usage_percentage + '%';
+        
+        // Update progress bar color based on usage
+        const progressBar = document.getElementById('gpuProgressBar');
+        const percentage = data.gpu_overview.gpu_usage_percentage;
+        progressBar.className = 'progress-bar';
+        if (percentage < 50) {
+            progressBar.classList.add('bg-success');
+        } else if (percentage < 80) {
+            progressBar.classList.add('bg-warning');
+        } else {
+            progressBar.classList.add('bg-danger');
+        }
+    }
+    
     // Render hosts for each column
     if (data.ondemand.hosts) {
         renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand', data.ondemand.name);
@@ -315,8 +343,12 @@ function createHostCard(host, type, aggregateName = null) {
                 <div class="vm-info ${host.vm_count > 0 ? 'clickable-vm-count' : ''}" 
                      ${host.vm_count > 0 ? `onclick="showVmDetails('${host.name}')"` : ''}>
                     <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
-                    <span class="${vmBadgeClass}">${host.vm_count}</span>
-                    <span class="vm-label">${host.vm_count > 0 ? 'VMs' : 'No VMs'}</span>
+                    ${type === 'runpod' ? 
+                        `<span class="${vmBadgeClass}">${host.vm_count}</span>
+                         <span class="vm-label">${host.vm_count > 0 ? 'VMs' : 'No VMs'}</span>` :
+                        `<span class="gpu-badge ${host.gpu_used > 0 ? 'active' : 'zero'}">${host.gpu_usage_ratio || '0/8'}</span>
+                         <span class="gpu-label">GPUs</span>`
+                    }
                 </div>
                 <div class="tenant-info">
                     <span class="${tenantBadgeClass}" title="${tenant}">
