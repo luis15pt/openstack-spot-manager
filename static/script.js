@@ -557,6 +557,14 @@ function createHostCard(host, type, aggregateName = null) {
                         ${host.variant}
                     </span>
                 </div>` : ''}
+                ${!hasVms ? `
+                <div class="launch-runpod-info">
+                    <button class="btn btn-sm btn-outline-primary launch-runpod-btn" 
+                            onclick="scheduleRunpodLaunch('${host.name}')" 
+                            title="Schedule VM launch on this host">
+                        <i class="fas fa-rocket"></i> Launch into Runpod
+                    </button>
+                </div>` : ''}
             </div>
         </div>
     `;
@@ -1794,3 +1802,326 @@ document.addEventListener('click', function(e) {
         updateControlButtons();
     }
 });
+
+// Runpod Launch Functionality
+function scheduleRunpodLaunch(hostname) {
+    if (!confirm(`Schedule VM launch on host ${hostname}?\n\nThe VM will be named '${hostname}' and will be queued for launch.`)) {
+        return;
+    }
+    
+    // Add to pending operations with manual trigger (immediate)
+    addToPendingOperations(hostname, 'runpod', 'runpod-launch', {
+        vm_name: hostname,
+        manual: true,
+        scheduled_time: Date.now() // Immediate processing
+    });
+    
+    showNotification(`Scheduled VM launch for ${hostname}`, 'info');
+}
+
+
+// Enhanced addToPendingOperations to support runpod-launch
+function addToPendingOperations(hostname, sourceType, targetType, options = {}) {
+    // Handle regular migrations
+    if (targetType !== 'runpod-launch') {
+        // Existing migration logic
+        const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
+        const sourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
+        
+        let targetAggregate = '';
+        if (aggregateData.ondemand_variants && aggregateData.spot) {
+            if (targetType === 'spot') {
+                targetAggregate = aggregateData.spot.name;
+            } else {
+                const sourceVariant = aggregateData.ondemand_variants.find(variant => 
+                    variant.aggregate === sourceAggregate
+                );
+                targetAggregate = sourceVariant ? sourceVariant.aggregate : (aggregateData.ondemand.name || '');
+            }
+        } else {
+            // Fallback for single aggregate structure
+            if (targetType === 'spot') {
+                targetAggregate = aggregateData.spot ? aggregateData.spot.name : '';
+            } else if (targetType === 'ondemand') {
+                targetAggregate = aggregateData.ondemand ? aggregateData.ondemand.name : '';
+            } else if (targetType === 'runpod') {
+                targetAggregate = aggregateData.runpod ? aggregateData.runpod.name : '';
+            }
+        }
+        
+        pendingOperations.push({
+            type: 'migration',
+            hostname: hostname,
+            sourceType: sourceType,
+            targetType: targetType,
+            sourceAggregate: sourceAggregate,
+            targetAggregate: targetAggregate,
+            timestamp: new Date().toISOString()
+        });
+    } else {
+        // Handle runpod launch operations
+        pendingOperations.push({
+            type: 'runpod-launch',
+            hostname: hostname,
+            vm_name: options.vm_name || hostname,
+            manual: options.manual || false,
+            auto_generated: options.auto_generated || false,
+            scheduled_time: options.scheduled_time || Date.now(),
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    updatePendingOperationsDisplay();
+    
+    if (targetType === 'runpod-launch') {
+        showNotification(`Added VM launch for ${hostname} to pending operations`, 'info');
+    } else {
+        showNotification(`Added ${hostname} to pending operations (${sourceType} → ${targetType})`, 'info');
+    }
+}
+
+// Enhanced updatePendingOperationsDisplay to show countdown timers
+function updatePendingOperationsDisplay() {
+    const section = document.getElementById('pendingOperationsSection');
+    const list = document.getElementById('pendingOperationsList');
+    const count = document.getElementById('pendingCount');
+    
+    count.textContent = pendingOperations.length;
+    count.classList.add('updated');
+    setTimeout(() => count.classList.remove('updated'), 500);
+    
+    if (pendingOperations.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    
+    section.style.display = 'block';
+    
+    const currentTime = Date.now();
+    const operationsHtml = pendingOperations.map((op, index) => {
+        if (op.type === 'runpod-launch') {
+            return `
+                <div class="pending-operation-item ready">
+                    <div class="operation-details">
+                        <div class="operation-header">
+                            <strong><i class="fas fa-rocket text-primary"></i> Launch VM '${op.vm_name}' on host ${op.hostname}</strong>
+                            <div class="operation-actions">
+                                <span class="badge bg-success">Ready to launch</span>
+                                <button class="btn btn-sm btn-outline-danger ms-2" onclick="removePendingOperation(${index})" title="Remove operation">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="operation-details-text">
+                            <small class="text-muted">
+                                Manual VM launch • VM name: ${op.vm_name} • ${new Date(op.timestamp).toLocaleTimeString()}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Regular migration operation
+            return `
+                <div class="pending-operation-item">
+                    <div class="operation-details">
+                        <div class="operation-header">
+                            <strong>${op.hostname}</strong>
+                            <div class="operation-actions">
+                                <button class="btn btn-sm btn-outline-danger ms-2" onclick="removePendingOperation(${index})" title="Remove operation">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="operation-flow">
+                            <span class="badge bg-secondary">${op.sourceType}</span>
+                            <i class="fas fa-arrow-right mx-2"></i>
+                            <span class="badge bg-primary">${op.targetType}</span>
+                        </div>
+                        <div class="operation-details-text">
+                            <small class="text-muted">${op.sourceAggregate} → ${op.targetAggregate} • ${new Date(op.timestamp).toLocaleTimeString()}</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }).join('');
+    
+    list.innerHTML = operationsHtml;
+    
+    // Update pending indicators on cards
+    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
+        card.classList.remove('pending-operation');
+    });
+    
+    pendingOperations.forEach(op => {
+        const card = document.querySelector(`[data-host="${op.hostname}"]`);
+        if (card) {
+            card.classList.add('pending-operation');
+        }
+    });
+}
+
+// Enhanced commitAllOperations to handle runpod launches
+function commitAllOperations() {
+    if (pendingOperations.length === 0) {
+        showNotification('No pending operations to commit', 'warning');
+        return;
+    }
+    
+    // Separate migration and launch operations
+    const migrations = pendingOperations.filter(op => op.type === 'migration');
+    const launches = pendingOperations.filter(op => op.type === 'runpod-launch');
+    
+    let confirmMessage = '';
+    if (migrations.length > 0 && launches.length > 0) {
+        confirmMessage = `Execute ${migrations.length} migration(s) and ${launches.length} VM launch(es)?`;
+    } else if (migrations.length > 0) {
+        confirmMessage = `Execute ${migrations.length} migration(s)?`;
+    } else {
+        confirmMessage = `Execute ${launches.length} VM launch(es)?`;
+    }
+    
+    if (!confirm(confirmMessage)) return;
+    
+    const commitBtn = document.getElementById('commitBtn');
+    commitBtn.disabled = true;
+    commitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
+    
+    // Execute migrations first, then launches
+    executeOperationsSequentially([...migrations, ...launches], 0, [], 0);
+}
+
+function executeOperationsSequentially(operations, index, errors, completed) {
+    if (index >= operations.length) {
+        const commitBtn = document.getElementById('commitBtn');
+        commitBtn.disabled = false;
+        commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit All Operations';
+        
+        if (errors.length > 0) {
+            showNotification(`Completed with ${errors.length} errors: ${errors.join(', ')}`, 'warning');
+        } else {
+            showNotification(`Successfully executed ${completed} operations`, 'success');
+            pendingOperations = []; // Clear pending operations on success
+            updatePendingOperationsDisplay();
+        }
+        
+        refreshData();
+        loadCommandLog();
+        loadResultsSummary();
+        return;
+    }
+    
+    const operation = operations[index];
+    
+    if (operation.type === 'runpod-launch') {
+        // Execute VM launch
+        executeRunpodLaunch(operation.hostname)
+            .then(success => {
+                if (success) {
+                    completed++;
+                } else {
+                    errors.push(`Launch ${operation.hostname}`);
+                }
+                executeOperationsSequentially(operations, index + 1, errors, completed);
+            })
+            .catch(error => {
+                console.error(`Error launching ${operation.hostname}:`, error);
+                errors.push(`Launch ${operation.hostname}`);
+                executeOperationsSequentially(operations, index + 1, errors, completed);
+            });
+    } else {
+        // Execute migration (existing logic)
+        fetch('/api/execute-migration', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                host: operation.hostname,
+                source_aggregate: operation.sourceAggregate,
+                target_aggregate: operation.targetAggregate
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                completed++;
+            } else {
+                errors.push(`Migration ${operation.hostname}`);
+                console.error(`Migration failed for ${operation.hostname}:`, data.error);
+            }
+            executeOperationsSequentially(operations, index + 1, errors, completed);
+        })
+        .catch(error => {
+            errors.push(`Migration ${operation.hostname}`);
+            console.error(`Error migrating ${operation.hostname}:`, error);
+            executeOperationsSequentially(operations, index + 1, errors, completed);
+        });
+    }
+}
+
+function executeRunpodLaunch(hostname) {
+    return new Promise((resolve) => {
+        // First, preview the launch
+        fetch('/api/preview-runpod-launch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ hostname: hostname })
+        })
+        .then(response => response.json())
+        .then(previewData => {
+            if (previewData.error) {
+                showNotification(`Preview failed for ${hostname}: ${previewData.error}`, 'danger');
+                resolve(false);
+                return;
+            }
+            
+            // Show confirmation with preview
+            const confirmLaunch = confirm(
+                `Launch VM on ${hostname}?\n\n` +
+                `VM Name: ${previewData.vm_name}\n` +
+                `Flavor: ${previewData.flavor_name}\n` +
+                `GPU Type: ${previewData.gpu_type}\n\n` +
+                `This will execute the Hyperstack API call.`
+            );
+            
+            if (!confirmLaunch) {
+                resolve(false);
+                return;
+            }
+            
+            // Execute the launch
+            fetch('/api/execute-runpod-launch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ hostname: hostname })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(`Successfully launched VM ${data.vm_name} on ${hostname}`, 'success');
+                    resolve(true);
+                } else {
+                    showNotification(`Launch failed for ${hostname}: ${data.error}`, 'danger');
+                    resolve(false);
+                }
+            })
+            .catch(error => {
+                console.error(`Error launching VM on ${hostname}:`, error);
+                showNotification(`Network error launching VM on ${hostname}`, 'danger');
+                resolve(false);
+            });
+        })
+        .catch(error => {
+            console.error(`Error previewing launch for ${hostname}:`, error);
+            showNotification(`Preview error for ${hostname}`, 'danger');
+            resolve(false);
+        });
+    });
+}
+

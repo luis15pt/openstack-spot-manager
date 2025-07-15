@@ -25,6 +25,11 @@ _openstack_connection = None
 NETBOX_URL = os.getenv('NETBOX_URL')
 NETBOX_API_KEY = os.getenv('NETBOX_API_KEY')
 
+# Hyperstack API configuration for Runpod launches
+HYPERSTACK_API_URL = os.getenv('HYPERSTACK_API_URL', 'https://infrahub-api.nexgencloud.com/v1')
+HYPERSTACK_API_KEY = os.getenv('HYPERSTACK_API_KEY')
+RUNPOD_API_KEY = os.getenv('RUNPOD_API_KEY')
+
 # Cache for NetBox tenant lookups to avoid repeated API calls
 _tenant_cache = {}
 
@@ -280,6 +285,80 @@ def discover_gpu_aggregates():
     except Exception as e:
         print(f"❌ Error discovering aggregates: {e}")
         return {}
+
+def get_gpu_type_from_aggregate(aggregate_name):
+    """Extract GPU type from aggregate name like 'RTX-A6000-n3-runpod' -> 'RTX-A6000'"""
+    if not aggregate_name:
+        return None
+    
+    import re
+    match = re.match(r'^([A-Z0-9-]+)-n3', aggregate_name)
+    if match:
+        return match.group(1)
+    return None
+
+def get_gpu_count_from_hostname(hostname):
+    """Determine GPU count from hostname - A4000 hosts have 10, others have 8"""
+    if 'A4000' in hostname:
+        return 10
+    return 8
+
+def get_gpu_type_from_hostname_context(hostname):
+    """Get GPU type by finding which aggregate the hostname belongs to"""
+    try:
+        gpu_aggregates = discover_gpu_aggregates()
+        
+        for gpu_type, config in gpu_aggregates.items():
+            # Check runpod aggregate
+            if config.get('runpod'):
+                runpod_hosts = get_aggregate_hosts(config['runpod'])
+                if hostname in runpod_hosts:
+                    return gpu_type
+                    
+            # Check on-demand variants
+            if config.get('ondemand_variants'):
+                for variant in config['ondemand_variants']:
+                    variant_hosts = get_aggregate_hosts(variant['aggregate'])
+                    if hostname in variant_hosts:
+                        return gpu_type
+                        
+            # Check spot aggregate
+            if config.get('spot'):
+                spot_hosts = get_aggregate_hosts(config['spot'])
+                if hostname in spot_hosts:
+                    return gpu_type
+        
+        return None
+    except Exception as e:
+        print(f"❌ Error getting GPU type for hostname {hostname}: {e}")
+        return None
+
+def build_flavor_name(hostname):
+    """Build dynamic flavor name like 'n3-RTX-A6000x8' from hostname"""
+    gpu_type = get_gpu_type_from_hostname_context(hostname)
+    gpu_count = get_gpu_count_from_hostname(hostname)
+    
+    if gpu_type:
+        return f"n3-{gpu_type}x{gpu_count}"
+    
+    # Fallback: try to extract from hostname pattern if available
+    import re
+    match = re.search(r'(RTX-A6000|A100|H100|L40)', hostname)
+    if match:
+        return f"n3-{match.group(1)}x{gpu_count}"
+    
+    # Default fallback
+    return f"n3-RTX-A6000x{gpu_count}"
+
+def mask_api_key(api_key, prefix=""):
+    """Mask API key for display purposes"""
+    if not api_key:
+        return f"{prefix}***_KEY"
+    
+    if len(api_key) <= 8:
+        return f"{prefix}***_KEY"
+    
+    return f"{prefix}{api_key[:4]}***{api_key[-4:]}"
 
 # Define aggregate pairs - multiple on-demand variants share one spot aggregate
 AGGREGATE_PAIRS = {
@@ -817,6 +896,268 @@ def clear_command_log():
     global command_log
     command_log = []
     return jsonify({'message': 'Command log cleared'})
+
+@app.route('/api/preview-runpod-launch', methods=['POST'])
+def preview_runpod_launch():
+    """Preview runpod VM launch command without executing"""
+    data = request.json
+    hostname = data.get('hostname')
+    
+    print(f"\n👁️  PREVIEW RUNPOD LAUNCH: {hostname}")
+    
+    if not hostname:
+        return jsonify({'error': 'Missing hostname parameter'}), 400
+    
+    if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
+        return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
+    
+    # Build dynamic flavor name
+    flavor_name = build_flavor_name(hostname)
+    gpu_type = get_gpu_type_from_hostname_context(hostname)
+    
+    # Build the curl command for preview (with masked API keys)
+    masked_hyperstack_key = mask_api_key(HYPERSTACK_API_KEY, "HYPERSTACK_")
+    masked_runpod_key = mask_api_key(RUNPOD_API_KEY, "RUNPOD_")
+    
+    # Create user_data with masked API key for preview
+    user_data_preview = '"Content-Type: multipart/mixed...RUNPOD_' + masked_runpod_key + '...power_state: reboot"'
+    
+    curl_command = f"""curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines \\
+  -H "Authorization: {masked_hyperstack_key}" \\
+  -H "Content-Type: application/json" \\
+  -d '{{
+    "name": "{hostname}",
+    "environment_name": "CA1-RunPod",
+    "image_name": "Ubuntu Server 22.04 LTS (Jammy Jellyfish)",
+    "volume_name": "",
+    "flavor_name": "{flavor_name}",
+    "assign_floating_ip": true,
+    "security_rules": [{{
+      "direction": "ingress",
+      "protocol": "tcp",
+      "ethertype": "IPv4",
+      "port_range_min": 22,
+      "port_range_max": 22,
+      "remote_ip_prefix": "0.0.0.0/0"
+    }}],
+    "key_name": "Fleio",
+    "user_data": {user_data_preview},
+    "labels": [],
+    "count": 1
+  }}'"""
+    
+    print("📋 COMMAND TO BE EXECUTED:")
+    print(f"   Launch VM '{hostname}' with flavor '{flavor_name}'")
+    
+    # Log the preview (but don't execute)
+    log_command(curl_command, {'success': None, 'stdout': '', 'stderr': '', 'returncode': None}, 'preview')
+    
+    return jsonify({
+        'command': curl_command,
+        'hostname': hostname,
+        'vm_name': hostname,
+        'flavor_name': flavor_name,
+        'gpu_type': gpu_type,
+        'api_url': HYPERSTACK_API_URL
+    })
+
+@app.route('/api/execute-runpod-launch', methods=['POST'])
+def execute_runpod_launch():
+    """Execute the runpod VM launch using Hyperstack API"""
+    data = request.json
+    hostname = data.get('hostname')
+    
+    print(f"\n🚀 EXECUTING RUNPOD LAUNCH: {hostname}")
+    
+    if not hostname:
+        return jsonify({'error': 'Missing hostname parameter'}), 400
+    
+    if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
+        return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
+    
+    # Build dynamic flavor name
+    flavor_name = build_flavor_name(hostname)
+    
+    # Build the complete user_data with actual API key
+    user_data_content = """Content-Type: multipart/mixed; boundary="==BOUNDARY=="
+MIME-Version: 1.0
+
+--==BOUNDARY==
+Content-Disposition: form-data; name="yaml-script"
+Content-Type: text/cloud-config; charset="us-ascii"
+
+#cloud-config
+# Upgrade packages
+package_update: true
+# package_upgrade: true
+packages:
+  # needed as we are using it to extract the hash ID from an API query
+  - jq
+
+write_files:
+  - path: /etc/runpod/config.json
+    owner: ubuntu:ubuntu
+    permissions: '0644'
+    content: |
+      {
+        "publicNetwork": {
+          "publicIp": "",
+          "ports": [10000, 50000]
+        }
+      }
+
+
+
+
+runcmd:
+  # Remove disk so we can use it later on in the script
+  - sudo umount /ephemeral
+  - sudo sed -i '/^ephemeral0.*\\/ephemeral/s/^/#/' /etc/fstab
+  - sudo sed -i '/^\\/dev\\/vdb.*\\/ephemeral/s/^/#/' /etc/fstab
+  - rm -f /etc/cloud/cloud.cfg.d/91_ephemeral.cfg
+
+#cloud-config
+  # Download Runpod's script
+  - sudo wget https://s.runpod.io/host-amd -O /home/ubuntu/rp
+
+  # Enable execution of the script
+  - sudo chmod +x /home/ubuntu/rp
+
+  # Execute the following as a script block to handle variables properly
+  - |
+      # Get hostname
+      HOSTNAME=$(uname -n)
+
+      # Create a machine via API command on Runpod and set its name as it was set in OpenStack
+      installCert=$(curl --request POST --header "content-type: application/json" \\
+        --url "https://api.runpod.io/graphql?api_key=""" + RUNPOD_API_KEY + """" \\
+        --data "{\\"query\\":\\"mutation Mutation{machineAdd(input:{name:\\\\\\"$HOSTNAME\\\\\\"}){\\\\nid\\\\ninstallCert}}\\",\\"variables\\":{}}")
+
+      # Clean up the output of the last line to only include the hash ID
+      installCertValue=$(echo $installCert | jq -r '.data.machineAdd.installCert')
+
+      # Install Runpod's script using the hash ID generated by the API
+      echo -e "\\nDisk\\n/dev/vdb\\nY" | sudo /home/ubuntu/rp --secret=$installCertValue --hostname=$HOSTNAME --gpu-kind=NVIDIA install
+
+      # Get the public IP and store it
+      PUBLIC_IP=$(curl https://ifconfig.me)
+
+      # Change owner of the config.json file for the next part to work
+      sudo chown ubuntu:ubuntu /etc/runpod/config.json
+
+      # Update the config.json file with the public IP
+      echo "{\\"publicNetwork\\": {\\"publicIp\\": \\"$PUBLIC_IP\\", \\"ports\\": [10000, 50000]}}" > /etc/runpod/config.json
+
+      # Output a summary of the variables set during the script
+      echo "The Hostname is $HOSTNAME, the public IP is $PUBLIC_IP, and the cert ID is $installCertValue"
+
+power_state:
+  delay: "+2"
+  mode: reboot
+  message: Rebooting now, cloud-init complete
+  timeout: 30
+
+
+--==BOUNDARY==--
+"""
+    
+    # Build the payload
+    payload = {
+        "name": hostname,
+        "environment_name": "CA1-RunPod",
+        "image_name": "Ubuntu Server 22.04 LTS (Jammy Jellyfish)",
+        "volume_name": "",
+        "flavor_name": flavor_name,
+        "assign_floating_ip": True,
+        "security_rules": [
+            {
+                "direction": "ingress",
+                "protocol": "tcp",
+                "ethertype": "IPv4",
+                "port_range_min": 22,
+                "port_range_max": 22,
+                "remote_ip_prefix": "0.0.0.0/0"
+            }
+        ],
+        "key_name": "Fleio",
+        "user_data": user_data_content,
+        "labels": [],
+        "count": 1
+    }
+    
+    try:
+        # Make the API call to Hyperstack
+        headers = {
+            'Authorization': HYPERSTACK_API_KEY,
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.post(
+            f"{HYPERSTACK_API_URL}/core/virtual-machines",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        # Build command for logging (with masked API key)
+        masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines -H 'Authorization: {mask_api_key(HYPERSTACK_API_KEY, 'HYPERSTACK_')}' -d '{{\"name\": \"{hostname}\", \"flavor_name\": \"{flavor_name}\", ...}}'"
+        
+        if response.status_code in [200, 201]:
+            result_data = response.json()
+            
+            # Log the successful command
+            log_command(masked_command, {
+                'success': True,
+                'stdout': f'Successfully launched VM {hostname} with flavor {flavor_name}',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+            return jsonify({
+                'success': True,
+                'message': f'Successfully launched VM {hostname} on Hyperstack',
+                'vm_name': hostname,
+                'flavor_name': flavor_name,
+                'response': result_data
+            })
+        else:
+            error_msg = f'Failed to launch VM {hostname}: HTTP {response.status_code}'
+            if response.text:
+                error_msg += f' - {response.text}'
+            
+            # Log the failed command
+            log_command(masked_command, {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': response.status_code
+            }, 'error')
+            
+            return jsonify({'error': error_msg}), response.status_code
+            
+    except requests.exceptions.Timeout:
+        error_msg = f'Timeout launching VM {hostname} - request took longer than 30 seconds'
+        log_command(masked_command, {
+            'success': False,
+            'stdout': '',
+            'stderr': error_msg,
+            'returncode': -1
+        }, 'timeout')
+        return jsonify({'error': error_msg}), 408
+        
+    except Exception as e:
+        error_msg = f'Launch failed for VM {hostname}: {str(e)}'
+        print(f"❌ {error_msg}")
+        
+        # Log the failed command
+        log_command(masked_command, {
+            'success': False,
+            'stdout': '',
+            'stderr': error_msg,
+            'returncode': -1
+        }, 'error')
+        
+        return jsonify({'error': error_msg}), 500
 
 if __name__ == '__main__':
     print("=" * 60)

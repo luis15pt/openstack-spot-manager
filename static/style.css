@@ -1098,6 +1098,66 @@ body {
     font-size: 0.9em;
 }
 
+/* Runpod Launch styling */
+.launch-runpod-info {
+    display: flex;
+    align-items: center;
+    margin-top: 8px;
+    justify-content: center;
+}
+
+.launch-runpod-btn {
+    font-size: 0.75em;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 120px;
+    justify-content: center;
+}
+
+.launch-runpod-btn:hover {
+    background-color: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+    transform: translateY(-1px);
+}
+
+.launch-runpod-btn i {
+    font-size: 0.9em;
+}
+
+/* Enhanced pending operations styling */
+.pending-operation-item.countdown {
+    border-left: 4px solid #ffc107;
+    background-color: #fff8e1;
+}
+
+.pending-operation-item.ready {
+    border-left: 4px solid #28a745;
+    background-color: #e8f5e8;
+}
+
+.operation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.operation-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.operation-details-text {
+    margin-top: 4px;
+}
+
 /* Responsive adjustments for pending operations */
 @media (max-width: 768px) {
     .operation-details {
