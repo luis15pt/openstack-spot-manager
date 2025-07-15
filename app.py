@@ -128,9 +128,12 @@ def get_netbox_tenants_bulk(hostnames):
                 tenant_name = tenant_data.get('name', 'Unknown') if tenant_data else 'Unknown'
                 owner_group = 'Nexgen Cloud' if tenant_name == 'Chris Starkey' else 'Investors'
                 
-                # Get Nvlinks custom field
+                # Get NVLinks custom field
                 custom_fields = device.get('custom_fields', {})
-                nvlinks = custom_fields.get('Nvlinks', False)
+                nvlinks = custom_fields.get('NVLinks', False)
+                # Convert None to False for boolean consistency
+                if nvlinks is None:
+                    nvlinks = False
                 
                 result = {
                     'tenant': tenant_name,
