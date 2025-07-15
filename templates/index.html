@@ -39,7 +39,15 @@
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
-                    <p class="mt-2">Loading aggregate data...</p>
+                    <p class="mt-2" id="loadingMessage">Loading aggregate data...</p>
+                    <div class="progress mt-2" style="height: 8px; max-width: 400px; margin: 0 auto;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: 0%" 
+                             id="loadingProgress">
+                        </div>
+                    </div>
+                    <small class="text-muted mt-2 d-block" id="loadingStep">Initializing...</small>
                 </div>
                 
                 <!-- Main Content -->
@@ -68,23 +76,37 @@
                     <div class="tab-content" id="mainTabContent">
                         <!-- Hosts Tab -->
                         <div class="tab-pane fade show active" id="hosts" role="tabpanel">
-                            <!-- GPU Overview Banner -->
+                            <!-- Overall Summary Banner -->
                             <div class="row mt-3">
                                 <div class="col-12">
                                     <div class="card bg-light">
                                         <div class="card-body py-3">
                                             <div class="row text-center">
-                                                <div class="col-md-6">
-                                                    <h5 class="mb-1">
+                                                <div class="col-md-3">
+                                                    <h6 class="mb-1">
                                                         <i class="fas fa-microchip text-info"></i> 
-                                                        GPU Usage Overview
-                                                    </h5>
+                                                        Total GPU Usage
+                                                    </h6>
                                                     <div class="gpu-overview-stats">
                                                         <span class="badge bg-primary fs-6" id="totalGpuUsage">0/0 GPUs</span>
                                                         <span class="badge bg-success fs-6 ms-2" id="gpuUsagePercentage">0%</span>
                                                     </div>
                                                 </div>
-                                                <div class="col-md-6">
+                                                <div class="col-md-3">
+                                                    <h6 class="mb-1">
+                                                        <i class="fas fa-server text-success"></i> 
+                                                        Available Hosts
+                                                    </h6>
+                                                    <span class="badge bg-success fs-6" id="availableHostsCount">0</span>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <h6 class="mb-1">
+                                                        <i class="fas fa-exclamation-triangle text-warning"></i> 
+                                                        Hosts in Use
+                                                    </h6>
+                                                    <span class="badge bg-warning fs-6" id="inUseHostsCount">0</span>
+                                                </div>
+                                                <div class="col-md-3">
                                                     <div class="progress mt-2" style="height: 20px;">
                                                         <div class="progress-bar" role="progressbar" style="width: 0%" id="gpuProgressBar">
                                                             <span id="gpuProgressText">0%</span>
@@ -108,6 +130,9 @@
                                                     Runpod <span id="runpodName"></span>
                                                     <span class="badge bg-light text-dark ms-2" id="runpodCount">0</span>
                                                 </h4>
+                                                <div class="mt-2">
+                                                    <small class="text-light">VM Usage: <span id="runpodVmUsage">0 VMs</span></small>
+                                                </div>
                                             </div>
                                             <div class="card-body" id="runpodHosts">
                                                 <div class="drop-zone" data-type="runpod">
@@ -127,8 +152,13 @@
                                                     <i class="fas fa-server"></i> 
                                                     On-Demand <span id="ondemandName"></span>
                                                     <span class="badge bg-light text-dark ms-2" id="ondemandCount">0</span>
-                                                    <span class="badge bg-info ms-2" id="ondemandGpuUsage">0/0</span>
                                                 </h4>
+                                                <div class="mt-2">
+                                                    <small class="text-light">GPU Usage: <span id="ondemandGpuUsage">0/0</span> (<span id="ondemandGpuPercent">0%</span>)</small>
+                                                    <div class="progress mt-1" style="height: 6px;">
+                                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="ondemandGpuProgressBar"></div>
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div class="card-body" id="ondemandHosts">
                                                 <div class="drop-zone" data-type="ondemand">
@@ -148,8 +178,13 @@
                                                     <i class="fas fa-flash"></i> 
                                                     Spot <span id="spotName"></span>
                                                     <span class="badge bg-light text-dark ms-2" id="spotCount">0</span>
-                                                    <span class="badge bg-info ms-2" id="spotGpuUsage">0/0</span>
                                                 </h4>
+                                                <div class="mt-2">
+                                                    <small class="text-dark">GPU Usage: <span id="spotGpuUsage">0/0</span> (<span id="spotGpuPercent">0%</span>)</small>
+                                                    <div class="progress mt-1" style="height: 6px;">
+                                                        <div class="progress-bar bg-dark" role="progressbar" style="width: 0%" id="spotGpuProgressBar"></div>
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div class="card-body" id="spotHosts">
                                                 <div class="drop-zone" data-type="spot">

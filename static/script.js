@@ -71,20 +71,41 @@ function initializeEventListeners() {
 }
 
 function loadAggregateData(gpuType) {
-    showLoading(true);
+    showLoading(true, `Loading ${gpuType} aggregate data...`, 'Discovering aggregates...', 10);
     
     fetch(`/api/aggregates/${gpuType}`)
-        .then(response => response.json())
+        .then(response => {
+            updateLoadingProgress('Fetching host information...', 30);
+            return response.json();
+        })
         .then(data => {
             if (data.error) {
                 showNotification(data.error, 'danger');
+                showLoading(false);
                 return;
             }
             
-            aggregateData = data;
-            renderAggregateData(data);
-            showLoading(false);
-            showMainContent();
+            updateLoadingProgress('Querying NetBox for tenant data...', 50);
+            
+            // Simulate processing time for NetBox queries
+            setTimeout(() => {
+                updateLoadingProgress('Calculating GPU utilization...', 70);
+                
+                setTimeout(() => {
+                    updateLoadingProgress('Rendering host data...', 90);
+                    
+                    setTimeout(() => {
+                        aggregateData = data;
+                        renderAggregateData(data);
+                        updateLoadingProgress('Complete!', 100);
+                        
+                        setTimeout(() => {
+                            showLoading(false);
+                            showMainContent();
+                        }, 200);
+                    }, 200);
+                }, 300);
+            }, 300);
         })
         .catch(error => {
             showNotification('Error loading aggregate data: ' + error.message, 'danger');
@@ -107,15 +128,27 @@ function renderAggregateData(data) {
     document.getElementById('runpodCount').textContent = data.runpod.hosts ? data.runpod.hosts.length : 0;
     document.getElementById('spotCount').textContent = data.spot.hosts ? data.spot.hosts.length : 0;
     
-    // Update GPU usage badges for On-Demand and Spot
+    // Update per-column GPU statistics
     if (data.ondemand.gpu_summary) {
+        const ondemandPercent = Math.round((data.ondemand.gpu_summary.gpu_used / data.ondemand.gpu_summary.gpu_capacity) * 100) || 0;
         document.getElementById('ondemandGpuUsage').textContent = data.ondemand.gpu_summary.gpu_usage_ratio;
+        document.getElementById('ondemandGpuPercent').textContent = ondemandPercent + '%';
+        document.getElementById('ondemandGpuProgressBar').style.width = ondemandPercent + '%';
     }
     if (data.spot.gpu_summary) {
+        const spotPercent = Math.round((data.spot.gpu_summary.gpu_used / data.spot.gpu_summary.gpu_capacity) * 100) || 0;
         document.getElementById('spotGpuUsage').textContent = data.spot.gpu_summary.gpu_usage_ratio;
+        document.getElementById('spotGpuPercent').textContent = spotPercent + '%';
+        document.getElementById('spotGpuProgressBar').style.width = spotPercent + '%';
     }
     
-    // Update GPU overview banner
+    // Update Runpod VM statistics
+    if (data.runpod.hosts) {
+        const totalVms = data.runpod.hosts.reduce((total, host) => total + (host.vm_count || 0), 0);
+        document.getElementById('runpodVmUsage').textContent = totalVms + ' VMs';
+    }
+    
+    // Update overall summary banner
     if (data.gpu_overview) {
         document.getElementById('totalGpuUsage').textContent = data.gpu_overview.gpu_usage_ratio + ' GPUs';
         document.getElementById('gpuUsagePercentage').textContent = data.gpu_overview.gpu_usage_percentage + '%';
@@ -134,6 +167,25 @@ function renderAggregateData(data) {
             progressBar.classList.add('bg-danger');
         }
     }
+    
+    // Calculate and update overall host statistics
+    let totalAvailableHosts = 0;
+    let totalInUseHosts = 0;
+    
+    [data.ondemand.hosts, data.runpod.hosts, data.spot.hosts].forEach(hostArray => {
+        if (hostArray) {
+            hostArray.forEach(host => {
+                if (host.has_vms) {
+                    totalInUseHosts++;
+                } else {
+                    totalAvailableHosts++;
+                }
+            });
+        }
+    });
+    
+    document.getElementById('availableHostsCount').textContent = totalAvailableHosts;
+    document.getElementById('inUseHostsCount').textContent = totalInUseHosts;
     
     // Render hosts for each column
     if (data.ondemand.hosts) {
@@ -235,45 +287,113 @@ function renderHosts(containerId, hosts, type, aggregateName = null) {
         `;
     }
     
-    // In-use hosts section with sub-grouping by VM count
+    // In-use hosts section with sub-grouping by GPU utilization (for spot/ondemand) or VM count (for runpod)
     if (inUseHosts.length > 0) {
-        // Group hosts by VM count
-        const hostsByVmCount = {};
-        inUseHosts.forEach(host => {
-            const vmCount = host.vm_count;
-            if (!hostsByVmCount[vmCount]) {
-                hostsByVmCount[vmCount] = [];
-            }
-            hostsByVmCount[vmCount].push(host);
-        });
-        
-        // Sort by VM count (1 VM first, then 2, 3, etc.)
-        const sortedVmCounts = Object.keys(hostsByVmCount).sort((a, b) => parseInt(a) - parseInt(b));
-        
         const inUseId = `inuse-${type}`;
         let inUseSubGroups = '';
         
-        sortedVmCounts.forEach(vmCount => {
-            const hosts = hostsByVmCount[vmCount];
-            const hostCards = hosts.map(host => createHostCard(host, type, aggregateName)).join('');
-            const subGroupId = `inuse-${vmCount}vm-${type}`;
-            const vmLabel = vmCount === '1' ? '1 VM' : `${vmCount} VMs`;
-            const priorityClass = vmCount === '1' ? 'priority-high' : vmCount <= '3' ? 'priority-medium' : 'priority-low';
+        if (type === 'runpod') {
+            // For Runpod, group by VM count as before
+            const hostsByVmCount = {};
+            inUseHosts.forEach(host => {
+                const vmCount = host.vm_count;
+                if (!hostsByVmCount[vmCount]) {
+                    hostsByVmCount[vmCount] = [];
+                }
+                hostsByVmCount[vmCount].push(host);
+            });
             
-            inUseSubGroups += `
-                <div class="host-subgroup ${priorityClass}">
-                    <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
-                        <i class="fas fa-server text-muted"></i>
-                        <span class="subgroup-title">${vmLabel} (${hosts.length} host${hosts.length !== 1 ? 's' : ''})</span>
-                        ${vmCount === '1' ? '<span class="badge bg-info ms-2">Easier to migrate</span>' : ''}
-                        <i class="fas fa-chevron-down toggle-icon" id="${subGroupId}-icon"></i>
+            // Sort by VM count (1 VM first, then 2, 3, etc.)
+            const sortedVmCounts = Object.keys(hostsByVmCount).sort((a, b) => parseInt(a) - parseInt(b));
+            
+            sortedVmCounts.forEach(vmCount => {
+                const hosts = hostsByVmCount[vmCount];
+                const hostCards = hosts.map(host => createHostCard(host, type, aggregateName)).join('');
+                const subGroupId = `inuse-${vmCount}vm-${type}`;
+                const vmLabel = vmCount === '1' ? '1 VM' : `${vmCount} VMs`;
+                const priorityClass = vmCount === '1' ? 'priority-high' : vmCount <= '3' ? 'priority-medium' : 'priority-low';
+                
+                inUseSubGroups += `
+                    <div class="host-subgroup ${priorityClass}">
+                        <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
+                            <i class="fas fa-server text-muted"></i>
+                            <span class="subgroup-title">${vmLabel} (${hosts.length} host${hosts.length !== 1 ? 's' : ''})</span>
+                            ${vmCount === '1' ? '<span class="badge bg-info ms-2">Easier to migrate</span>' : ''}
+                            <i class="fas fa-chevron-down toggle-icon" id="${subGroupId}-icon"></i>
+                        </div>
+                        <div class="host-subgroup-content" id="${subGroupId}">
+                            ${hostCards}
+                        </div>
                     </div>
-                    <div class="host-subgroup-content" id="${subGroupId}">
-                        ${hostCards}
-                    </div>
-                </div>
-            `;
-        });
+                `;
+            });
+        } else {
+            // For spot/ondemand, group by GPU utilization percentage
+            const hostsByGpuUsage = {};
+            inUseHosts.forEach(host => {
+                const gpuUsed = host.gpu_used || 0;
+                const gpuCapacity = host.gpu_capacity || 8;
+                const gpuUtilization = Math.round((gpuUsed / gpuCapacity) * 100);
+                
+                // Group by utilization ranges: Low (1-33%), Medium (34-66%), High (67-100%)
+                let utilizationRange;
+                if (gpuUtilization <= 33) {
+                    utilizationRange = 'low';
+                } else if (gpuUtilization <= 66) {
+                    utilizationRange = 'medium';
+                } else {
+                    utilizationRange = 'high';
+                }
+                
+                if (!hostsByGpuUsage[utilizationRange]) {
+                    hostsByGpuUsage[utilizationRange] = [];
+                }
+                hostsByGpuUsage[utilizationRange].push(host);
+            });
+            
+            // Sort by GPU utilization (low first - easier to migrate)
+            const utilizationOrder = ['low', 'medium', 'high'];
+            
+            utilizationOrder.forEach(range => {
+                if (hostsByGpuUsage[range]) {
+                    const hosts = hostsByGpuUsage[range];
+                    // Sort hosts within each range by actual GPU usage (ascending)
+                    hosts.sort((a, b) => (a.gpu_used || 0) - (b.gpu_used || 0));
+                    
+                    const hostCards = hosts.map(host => createHostCard(host, type, aggregateName)).join('');
+                    const subGroupId = `inuse-${range}-gpu-${type}`;
+                    
+                    let rangeLabel, priorityClass, badge;
+                    if (range === 'low') {
+                        rangeLabel = 'Low GPU Usage (1-33%)';
+                        priorityClass = 'priority-high';
+                        badge = '<span class="badge bg-success ms-2">Easier to migrate</span>';
+                    } else if (range === 'medium') {
+                        rangeLabel = 'Medium GPU Usage (34-66%)';
+                        priorityClass = 'priority-medium';
+                        badge = '<span class="badge bg-warning ms-2">Moderate effort</span>';
+                    } else {
+                        rangeLabel = 'High GPU Usage (67-100%)';
+                        priorityClass = 'priority-low';
+                        badge = '<span class="badge bg-danger ms-2">Harder to migrate</span>';
+                    }
+                    
+                    inUseSubGroups += `
+                        <div class="host-subgroup ${priorityClass}">
+                            <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
+                                <i class="fas fa-microchip text-muted"></i>
+                                <span class="subgroup-title">${rangeLabel} (${hosts.length} host${hosts.length !== 1 ? 's' : ''})</span>
+                                ${badge}
+                                <i class="fas fa-chevron-down toggle-icon" id="${subGroupId}-icon"></i>
+                            </div>
+                            <div class="host-subgroup-content" id="${subGroupId}">
+                                ${hostCards}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        }
         
         sectionsHtml += `
             <div class="host-group">
@@ -837,16 +957,38 @@ function formatDate(dateString) {
 function refreshData() {
     if (currentGpuType) {
         selectedHosts.clear();
+        showLoading(true, 'Refreshing data...', 'Clearing cache...', 5);
         loadAggregateData(currentGpuType);
     }
 }
 
-function showLoading(show) {
+function showLoading(show, message = 'Loading...', step = 'Initializing...', progress = 0) {
     const loadingIndicator = document.getElementById('loadingIndicator');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const loadingStep = document.getElementById('loadingStep');
+    const loadingProgress = document.getElementById('loadingProgress');
+    
     if (show) {
         loadingIndicator.classList.remove('d-none');
+        loadingMessage.textContent = message;
+        loadingStep.textContent = step;
+        loadingProgress.style.width = progress + '%';
     } else {
         loadingIndicator.classList.add('d-none');
+        // Reset loading state
+        loadingMessage.textContent = 'Loading...';
+        loadingStep.textContent = 'Initializing...';
+        loadingProgress.style.width = '0%';
+    }
+}
+
+function updateLoadingProgress(step, progress) {
+    const loadingStep = document.getElementById('loadingStep');
+    const loadingProgress = document.getElementById('loadingProgress');
+    
+    if (loadingStep && loadingProgress) {
+        loadingStep.textContent = step;
+        loadingProgress.style.width = progress + '%';
     }
 }
 
