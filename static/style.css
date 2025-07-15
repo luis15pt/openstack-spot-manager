@@ -1072,6 +1072,32 @@ body {
     font-size: 0.9em;
 }
 
+/* Variant styling */
+.variant-info {
+    display: flex;
+    align-items: center;
+    margin-top: 2px;
+}
+
+.variant-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.7em;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
+    background-color: #f0f4ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+}
+
+.variant-badge i {
+    font-size: 0.9em;
+}
+
 /* Responsive adjustments for pending operations */
 @media (max-width: 768px) {
     .operation-details {
@@ -1104,6 +1130,11 @@ body {
     }
     
     .nvlinks-badge {
+        font-size: 0.65em;
+        padding: 1px 4px;
+    }
+    
+    .variant-badge {
         font-size: 0.65em;
         padding: 1px 4px;
     }

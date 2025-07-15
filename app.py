@@ -219,7 +219,7 @@ def get_host_gpu_info(hostname):
         }
 
 def discover_gpu_aggregates():
-    """Dynamically discover GPU aggregates from OpenStack"""
+    """Dynamically discover GPU aggregates from OpenStack with variant support"""
     try:
         conn = get_openstack_connection()
         if not conn:
@@ -232,29 +232,50 @@ def discover_gpu_aggregates():
         import re
         
         for agg in aggregates:
-            # Match patterns like: RTX-A6000-n3, RTX-A6000-n3-spot, RTX-A6000-n3-runpod
-            match = re.match(r'^([A-Z0-9-]+)-n3(-spot|-runpod)?$', agg.name)
+            # Match patterns like: RTX-A6000-n3, A100-n3-NVLink, RTX-A6000-n3-spot, RTX-A6000-n3-runpod
+            match = re.match(r'^([A-Z0-9-]+)-n3(-NVLink)?(-spot|-runpod)?$', agg.name)
             if match:
                 gpu_type = match.group(1)
-                suffix = match.group(2)
+                nvlink_suffix = match.group(2)  # -NVLink or None
+                pool_suffix = match.group(3)   # -spot, -runpod, or None
                 
                 if gpu_type not in gpu_aggregates:
                     gpu_aggregates[gpu_type] = {
-                        'ondemand': None,
+                        'ondemand_variants': [],
                         'spot': None,
                         'runpod': None
                     }
                 
-                if suffix == '-spot':
+                if pool_suffix == '-spot':
                     gpu_aggregates[gpu_type]['spot'] = agg.name
-                elif suffix == '-runpod':
+                elif pool_suffix == '-runpod':
                     gpu_aggregates[gpu_type]['runpod'] = agg.name
                 else:
-                    # No suffix = on-demand
-                    gpu_aggregates[gpu_type]['ondemand'] = agg.name
+                    # No pool suffix = on-demand variant
+                    variant_name = agg.name
+                    if nvlink_suffix:
+                        variant_display = f"{gpu_type}-n3-NVLink"
+                    else:
+                        variant_display = f"{gpu_type}-n3"
+                    
+                    gpu_aggregates[gpu_type]['ondemand_variants'].append({
+                        'aggregate': agg.name,
+                        'variant': variant_display
+                    })
         
-        print(f"📊 Discovered GPU aggregates: {gpu_aggregates}")
-        return gpu_aggregates
+        # Convert to format compatible with existing code
+        result = {}
+        for gpu_type, data in gpu_aggregates.items():
+            if data['ondemand_variants']:
+                result[gpu_type] = {
+                    'ondemand': data['ondemand_variants'][0]['aggregate'],  # Primary for compatibility
+                    'ondemand_variants': data['ondemand_variants'],
+                    'spot': data['spot'],
+                    'runpod': data['runpod']
+                }
+        
+        print(f"📊 Discovered GPU aggregates: {result}")
+        return result
         
     except Exception as e:
         print(f"❌ Error discovering aggregates: {e}")
@@ -489,15 +510,28 @@ def get_aggregate_data(gpu_type):
     runpod_hosts = []
     spot_hosts = []
     
-    if config['ondemand']:
+    # Handle multiple on-demand variants (like A100-n3 and A100-n3-NVLink)
+    ondemand_host_variants = {}  # Track which variant each host belongs to
+    if config.get('ondemand_variants'):
+        for variant in config['ondemand_variants']:
+            variant_hosts = get_aggregate_hosts(variant['aggregate'])
+            ondemand_hosts.extend(variant_hosts)
+            all_hostnames.extend(variant_hosts)
+            # Track which variant each host belongs to
+            for host in variant_hosts:
+                ondemand_host_variants[host] = variant['variant']
+    elif config.get('ondemand'):
+        # Fallback for single on-demand aggregate
         ondemand_hosts = get_aggregate_hosts(config['ondemand'])
         all_hostnames.extend(ondemand_hosts)
+        for host in ondemand_hosts:
+            ondemand_host_variants[host] = config['ondemand']
     
-    if config['runpod']:
+    if config.get('runpod'):
         runpod_hosts = get_aggregate_hosts(config['runpod'])
         all_hostnames.extend(runpod_hosts)
     
-    if config['spot']:
+    if config.get('spot'):
         spot_hosts = get_aggregate_hosts(config['spot'])
         all_hostnames.extend(spot_hosts)
     
@@ -525,6 +559,9 @@ def get_aggregate_data(gpu_type):
                     'gpu_capacity': gpu_info['gpu_capacity'],
                     'gpu_usage_ratio': gpu_info['gpu_usage_ratio']
                 }
+                # Add variant information for on-demand hosts
+                if aggregate_type == 'ondemand' and host in ondemand_host_variants:
+                    host_data['variant'] = ondemand_host_variants[host]
             else:
                 # For Runpod, hosts are fully utilized
                 host_data = {
@@ -562,19 +599,28 @@ def get_aggregate_data(gpu_type):
     total_gpu_capacity = ondemand_gpu_summary['gpu_capacity'] + spot_gpu_summary['gpu_capacity']
     gpu_usage_percentage = round((total_gpu_used / total_gpu_capacity * 100) if total_gpu_capacity > 0 else 0, 1)
     
+    # Build on-demand name display
+    ondemand_name = config.get('ondemand', 'N/A')
+    if config.get('ondemand_variants') and len(config['ondemand_variants']) > 1:
+        variant_names = [variant['variant'] for variant in config['ondemand_variants']]
+        ondemand_name = f"{gpu_type}-n3 ({len(variant_names)} variants)"
+    elif config.get('ondemand_variants') and len(config['ondemand_variants']) == 1:
+        ondemand_name = config['ondemand_variants'][0]['variant']
+    
     return jsonify({
         'gpu_type': gpu_type,
         'ondemand': {
-            'name': config['ondemand'],
+            'name': ondemand_name,
             'hosts': ondemand_data,
-            'gpu_summary': ondemand_gpu_summary
+            'gpu_summary': ondemand_gpu_summary,
+            'variants': config.get('ondemand_variants', [])
         },
         'runpod': {
-            'name': config['runpod'],
+            'name': config.get('runpod', 'N/A'),
             'hosts': runpod_data
         },
         'spot': {
-            'name': config['spot'],
+            'name': config.get('spot', 'N/A'),
             'hosts': spot_data,
             'gpu_summary': spot_gpu_summary
         },

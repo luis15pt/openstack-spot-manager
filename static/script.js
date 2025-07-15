@@ -186,6 +186,12 @@ function renderAggregateData(data) {
     document.getElementById('runpodName').textContent = data.runpod.name || 'N/A';
     document.getElementById('spotName').textContent = data.spot.name || 'N/A';
     
+    // Show variant information if multiple variants exist
+    if (data.ondemand.variants && data.ondemand.variants.length > 1) {
+        const variantNames = data.ondemand.variants.map(v => v.variant).join(', ');
+        document.getElementById('ondemandName').title = `Includes variants: ${variantNames}`;
+    }
+    
     document.getElementById('ondemandCount').textContent = data.ondemand.hosts ? data.ondemand.hosts.length : 0;
     document.getElementById('runpodCount').textContent = data.runpod.hosts ? data.runpod.hosts.length : 0;
     document.getElementById('spotCount').textContent = data.spot.hosts ? data.spot.hosts.length : 0;
@@ -544,6 +550,13 @@ function createHostCard(host, type, aggregateName = null) {
                         NVLinks: ${host.nvlinks ? 'Yes' : 'No'}
                     </span>
                 </div>
+                ${host.variant ? `
+                <div class="variant-info">
+                    <span class="variant-badge" title="Aggregate: ${host.variant}">
+                        <i class="fas fa-tag"></i>
+                        ${host.variant}
+                    </span>
+                </div>` : ''}
             </div>
         </div>
     `;
