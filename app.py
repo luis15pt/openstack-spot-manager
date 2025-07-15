@@ -9,6 +9,8 @@ import openstack
 from dotenv import load_dotenv
 import os
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 # Load environment variables
 load_dotenv()
@@ -522,6 +524,47 @@ def get_host_vm_count(hostname):
         print(f"❌ Error getting VM count for host {hostname}: {e}")
         return 0
 
+def get_host_vm_count_with_debug(hostname):
+    """Get VM count for a specific host with debug logging"""
+    start_time = time.time()
+    try:
+        count = get_host_vm_count(hostname)
+        elapsed = time.time() - start_time
+        print(f"🔍 VM count for {hostname}: {count} VMs (took {elapsed:.2f}s)")
+        return hostname, count
+    except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"❌ VM count failed for {hostname} after {elapsed:.2f}s: {e}")
+        return hostname, 0
+
+def get_bulk_vm_counts(hostnames, max_workers=10):
+    """Get VM counts for multiple hosts concurrently"""
+    start_time = time.time()
+    print(f"🚀 Starting bulk VM count check for {len(hostnames)} hosts with {max_workers} workers...")
+    
+    vm_counts = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_hostname = {executor.submit(get_host_vm_count_with_debug, hostname): hostname 
+                             for hostname in hostnames}
+        
+        # Collect results as they complete
+        completed = 0
+        for future in as_completed(future_to_hostname):
+            hostname, count = future.result()
+            vm_counts[hostname] = count
+            completed += 1
+            
+            # Progress indicator every 10 hosts
+            if completed % 10 == 0 or completed == len(hostnames):
+                elapsed = time.time() - start_time
+                print(f"📊 VM count progress: {completed}/{len(hostnames)} hosts checked ({elapsed:.1f}s)")
+    
+    total_elapsed = time.time() - start_time
+    print(f"✅ Bulk VM count completed: {len(hostnames)} hosts in {total_elapsed:.2f}s (avg {total_elapsed/len(hostnames):.2f}s per host)")
+    
+    return vm_counts
+
 def get_host_vms(hostname):
     """Get VMs running on a specific host using OpenStack SDK"""
     try:
@@ -617,11 +660,14 @@ def get_aggregate_data(gpu_type):
     # Bulk NetBox lookup for all hostnames
     tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
     
+    # Bulk VM count lookup for all hostnames (concurrent processing)
+    vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
+    
     def process_hosts(hosts, aggregate_type):
         """Helper function to process hosts with consistent data structure"""
         processed = []
         for host in hosts:
-            vm_count = get_host_vm_count(host)
+            vm_count = vm_counts_bulk.get(host, 0)
             tenant_info = tenant_info_bulk[host]
             
             # Get GPU information for Spot and On-Demand only
