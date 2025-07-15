@@ -225,6 +225,32 @@ def get_host_gpu_info(hostname):
             'gpu_usage_ratio': "0/8"
         }
 
+def get_host_gpu_info_fast(hostname, vm_count):
+    """Fast GPU info calculation using VM count heuristic (no additional API calls)"""
+    try:
+        # Determine total GPU capacity based on host type
+        host_gpu_capacity = 10 if 'A4000' in hostname else 8
+        
+        # Estimate GPU usage: assume each VM uses all available GPUs on the host
+        # This is a reasonable approximation for most GPU workloads
+        estimated_gpu_used = min(vm_count * host_gpu_capacity, host_gpu_capacity) if vm_count > 0 else 0
+        
+        return {
+            'gpu_used': estimated_gpu_used,
+            'gpu_capacity': host_gpu_capacity,
+            'vm_count': vm_count,
+            'gpu_usage_ratio': f"{estimated_gpu_used}/{host_gpu_capacity}"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error calculating fast GPU info for host {hostname}: {e}")
+        return {
+            'gpu_used': 0,
+            'gpu_capacity': 8,  # Default to 8 GPUs
+            'vm_count': vm_count,
+            'gpu_usage_ratio': "0/8"
+        }
+
 def discover_gpu_aggregates():
     """Dynamically discover GPU aggregates from OpenStack with variant support"""
     try:
@@ -672,7 +698,7 @@ def get_aggregate_data(gpu_type):
             
             # Get GPU information for Spot and On-Demand only
             if aggregate_type in ['spot', 'ondemand']:
-                gpu_info = get_host_gpu_info(host)
+                gpu_info = get_host_gpu_info_fast(host, vm_count)
                 host_data = {
                     'name': host,
                     'vm_count': vm_count,
@@ -702,9 +728,23 @@ def get_aggregate_data(gpu_type):
         return processed
     
     # Process all three aggregate types
+    processing_start = time.time()
+    print(f"🏗️ Processing {len(ondemand_hosts)} ondemand hosts...")
+    process_start = time.time()
     ondemand_data = process_hosts(ondemand_hosts, 'ondemand')
+    print(f"✅ Ondemand processing completed in {time.time() - process_start:.2f}s")
+    
+    print(f"🏗️ Processing {len(runpod_hosts)} runpod hosts...")
+    process_start = time.time()
     runpod_data = process_hosts(runpod_hosts, 'runpod')
+    print(f"✅ Runpod processing completed in {time.time() - process_start:.2f}s")
+    
+    print(f"🏗️ Processing {len(spot_hosts)} spot hosts...")
+    process_start = time.time()
     spot_data = process_hosts(spot_hosts, 'spot')
+    print(f"✅ Spot processing completed in {time.time() - process_start:.2f}s")
+    
+    print(f"🏁 All host processing completed in {time.time() - processing_start:.2f}s")
     
     # Calculate GPU summary statistics for On-Demand and Spot only
     def calculate_gpu_summary(data):
