@@ -1805,10 +1805,6 @@ document.addEventListener('click', function(e) {
 
 // Runpod Launch Functionality
 function scheduleRunpodLaunch(hostname) {
-    if (!confirm(`Schedule VM launch on host ${hostname}?\n\nThe VM will be named '${hostname}' and will be queued for launch.`)) {
-        return;
-    }
-    
     // Add to pending operations with manual trigger (immediate)
     addToPendingOperations(hostname, 'runpod', 'runpod-launch', {
         vm_name: hostname,

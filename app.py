@@ -225,31 +225,54 @@ def get_host_gpu_info(hostname):
             'gpu_usage_ratio': "0/8"
         }
 
-def get_host_gpu_info_fast(hostname, vm_count):
-    """Fast GPU info calculation using VM count heuristic (no additional API calls)"""
+def get_host_gpu_info_with_debug(hostname):
+    """Get GPU info for a specific host with debug logging"""
+    start_time = time.time()
     try:
-        # Determine total GPU capacity based on host type
-        host_gpu_capacity = 10 if 'A4000' in hostname else 8
-        
-        # Estimate GPU usage: assume each VM uses all available GPUs on the host
-        # This is a reasonable approximation for most GPU workloads
-        estimated_gpu_used = min(vm_count * host_gpu_capacity, host_gpu_capacity) if vm_count > 0 else 0
-        
-        return {
-            'gpu_used': estimated_gpu_used,
-            'gpu_capacity': host_gpu_capacity,
-            'vm_count': vm_count,
-            'gpu_usage_ratio': f"{estimated_gpu_used}/{host_gpu_capacity}"
-        }
-        
+        gpu_info = get_host_gpu_info(hostname)
+        elapsed = time.time() - start_time
+        print(f"🎮 GPU info for {hostname}: {gpu_info['gpu_used']}/{gpu_info['gpu_capacity']} GPUs (took {elapsed:.2f}s)")
+        return hostname, gpu_info
     except Exception as e:
-        print(f"❌ Error calculating fast GPU info for host {hostname}: {e}")
-        return {
+        elapsed = time.time() - start_time
+        print(f"❌ GPU info failed for {hostname} after {elapsed:.2f}s: {e}")
+        return hostname, {
             'gpu_used': 0,
-            'gpu_capacity': 8,  # Default to 8 GPUs
-            'vm_count': vm_count,
+            'gpu_capacity': 8,
+            'vm_count': 0,
             'gpu_usage_ratio': "0/8"
         }
+
+def get_bulk_gpu_info(hostnames, max_workers=10):
+    """Get GPU info for multiple hosts concurrently"""
+    if not hostnames:
+        return {}
+        
+    start_time = time.time()
+    print(f"🎮 Starting bulk GPU info check for {len(hostnames)} hosts with {max_workers} workers...")
+    
+    gpu_info_results = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_hostname = {executor.submit(get_host_gpu_info_with_debug, hostname): hostname 
+                             for hostname in hostnames}
+        
+        # Collect results as they complete
+        completed = 0
+        for future in as_completed(future_to_hostname):
+            hostname, gpu_info = future.result()
+            gpu_info_results[hostname] = gpu_info
+            completed += 1
+            
+            # Progress indicator every 10 hosts
+            if completed % 10 == 0 or completed == len(hostnames):
+                elapsed = time.time() - start_time
+                print(f"📊 GPU info progress: {completed}/{len(hostnames)} hosts checked ({elapsed:.1f}s)")
+    
+    total_elapsed = time.time() - start_time
+    print(f"✅ Bulk GPU info completed: {len(hostnames)} hosts in {total_elapsed:.2f}s (avg {total_elapsed/len(hostnames):.2f}s per host)")
+    
+    return gpu_info_results
 
 def discover_gpu_aggregates():
     """Dynamically discover GPU aggregates from OpenStack with variant support"""
@@ -689,6 +712,12 @@ def get_aggregate_data(gpu_type):
     # Bulk VM count lookup for all hostnames (concurrent processing)
     vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
     
+    # Bulk GPU info lookup for spot and ondemand hosts only (concurrent processing)
+    gpu_hosts = []
+    gpu_hosts.extend(ondemand_hosts)
+    gpu_hosts.extend(spot_hosts)
+    gpu_info_bulk = get_bulk_gpu_info(gpu_hosts) if gpu_hosts else {}
+    
     def process_hosts(hosts, aggregate_type):
         """Helper function to process hosts with consistent data structure"""
         processed = []
@@ -698,7 +727,12 @@ def get_aggregate_data(gpu_type):
             
             # Get GPU information for Spot and On-Demand only
             if aggregate_type in ['spot', 'ondemand']:
-                gpu_info = get_host_gpu_info_fast(host, vm_count)
+                gpu_info = gpu_info_bulk.get(host, {
+                    'gpu_used': 0,
+                    'gpu_capacity': 8,
+                    'vm_count': vm_count,
+                    'gpu_usage_ratio': "0/8"
+                })
                 host_data = {
                     'name': host,
                     'vm_count': vm_count,
@@ -1009,7 +1043,7 @@ def preview_runpod_launch():
     user_data_preview = '"Content-Type: multipart/mixed...api_key=' + masked_runpod_key + '...power_state: reboot"'
     
     curl_command = f"""curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines \\
-  -H "Authorization: {masked_hyperstack_key}" \\
+  -H "api_key: {masked_hyperstack_key}" \\
   -H "Content-Type: application/json" \\
   -d '{{
     "name": "{hostname}",
@@ -1174,7 +1208,7 @@ power_state:
     try:
         # Make the API call to Hyperstack
         headers = {
-            'Authorization': HYPERSTACK_API_KEY,
+            'api_key': HYPERSTACK_API_KEY,
             'Content-Type': 'application/json'
         }
         
@@ -1186,7 +1220,7 @@ power_state:
         )
         
         # Build command for logging (with masked API key)
-        masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines -H 'Authorization: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"name\": \"{hostname}\", \"flavor_name\": \"{flavor_name}\", ...}}'"
+        masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines -H 'api_key: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"name\": \"{hostname}\", \"flavor_name\": \"{flavor_name}\", ...}}'"
         
         if response.status_code in [200, 201]:
             result_data = response.json()
