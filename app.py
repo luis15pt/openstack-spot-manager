@@ -1285,13 +1285,18 @@ power_state:
         return jsonify({'error': error_msg}), 500
 
 def attach_runpod_storage_network(vm_name, delay_seconds=120):
-    """Attach RunPod-Storage-Canada-1 network to VM after specified delay"""
+    """Attach RunPod-Storage-Canada-1 network to VM after specified delay (Canada hosts only)"""
     def delayed_attach():
         try:
             print(f"⏳ Waiting {delay_seconds}s before attaching storage network to {vm_name}...")
             time.sleep(delay_seconds)
             
-            print(f"🔌 Starting network attachment for VM {vm_name}...")
+            # Check if host is in Canada (CA1 prefix)
+            if not vm_name.startswith('CA1-'):
+                print(f"🌍 Skipping storage network attachment for {vm_name} - not a Canada host")
+                return
+            
+            print(f"🔌 Starting network attachment for VM {vm_name} (Canada host)...")
             conn = get_openstack_connection()
             if not conn:
                 print(f"❌ No OpenStack connection available for network attachment to {vm_name}")
@@ -1364,7 +1369,10 @@ def attach_runpod_storage_network(vm_name, delay_seconds=120):
     # Start the delayed attachment in a separate thread
     thread = threading.Thread(target=delayed_attach, daemon=True)
     thread.start()
-    print(f"🚀 Scheduled storage network attachment for {vm_name} in {delay_seconds} seconds")
+    if vm_name.startswith('CA1-'):
+        print(f"🚀 Scheduled storage network attachment for {vm_name} (Canada host) in {delay_seconds} seconds")
+    else:
+        print(f"🌍 VM {vm_name} is not in Canada - storage network attachment will be skipped")
 
 if __name__ == '__main__':
     print("=" * 60)
