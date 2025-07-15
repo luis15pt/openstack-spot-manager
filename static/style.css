@@ -973,6 +973,29 @@ body {
     background-color: #fffbf5;
 }
 
+/* Purple color scheme for Runpod */
+.bg-purple {
+    background-color: #6f42c1 !important;
+}
+
+.btn-purple {
+    background-color: #6f42c1;
+    border-color: #6f42c1;
+    color: white;
+}
+
+.btn-purple:hover {
+    background-color: #5a32a1;
+    border-color: #5a32a1;
+    color: white;
+}
+
+.btn-purple:disabled {
+    background-color: #6f42c1;
+    border-color: #6f42c1;
+    opacity: 0.5;
+}
+
 /* Machine card layout adjustments for tenant info */
 .machine-status {
     display: flex;

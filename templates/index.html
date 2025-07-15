@@ -70,7 +70,7 @@
                         <div class="tab-pane fade show active" id="hosts" role="tabpanel">
                             <div class="row mt-3">
                                 <!-- On-Demand Column -->
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <div class="aggregate-column" id="ondemandColumn">
                                         <div class="card">
                                             <div class="card-header bg-primary text-white">
@@ -89,8 +89,28 @@
                                     </div>
                                 </div>
                                 
+                                <!-- Runpod Column -->
+                                <div class="col-md-4">
+                                    <div class="aggregate-column" id="runpodColumn">
+                                        <div class="card">
+                                            <div class="card-header bg-purple text-white">
+                                                <h4 class="mb-0">
+                                                    <i class="fas fa-rocket"></i> 
+                                                    Runpod <span id="runpodName"></span>
+                                                    <span class="badge bg-light text-dark ms-2" id="runpodCount">0</span>
+                                                </h4>
+                                            </div>
+                                            <div class="card-body" id="runpodHosts">
+                                                <div class="drop-zone" data-type="runpod">
+                                                    <p class="text-muted text-center">Drop hosts here or select and move</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <!-- Spot Column -->
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <div class="aggregate-column" id="spotColumn">
                                         <div class="card">
                                             <div class="card-header bg-warning text-dark">
@@ -140,11 +160,14 @@
                             <!-- Control Buttons -->
                             <div class="row mt-4">
                                 <div class="col-md-12 text-center">
-                                    <button id="moveToSpotBtn" class="btn btn-warning me-2" disabled>
-                                        <i class="fas fa-arrow-right"></i> Move to Spot
-                                    </button>
                                     <button id="moveToOndemandBtn" class="btn btn-primary me-2" disabled>
                                         <i class="fas fa-arrow-left"></i> Move to On-Demand
+                                    </button>
+                                    <button id="moveToRunpodBtn" class="btn btn-purple me-2" disabled>
+                                        <i class="fas fa-rocket"></i> Move to Runpod
+                                    </button>
+                                    <button id="moveToSpotBtn" class="btn btn-warning me-2" disabled>
+                                        <i class="fas fa-arrow-right"></i> Move to Spot
                                     </button>
                                     <button id="refreshBtn" class="btn btn-secondary">
                                         <i class="fas fa-sync"></i> Refresh

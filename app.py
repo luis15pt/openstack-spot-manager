@@ -173,6 +173,48 @@ def get_netbox_tenant(hostname):
     """Get tenant information from NetBox for a single hostname (wrapper for backward compatibility)"""
     return get_netbox_tenants_bulk([hostname])[hostname]
 
+def discover_gpu_aggregates():
+    """Dynamically discover GPU aggregates from OpenStack"""
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            return {}
+        
+        aggregates = list(conn.compute.aggregates())
+        gpu_aggregates = {}
+        
+        # Pattern to match GPU aggregates: GPU-TYPE-n3[-suffix]
+        import re
+        
+        for agg in aggregates:
+            # Match patterns like: RTX-A6000-n3, RTX-A6000-n3-spot, RTX-A6000-n3-runpod
+            match = re.match(r'^([A-Z0-9-]+)-n3(-spot|-runpod)?$', agg.name)
+            if match:
+                gpu_type = match.group(1)
+                suffix = match.group(2)
+                
+                if gpu_type not in gpu_aggregates:
+                    gpu_aggregates[gpu_type] = {
+                        'ondemand': None,
+                        'spot': None,
+                        'runpod': None
+                    }
+                
+                if suffix == '-spot':
+                    gpu_aggregates[gpu_type]['spot'] = agg.name
+                elif suffix == '-runpod':
+                    gpu_aggregates[gpu_type]['runpod'] = agg.name
+                else:
+                    # No suffix = on-demand
+                    gpu_aggregates[gpu_type]['ondemand'] = agg.name
+        
+        print(f"📊 Discovered GPU aggregates: {gpu_aggregates}")
+        return gpu_aggregates
+        
+    except Exception as e:
+        print(f"❌ Error discovering aggregates: {e}")
+        return {}
+
 # Define aggregate pairs - multiple on-demand variants share one spot aggregate
 AGGREGATE_PAIRS = {
     'L40': {
@@ -375,53 +417,55 @@ def get_host_vms(hostname):
 def index():
     return render_template('index.html')
 
+@app.route('/api/gpu-types')
+def get_gpu_types():
+    """Get available GPU types from discovered aggregates"""
+    gpu_aggregates = discover_gpu_aggregates()
+    return jsonify({
+        'gpu_types': list(gpu_aggregates.keys()),
+        'aggregates': gpu_aggregates
+    })
+
 @app.route('/api/aggregates/<gpu_type>')
 def get_aggregate_data(gpu_type):
-    """Get aggregate data for a specific GPU type with multiple on-demand variants and one spot"""
-    if gpu_type not in AGGREGATE_PAIRS:
+    """Get aggregate data for a specific GPU type with three-column layout: On-Demand, Runpod, Spot"""
+    gpu_aggregates = discover_gpu_aggregates()
+    
+    if gpu_type not in gpu_aggregates:
         return jsonify({'error': 'Invalid GPU type'}), 400
     
-    config = AGGREGATE_PAIRS[gpu_type]
-    
-    # Get spot hosts (shared across all variants)
-    spot_hosts = get_aggregate_hosts(config['spot'])
+    config = gpu_aggregates[gpu_type]
     
     # Collect all hostnames for bulk NetBox lookup
-    all_hostnames = spot_hosts.copy()
+    all_hostnames = []
     
-    # Get on-demand hosts for bulk lookup
-    ondemand_hosts_by_variant = {}
-    for variant_config in config['ondemand_variants']:
-        ondemand_hosts = get_aggregate_hosts(variant_config['aggregate'])
-        ondemand_hosts_by_variant[variant_config['variant']] = ondemand_hosts
+    # Get hosts for each aggregate type
+    ondemand_hosts = []
+    runpod_hosts = []
+    spot_hosts = []
+    
+    if config['ondemand']:
+        ondemand_hosts = get_aggregate_hosts(config['ondemand'])
         all_hostnames.extend(ondemand_hosts)
+    
+    if config['runpod']:
+        runpod_hosts = get_aggregate_hosts(config['runpod'])
+        all_hostnames.extend(runpod_hosts)
+    
+    if config['spot']:
+        spot_hosts = get_aggregate_hosts(config['spot'])
+        all_hostnames.extend(spot_hosts)
     
     # Bulk NetBox lookup for all hostnames
     tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
     
-    # Process spot hosts
-    spot_data = []
-    for host in spot_hosts:
-        vm_count = get_host_vm_count(host)
-        tenant_info = tenant_info_bulk[host]
-        spot_data.append({
-            'name': host,
-            'vm_count': vm_count,
-            'has_vms': vm_count > 0,
-            'tenant': tenant_info['tenant'],
-            'owner_group': tenant_info['owner_group'],
-            'nvlinks': tenant_info['nvlinks']
-        })
-    
-    # Process on-demand variants
-    ondemand_variants = []
-    for variant_config in config['ondemand_variants']:
-        ondemand_hosts = ondemand_hosts_by_variant[variant_config['variant']]
-        ondemand_data = []
-        for host in ondemand_hosts:
+    def process_hosts(hosts):
+        """Helper function to process hosts with consistent data structure"""
+        processed = []
+        for host in hosts:
             vm_count = get_host_vm_count(host)
             tenant_info = tenant_info_bulk[host]
-            ondemand_data.append({
+            processed.append({
                 'name': host,
                 'vm_count': vm_count,
                 'has_vms': vm_count > 0,
@@ -429,20 +473,27 @@ def get_aggregate_data(gpu_type):
                 'owner_group': tenant_info['owner_group'],
                 'nvlinks': tenant_info['nvlinks']
             })
-        
-        ondemand_variants.append({
-            'variant': variant_config['variant'],
-            'aggregate': variant_config['aggregate'],
-            'hosts': ondemand_data
-        })
+        return processed
+    
+    # Process all three aggregate types
+    ondemand_data = process_hosts(ondemand_hosts)
+    runpod_data = process_hosts(runpod_hosts)
+    spot_data = process_hosts(spot_hosts)
     
     return jsonify({
         'gpu_type': gpu_type,
+        'ondemand': {
+            'name': config['ondemand'],
+            'hosts': ondemand_data
+        },
+        'runpod': {
+            'name': config['runpod'],
+            'hosts': runpod_data
+        },
         'spot': {
             'name': config['spot'],
             'hosts': spot_data
-        },
-        'ondemand_variants': ondemand_variants
+        }
     })
 
 @app.route('/api/host-vms/<hostname>')

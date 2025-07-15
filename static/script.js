@@ -8,7 +8,30 @@ let pendingOperations = [];
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
+    loadGpuTypes();
 });
+
+function loadGpuTypes() {
+    fetch('/api/gpu-types')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('gpuTypeSelect');
+            // Clear existing options except the default
+            select.innerHTML = '<option value="">Select GPU Type...</option>';
+            
+            // Add discovered GPU types
+            data.gpu_types.forEach(gpuType => {
+                const option = document.createElement('option');
+                option.value = gpuType;
+                option.textContent = gpuType;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading GPU types:', error);
+            showNotification('Failed to load GPU types', 'error');
+        });
+}
 
 function initializeEventListeners() {
     // GPU type selector
@@ -25,6 +48,7 @@ function initializeEventListeners() {
     // Control buttons
     document.getElementById('moveToSpotBtn').addEventListener('click', () => moveSelectedHosts('spot'));
     document.getElementById('moveToOndemandBtn').addEventListener('click', () => moveSelectedHosts('ondemand'));
+    document.getElementById('moveToRunpodBtn').addEventListener('click', () => moveSelectedHosts('runpod'));
     document.getElementById('refreshBtn').addEventListener('click', refreshData);
     
     // Migration confirmation
@@ -71,68 +95,33 @@ function loadAggregateData(gpuType) {
 function renderAggregateData(data) {
     // Clear existing content
     document.getElementById('ondemandHosts').innerHTML = '';
+    document.getElementById('runpodHosts').innerHTML = '';
     document.getElementById('spotHosts').innerHTML = '';
     
-    if (data.ondemand_variants && data.ondemand_variants.length > 0) {
-        // Render multiple on-demand variants with single spot
-        renderMultipleOndemandVariants(data.ondemand_variants, data.spot);
-    } else {
-        // Fallback for old single-variant data structure
-        document.getElementById('ondemandName').textContent = data.ondemand.name;
-        document.getElementById('spotName').textContent = data.spot.name;
-        document.getElementById('ondemandCount').textContent = data.ondemand.hosts.length;
-        document.getElementById('spotCount').textContent = data.spot.hosts.length;
-        
-        renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand');
-        renderHosts('spotHosts', data.spot.hosts, 'spot');
+    // Update column headers with aggregate names and counts
+    document.getElementById('ondemandName').textContent = data.ondemand.name || 'N/A';
+    document.getElementById('runpodName').textContent = data.runpod.name || 'N/A';
+    document.getElementById('spotName').textContent = data.spot.name || 'N/A';
+    
+    document.getElementById('ondemandCount').textContent = data.ondemand.hosts ? data.ondemand.hosts.length : 0;
+    document.getElementById('runpodCount').textContent = data.runpod.hosts ? data.runpod.hosts.length : 0;
+    document.getElementById('spotCount').textContent = data.spot.hosts ? data.spot.hosts.length : 0;
+    
+    // Render hosts for each column
+    if (data.ondemand.hosts) {
+        renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand', data.ondemand.name);
+    }
+    if (data.runpod.hosts) {
+        renderHosts('runpodHosts', data.runpod.hosts, 'runpod', data.runpod.name);
+    }
+    if (data.spot.hosts) {
+        renderHosts('spotHosts', data.spot.hosts, 'spot', data.spot.name);
     }
     
     // Setup drag and drop
     setupDragAndDrop();
 }
 
-function renderMultipleOndemandVariants(ondemandVariants, spotData) {
-    const ondemandContainer = document.getElementById('ondemandHosts');
-    const spotContainer = document.getElementById('spotHosts');
-    
-    // Update header to show total counts
-    const totalOndemandHosts = ondemandVariants.reduce((sum, variant) => sum + variant.hosts.length, 0);
-    
-    document.getElementById('ondemandName').textContent = `(${ondemandVariants.length} variants)`;
-    document.getElementById('spotName').textContent = spotData.name;
-    document.getElementById('ondemandCount').textContent = totalOndemandHosts;
-    document.getElementById('spotCount').textContent = spotData.hosts.length;
-    
-    // Create sections for each on-demand variant
-    let ondemandVariantsHtml = '';
-    
-    ondemandVariants.forEach((variant, index) => {
-        ondemandVariantsHtml += `
-            <div class="variant-section mb-3">
-                <div class="variant-header">
-                    <h6 class="mb-2 text-primary">
-                        <i class="fas fa-server"></i> 
-                        ${variant.variant}
-                        <span class="badge bg-primary ms-2">${variant.hosts.length}</span>
-                    </h6>
-                </div>
-                <div class="variant-hosts" id="ondemand-variant-${index}">
-                    <!-- Hosts will be rendered here -->
-                </div>
-            </div>
-        `;
-    });
-    
-    ondemandContainer.innerHTML = ondemandVariantsHtml;
-    
-    // Render the single spot section
-    renderHosts('spotHosts', spotData.hosts, 'spot', spotData.name);
-    
-    // Render the actual hosts for each on-demand variant
-    ondemandVariants.forEach((variant, index) => {
-        renderHosts(`ondemand-variant-${index}`, variant.hosts, 'ondemand', variant.aggregate);
-    });
-}
 
 function renderHosts(containerId, hosts, type, aggregateName = null) {
     const container = document.getElementById(containerId);
@@ -419,10 +408,16 @@ function handleHostClick(e) {
 function updateControlButtons() {
     const moveToSpotBtn = document.getElementById('moveToSpotBtn');
     const moveToOndemandBtn = document.getElementById('moveToOndemandBtn');
+    const moveToRunpodBtn = document.getElementById('moveToRunpodBtn');
     
     const selectedOndemandHosts = Array.from(selectedHosts).filter(host => {
         const card = document.querySelector(`[data-host="${host}"]`);
         return card && card.dataset.type === 'ondemand';
+    });
+    
+    const selectedRunpodHosts = Array.from(selectedHosts).filter(host => {
+        const card = document.querySelector(`[data-host="${host}"]`);
+        return card && card.dataset.type === 'runpod';
     });
     
     const selectedSpotHosts = Array.from(selectedHosts).filter(host => {
@@ -430,21 +425,26 @@ function updateControlButtons() {
         return card && card.dataset.type === 'spot';
     });
     
-    moveToSpotBtn.disabled = selectedOndemandHosts.length === 0;
-    moveToOndemandBtn.disabled = selectedSpotHosts.length === 0;
+    // Enable buttons based on selected hosts from different columns
+    const hasSelectedHosts = selectedHosts.size > 0;
+    moveToOndemandBtn.disabled = !hasSelectedHosts || selectedOndemandHosts.length === selectedHosts.size;
+    moveToRunpodBtn.disabled = !hasSelectedHosts || selectedRunpodHosts.length === selectedHosts.size;
+    moveToSpotBtn.disabled = !hasSelectedHosts || selectedSpotHosts.length === selectedHosts.size;
 }
 
 function moveSelectedHosts(targetType) {
-    const sourceType = targetType === 'spot' ? 'ondemand' : 'spot';
     const hostsToMove = Array.from(selectedHosts).filter(host => {
         const card = document.querySelector(`[data-host="${host}"]`);
-        return card && card.dataset.type === sourceType;
+        // Allow moving from any column to any other column
+        return card && card.dataset.type !== targetType;
     });
     
     if (hostsToMove.length === 0) return;
     
     // Add all selected hosts to pending operations
     hostsToMove.forEach(hostname => {
+        const card = document.querySelector(`[data-host="${hostname}"]`);
+        const sourceType = card ? card.dataset.type : '';
         addToPendingOperations(hostname, sourceType, targetType);
     });
     
@@ -461,23 +461,14 @@ function previewMigration(hostname, sourceType, targetType) {
     const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
     const sourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
     
+    // Get target aggregate name from the new three-column structure
     let targetAggregate = '';
-    if (aggregateData.ondemand_variants && aggregateData.spot) {
-        if (targetType === 'spot') {
-            // Moving to spot - always use the single spot aggregate
-            targetAggregate = aggregateData.spot.name;
-        } else {
-            // Moving to on-demand - find the original variant for this host
-            const sourceVariant = aggregateData.ondemand_variants.find(variant => 
-                variant.aggregate === sourceAggregate
-            );
-            if (sourceVariant) {
-                targetAggregate = sourceVariant.aggregate;
-            }
-        }
-    } else {
-        // Fallback for old data structure
-        targetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
+    if (targetType === 'ondemand' && aggregateData.ondemand.name) {
+        targetAggregate = aggregateData.ondemand.name;
+    } else if (targetType === 'runpod' && aggregateData.runpod.name) {
+        targetAggregate = aggregateData.runpod.name;
+    } else if (targetType === 'spot' && aggregateData.spot.name) {
+        targetAggregate = aggregateData.spot.name;
     }
     
     fetch('/api/preview-migration', {
