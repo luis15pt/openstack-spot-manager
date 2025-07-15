@@ -5,6 +5,12 @@ let selectedHosts = new Set();
 let aggregateData = {};
 let pendingOperations = [];
 
+// Background loading system
+let availableGpuTypes = [];
+let gpuDataCache = new Map(); // Cache for loaded GPU data
+let backgroundLoadingInProgress = false;
+let backgroundLoadingStarted = false;
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
@@ -19,6 +25,9 @@ function loadGpuTypes() {
             // Clear existing options except the default
             select.innerHTML = '<option value="">Select GPU Type...</option>';
             
+            // Store available GPU types for background loading
+            availableGpuTypes = data.gpu_types;
+            
             // Add discovered GPU types
             data.gpu_types.forEach(gpuType => {
                 const option = document.createElement('option');
@@ -26,6 +35,14 @@ function loadGpuTypes() {
                 option.textContent = gpuType;
                 select.appendChild(option);
             });
+            
+            // Show preload button if there are multiple GPU types
+            if (data.gpu_types.length > 1) {
+                const preloadBtn = document.getElementById('preloadAllBtn');
+                if (preloadBtn) {
+                    preloadBtn.style.display = 'inline-block';
+                }
+            }
         })
         .catch(error => {
             console.error('Error loading GPU types:', error);
@@ -62,6 +79,9 @@ function initializeEventListeners() {
     document.getElementById('commitBtn').addEventListener('click', commitAllOperations);
     document.getElementById('clearPendingBtn').addEventListener('click', clearPendingOperations);
     
+    // Preload all button
+    document.getElementById('preloadAllBtn').addEventListener('click', handlePreloadAll);
+    
     // Tab switching - refresh data when switching to command log or results
     document.getElementById('commands-tab').addEventListener('click', loadCommandLog);
     document.getElementById('results-tab').addEventListener('click', loadResultsSummary);
@@ -70,46 +90,88 @@ function initializeEventListeners() {
     loadCommandLog();
 }
 
-function loadAggregateData(gpuType) {
-    showLoading(true, `Loading ${gpuType} aggregate data...`, 'Discovering aggregates...', 10);
+function loadAggregateData(gpuType, isBackgroundLoad = false) {
+    // Check cache first
+    if (gpuDataCache.has(gpuType)) {
+        console.log(`✅ Loading ${gpuType} from cache`);
+        if (!isBackgroundLoad) {
+            aggregateData = gpuDataCache.get(gpuType);
+            renderAggregateData(aggregateData);
+            showMainContent();
+            
+            // Start background loading after first successful load
+            if (!backgroundLoadingStarted) {
+                startBackgroundLoading(gpuType);
+            }
+        }
+        return Promise.resolve(gpuDataCache.get(gpuType));
+    }
     
-    fetch(`/api/aggregates/${gpuType}`)
+    if (!isBackgroundLoad) {
+        showLoading(true, `Loading ${gpuType} aggregate data...`, 'Discovering aggregates...', 10);
+    }
+    
+    return fetch(`/api/aggregates/${gpuType}`)
         .then(response => {
-            updateLoadingProgress('Fetching host information...', 30);
+            if (!isBackgroundLoad) {
+                updateLoadingProgress('Fetching host information...', 30);
+            }
             return response.json();
         })
         .then(data => {
             if (data.error) {
-                showNotification(data.error, 'danger');
-                showLoading(false);
-                return;
+                if (!isBackgroundLoad) {
+                    showNotification(data.error, 'danger');
+                    showLoading(false);
+                }
+                throw new Error(data.error);
             }
             
-            updateLoadingProgress('Querying NetBox for tenant data...', 50);
+            if (!isBackgroundLoad) {
+                updateLoadingProgress('Querying NetBox for tenant data...', 50);
+            }
             
-            // Simulate processing time for NetBox queries
-            setTimeout(() => {
-                updateLoadingProgress('Calculating GPU utilization...', 70);
-                
+            // Cache the data
+            gpuDataCache.set(gpuType, data);
+            console.log(`📦 Cached data for ${gpuType}`);
+            
+            if (!isBackgroundLoad) {
+                // Simulate processing time for NetBox queries (only for foreground loading)
                 setTimeout(() => {
-                    updateLoadingProgress('Rendering host data...', 90);
+                    updateLoadingProgress('Calculating GPU utilization...', 70);
                     
                     setTimeout(() => {
-                        aggregateData = data;
-                        renderAggregateData(data);
-                        updateLoadingProgress('Complete!', 100);
+                        updateLoadingProgress('Rendering host data...', 90);
                         
                         setTimeout(() => {
-                            showLoading(false);
-                            showMainContent();
+                            aggregateData = data;
+                            renderAggregateData(data);
+                            updateLoadingProgress('Complete!', 100);
+                            
+                            setTimeout(() => {
+                                showLoading(false);
+                                showMainContent();
+                                
+                                // Start background loading after first successful load
+                                if (!backgroundLoadingStarted) {
+                                    startBackgroundLoading(gpuType);
+                                }
+                            }, 200);
                         }, 200);
-                    }, 200);
+                    }, 300);
                 }, 300);
-            }, 300);
+            }
+            
+            return data;
         })
         .catch(error => {
-            showNotification('Error loading aggregate data: ' + error.message, 'danger');
-            showLoading(false);
+            if (!isBackgroundLoad) {
+                showNotification('Error loading aggregate data: ' + error.message, 'danger');
+                showLoading(false);
+            } else {
+                console.warn(`⚠️ Background loading failed for ${gpuType}:`, error.message);
+            }
+            throw error;
         });
 }
 
@@ -957,9 +1019,186 @@ function formatDate(dateString) {
 function refreshData() {
     if (currentGpuType) {
         selectedHosts.clear();
+        // Clear cache for current GPU type to force fresh data
+        gpuDataCache.delete(currentGpuType);
         showLoading(true, 'Refreshing data...', 'Clearing cache...', 5);
         loadAggregateData(currentGpuType);
     }
+}
+
+// Background loading system
+function startBackgroundLoading(currentGpuType) {
+    if (backgroundLoadingStarted || backgroundLoadingInProgress) {
+        return;
+    }
+    
+    backgroundLoadingStarted = true;
+    backgroundLoadingInProgress = true;
+    
+    // Show background loading status
+    const statusElement = document.getElementById('backgroundLoadingStatus');
+    if (statusElement) {
+        statusElement.style.display = 'inline';
+    }
+    
+    console.log('🚀 Starting background loading for other GPU types...');
+    
+    // Get GPU types to load in background (excluding current one)
+    const typesToLoad = availableGpuTypes.filter(type => 
+        type !== currentGpuType && !gpuDataCache.has(type)
+    );
+    
+    if (typesToLoad.length === 0) {
+        console.log('✅ All GPU types already cached');
+        backgroundLoadingInProgress = false;
+        if (statusElement) {
+            statusElement.style.display = 'none';
+        }
+        return;
+    }
+    
+    console.log(`📋 Loading ${typesToLoad.length} GPU types in background: ${typesToLoad.join(', ')}`);
+    
+    // Load all types concurrently using Promise.allSettled for better error handling
+    const loadPromises = typesToLoad.map(gpuType => 
+        loadAggregateData(gpuType, true)
+            .then(data => {
+                console.log(`✅ Background loaded: ${gpuType}`);
+                return { gpuType, success: true, data };
+            })
+            .catch(error => {
+                console.warn(`⚠️ Background loading failed for ${gpuType}:`, error.message);
+                return { gpuType, success: false, error: error.message };
+            })
+    );
+    
+    Promise.allSettled(loadPromises)
+        .then(results => {
+            const successful = results.filter(r => r.status === 'fulfilled' && r.value.success);
+            const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success));
+            
+            console.log(`📊 Background loading complete: ${successful.length} successful, ${failed.length} failed`);
+            
+            if (successful.length > 0) {
+                // Update GPU type selector to indicate cached types
+                updateGpuTypeSelector();
+                
+                // Show success notification
+                showNotification(`Background loading complete: ${successful.length} GPU types cached`, 'success');
+            }
+            
+            backgroundLoadingInProgress = false;
+            
+            // Hide background loading status
+            if (statusElement) {
+                statusElement.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('❌ Background loading error:', error);
+            backgroundLoadingInProgress = false;
+            
+            // Hide background loading status
+            if (statusElement) {
+                statusElement.style.display = 'none';
+            }
+        });
+}
+
+function updateGpuTypeSelector() {
+    const select = document.getElementById('gpuTypeSelect');
+    const options = select.querySelectorAll('option');
+    
+    options.forEach(option => {
+        if (option.value && gpuDataCache.has(option.value)) {
+            // Add indicator for cached types
+            if (!option.textContent.includes('⚡')) {
+                option.textContent = option.textContent + ' ⚡';
+                option.title = 'Cached - will load instantly';
+            }
+        }
+    });
+}
+
+function preloadAllGpuTypes() {
+    // Alternative function to preload all types at once (can be called manually)
+    if (availableGpuTypes.length === 0) {
+        console.warn('⚠️ No GPU types available for preloading');
+        return Promise.resolve();
+    }
+    
+    console.log('🔄 Preloading all GPU types...');
+    
+    const loadPromises = availableGpuTypes.map(gpuType => 
+        loadAggregateData(gpuType, true)
+    );
+    
+    return Promise.allSettled(loadPromises)
+        .then(results => {
+            const successful = results.filter(r => r.status === 'fulfilled').length;
+            console.log(`📊 Preloading complete: ${successful}/${availableGpuTypes.length} GPU types loaded`);
+            updateGpuTypeSelector();
+            return results;
+        });
+}
+
+function handlePreloadAll() {
+    const preloadBtn = document.getElementById('preloadAllBtn');
+    if (preloadBtn) {
+        preloadBtn.disabled = true;
+        preloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    }
+    
+    // Show background loading status
+    const statusElement = document.getElementById('backgroundLoadingStatus');
+    if (statusElement) {
+        statusElement.style.display = 'inline';
+        statusElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preloading all types...';
+    }
+    
+    const uncachedTypes = availableGpuTypes.filter(type => !gpuDataCache.has(type));
+    
+    if (uncachedTypes.length === 0) {
+        showNotification('All GPU types are already cached!', 'info');
+        if (preloadBtn) {
+            preloadBtn.disabled = false;
+            preloadBtn.innerHTML = '<i class="fas fa-download"></i> Preload All';
+        }
+        if (statusElement) {
+            statusElement.style.display = 'none';
+        }
+        return;
+    }
+    
+    preloadAllGpuTypes()
+        .then(results => {
+            const successful = results.filter(r => r.status === 'fulfilled').length;
+            const total = results.length;
+            
+            showNotification(`Preloading complete: ${successful}/${total} GPU types cached`, 'success');
+            
+            if (preloadBtn) {
+                preloadBtn.disabled = false;
+                preloadBtn.innerHTML = '<i class="fas fa-check"></i> All Cached';
+                setTimeout(() => {
+                    preloadBtn.innerHTML = '<i class="fas fa-download"></i> Preload All';
+                }, 3000);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Preloading error:', error);
+            showNotification('Error during preloading', 'danger');
+            
+            if (preloadBtn) {
+                preloadBtn.disabled = false;
+                preloadBtn.innerHTML = '<i class="fas fa-download"></i> Preload All';
+            }
+        })
+        .finally(() => {
+            if (statusElement) {
+                statusElement.style.display = 'none';
+            }
+        });
 }
 
 function showLoading(show, message = 'Loading...', step = 'Initializing...', progress = 0) {

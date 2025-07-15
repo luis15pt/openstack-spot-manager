@@ -21,7 +21,12 @@
                     <div class="col-md-6 offset-md-3">
                         <div class="card">
                             <div class="card-body">
-                                <label for="gpuTypeSelect" class="form-label">Select GPU Type:</label>
+                                <label for="gpuTypeSelect" class="form-label">
+                                    Select GPU Type:
+                                    <small class="text-muted ms-2" id="backgroundLoadingStatus" style="display: none;">
+                                        <i class="fas fa-spinner fa-spin"></i> Loading other types...
+                                    </small>
+                                </label>
                                 <select id="gpuTypeSelect" class="form-select">
                                     <option value="">Choose GPU type...</option>
                                     <option value="L40">L40</option>
@@ -29,6 +34,15 @@
                                     <option value="A100">A100</option>
                                     <option value="H100">H100</option>
                                 </select>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <small class="form-text text-muted">
+                                        <i class="fas fa-info-circle"></i> 
+                                        Types marked with ⚡ are cached and will load instantly
+                                    </small>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="preloadAllBtn" style="display: none;">
+                                        <i class="fas fa-download"></i> Preload All
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
