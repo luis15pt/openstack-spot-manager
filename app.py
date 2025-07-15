@@ -11,6 +11,7 @@ import os
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -1233,12 +1234,16 @@ power_state:
                 'returncode': 0
             }, 'executed')
             
+            # Schedule storage network attachment after 120 seconds
+            attach_runpod_storage_network(hostname, delay_seconds=120)
+            
             return jsonify({
                 'success': True,
                 'message': f'Successfully launched VM {hostname} on Hyperstack',
                 'vm_name': hostname,
                 'flavor_name': flavor_name,
-                'response': result_data
+                'response': result_data,
+                'storage_network_scheduled': True
             })
         else:
             error_msg = f'Failed to launch VM {hostname}: HTTP {response.status_code}'
@@ -1278,6 +1283,88 @@ power_state:
         }, 'error')
         
         return jsonify({'error': error_msg}), 500
+
+def attach_runpod_storage_network(vm_name, delay_seconds=120):
+    """Attach RunPod-Storage-Canada-1 network to VM after specified delay"""
+    def delayed_attach():
+        try:
+            print(f"⏳ Waiting {delay_seconds}s before attaching storage network to {vm_name}...")
+            time.sleep(delay_seconds)
+            
+            print(f"🔌 Starting network attachment for VM {vm_name}...")
+            conn = get_openstack_connection()
+            if not conn:
+                print(f"❌ No OpenStack connection available for network attachment to {vm_name}")
+                return
+            
+            # Find the VM by name
+            server = None
+            for s in conn.compute.servers():
+                if s.name == vm_name:
+                    server = s
+                    break
+            
+            if not server:
+                print(f"❌ VM {vm_name} not found in OpenStack")
+                return
+            
+            # Find the RunPod-Storage-Canada-1 network
+            network = None
+            for net in conn.network.networks():
+                if net.name == "RunPod-Storage-Canada-1":
+                    network = net
+                    break
+            
+            if not network:
+                print(f"❌ Network 'RunPod-Storage-Canada-1' not found")
+                return
+            
+            # Create and attach the network interface
+            print(f"🔌 Attaching RunPod-Storage-Canada-1 network to VM {vm_name}...")
+            
+            # Create port on the network
+            port = conn.network.create_port(
+                network_id=network.id,
+                name=f"{vm_name}-storage-port"
+            )
+            
+            # Attach the port to the server
+            conn.compute.create_server_interface(server.id, port_id=port.id)
+            
+            print(f"✅ Successfully attached RunPod-Storage-Canada-1 network to VM {vm_name}")
+            
+            # Log the action
+            log_command(
+                f"openstack server add port {vm_name} {port.id}",
+                {
+                    'success': True,
+                    'stdout': f'Successfully attached RunPod-Storage-Canada-1 network to {vm_name}',
+                    'stderr': '',
+                    'returncode': 0
+                },
+                'executed'
+            )
+            
+        except Exception as e:
+            error_msg = f"Failed to attach storage network to {vm_name}: {str(e)}"
+            print(f"❌ {error_msg}")
+            
+            # Log the failure
+            log_command(
+                f"openstack server add port {vm_name} <storage-network>",
+                {
+                    'success': False,
+                    'stdout': '',
+                    'stderr': error_msg,
+                    'returncode': 1
+                },
+                'error'
+            )
+    
+    # Start the delayed attachment in a separate thread
+    thread = threading.Thread(target=delayed_attach, daemon=True)
+    thread.start()
+    print(f"🚀 Scheduled storage network attachment for {vm_name} in {delay_seconds} seconds")
 
 if __name__ == '__main__':
     print("=" * 60)

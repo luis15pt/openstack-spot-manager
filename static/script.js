@@ -2170,7 +2170,11 @@ function executeRunpodLaunch(hostname) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showNotification(`Successfully launched VM ${data.vm_name} on ${hostname}`, 'success');
+                    let message = `Successfully launched VM ${data.vm_name} on ${hostname}`;
+                    if (data.storage_network_scheduled) {
+                        message += `. Storage network will be attached in 120 seconds.`;
+                    }
+                    showNotification(message, 'success');
                     resolve(true);
                 } else {
                     showNotification(`Launch failed for ${hostname}: ${data.error}`, 'danger');
