@@ -2236,6 +2236,148 @@ function removeCompletedOperations() {
     pendingOperations = operationsToKeep;
 }
 
+function updateHostAfterVMLaunch(hostname) {
+    // Find the host card in the DOM
+    const hostCard = document.querySelector(`[data-host="${hostname}"]`);
+    if (!hostCard) {
+        console.warn(`Host card not found for ${hostname}`);
+        return;
+    }
+    
+    const hostType = hostCard.dataset.type;
+    const hostAggregate = hostCard.dataset.aggregate;
+    
+    // Update the host card styling to show it has VMs
+    hostCard.classList.add('has-vms');
+    hostCard.dataset.hasVms = 'true';
+    
+    // Update the VM count display in the card
+    const vmInfo = hostCard.querySelector('.vm-info');
+    if (vmInfo) {
+        vmInfo.innerHTML = `
+            <span class="status-dot active">●</span>
+            <span class="vm-badge active">8</span>
+            <span class="vm-label">VMs</span>
+        `;
+    }
+    
+    // Remove the "Launch into Runpod" button if it exists
+    const launchBtn = hostCard.querySelector('.launch-runpod-btn');
+    if (launchBtn) {
+        launchBtn.remove();
+    }
+    
+    // Update the host name styling to show it's in use
+    const hostName = hostCard.querySelector('.machine-name, .host-name');
+    if (hostName) {
+        hostName.classList.add('has-vms');
+    }
+    
+    // Move the card to the "In Use" section if it's currently in "Available"
+    moveHostCardToInUseSection(hostCard, hostType, hostAggregate);
+    
+    // Update the aggregate counters and GPU usage
+    updateAggregateCounters();
+    
+    console.log(`✅ Updated host ${hostname} status to show VM in use`);
+}
+
+function moveHostCardToInUseSection(hostCard, hostType, hostAggregate) {
+    const hostname = hostCard.dataset.host;
+    
+    // Remove from current location
+    hostCard.remove();
+    
+    // Find or create the "In Use" section for this aggregate/type
+    let inUseSection;
+    
+    if (hostType === 'runpod') {
+        // For runpod, find the main container
+        const container = document.getElementById('runpodHosts');
+        
+        // Look for existing In Use section
+        inUseSection = findSectionByTitle(container, 'In Use');
+        
+        if (!inUseSection) {
+            // Create In Use section if it doesn't exist
+            const availableSection = container.querySelector('.host-group');
+            if (availableSection) {
+                const inUseSectionHtml = `
+                    <div class="host-group">
+                        <div class="host-group-header clickable" onclick="toggleGroup('inuse-runpod')">
+                            <i class="fas fa-exclamation-triangle text-warning"></i>
+                            <h6>In Use (1)</h6>
+                            <small class="text-muted">Have running VMs</small>
+                            <i class="fas fa-chevron-down toggle-icon" id="inuse-runpod-icon"></i>
+                        </div>
+                        <div class="host-group-content" id="inuse-runpod">
+                        </div>
+                    </div>
+                `;
+                availableSection.insertAdjacentHTML('afterend', inUseSectionHtml);
+                inUseSection = document.getElementById('inuse-runpod').parentNode;
+            }
+        }
+        
+        if (inUseSection) {
+            const content = inUseSection.querySelector('.host-group-content');
+            if (content) {
+                content.appendChild(hostCard);
+                
+                // Update section header count
+                const header = inUseSection.querySelector('h6');
+                const currentCount = content.children.length;
+                if (header) {
+                    header.innerHTML = `In Use (${currentCount})`;
+                }
+            }
+        }
+    }
+    
+    // Update available section count (reduce by 1)
+    updateSectionCounts(hostType);
+}
+
+function updateSectionCounts(hostType) {
+    // This will be called after moving a host to update section counters
+    // The refreshData() call in executeOperationsSequentially will handle the full refresh
+    // but this provides immediate visual feedback
+}
+
+function findSectionByTitle(container, title) {
+    const sections = container.querySelectorAll('.host-group');
+    for (let section of sections) {
+        const header = section.querySelector('h6');
+        if (header && header.textContent.includes(title)) {
+            return section;
+        }
+    }
+    return null;
+}
+
+function updateAggregateCounters() {
+    // Update the overall GPU usage counters
+    // This will be fully refreshed by refreshData() but provides immediate feedback
+    const allHostCards = document.querySelectorAll('.host-card, .machine-card');
+    let totalInUse = 0;
+    let totalAvailable = 0;
+    
+    allHostCards.forEach(card => {
+        if (card.dataset.hasVms === 'true') {
+            totalInUse++;
+        } else {
+            totalAvailable++;
+        }
+    });
+    
+    // Update the summary counters
+    const inUseCount = document.getElementById('inUseHostsCount');
+    const availableCount = document.getElementById('availableHostsCount');
+    
+    if (inUseCount) inUseCount.textContent = totalInUse;
+    if (availableCount) availableCount.textContent = totalAvailable;
+}
+
 function executeOperationsSequentially(operations, index, errors, completed) {
     if (index >= operations.length) {
         const commitBtn = document.getElementById('commitBtn');
@@ -2398,6 +2540,10 @@ function executeRunpodLaunch(hostname) {
                     }
                     
                     showNotification(message, 'success');
+                    
+                    // Refresh host status to show it's now in use
+                    updateHostAfterVMLaunch(hostname);
+                    
                     resolve(true);
                 } else {
                     showNotification(`Launch failed for ${hostname}: ${data.error}`, 'danger');
