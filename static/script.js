@@ -523,7 +523,7 @@ function createHostCard(host, type, aggregateName = null) {
              draggable="true" 
              data-host="${host.name}" 
              data-type="${type}"
-             data-aggregate="${aggregateName || ''}"
+             data-aggregate="${host.variant || aggregateName || ''}"
              data-has-vms="${hasVms}"
              data-owner-group="${ownerGroup}">
             <div class="machine-card-header">
@@ -2319,7 +2319,7 @@ function generateDetailedOperationSteps(operation) {
                 id: `step-${operation.hostname}-storage`,
                 title: 'Attach storage network (Canada hosts only)',
                 description: 'Creates a port on RunPod-Storage-Canada-1 network and attaches it to the VM for high-performance storage access',
-                command: `# OpenStack CLI commands (for manual testing):\n1. Find network: openstack network show "RunPod-Storage-Canada-1"\n2. Create port: openstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port"\n3. Attach to VM: openstack server add port ${operation.hostname} <port-id>\n\n# Alternative neutron commands:\n# neutron net-show "RunPod-Storage-Canada-1"\n# neutron port-create --network-id=<network-id> --name="${operation.hostname}-storage-port"\n# nova interface-attach --port-id <port-id> ${operation.hostname}`,
+                command: `# Step 1: Find network ID\nopenstack network show "RunPod-Storage-Canada-1" -c id -f value\n\n# Step 2: Create port (replace NETWORK_ID with output from step 1)\nopenstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port" -c id -f value\n\n# Step 3: Attach port to VM (replace PORT_ID with output from step 2)\nopenstack server add port ${operation.hostname} PORT_ID`,
                 timing: '120s after VM launch',
                 type: 'network',
                 checked: true
@@ -2329,7 +2329,7 @@ function generateDetailedOperationSteps(operation) {
                 id: `step-${operation.hostname}-firewall-get`,
                 title: 'Get current firewall attachments',
                 description: 'Retrieves existing VM IDs attached to firewall to preserve them during update',
-                command: `curl -H 'api_key: <key>' GET ${operation.hostname.startsWith('CA1-') ? 'https://infrahub-api.nexgencloud.com/v1' : '<api-url>'}/core/firewalls/971`,
+                command: `curl -H 'api_key: YOUR_HYPERSTACK_API_KEY' \\\n  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971`,
                 timing: '180s after VM launch',
                 type: 'security',
                 checked: true
@@ -2339,7 +2339,7 @@ function generateDetailedOperationSteps(operation) {
                 id: `step-${operation.hostname}-firewall-update`,
                 title: 'Update firewall with all VMs (existing + new)',
                 description: 'Updates firewall attachments to include all existing VMs plus the new VM - prevents removing other VMs',
-                command: `curl -X POST -H 'api_key: <key>' -d '{"vms": [existing_vm_ids + ${operation.vm_name || operation.hostname}_vm_id]}' ${operation.hostname.startsWith('CA1-') ? 'https://infrahub-api.nexgencloud.com/v1' : '<api-url>'}/core/firewalls/971/update-attachments`,
+                command: `curl -X POST -H 'api_key: YOUR_HYPERSTACK_API_KEY' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"vms": [EXISTING_VM_IDS_FROM_STEP_1, NEW_VM_ID]}' \\\n  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971/update-attachments`,
                 timing: 'After getting existing attachments',
                 type: 'security',
                 checked: true
