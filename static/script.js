@@ -2285,8 +2285,8 @@ function generateDetailedOperationSteps(operation) {
         steps.push({
             id: `step-${operation.hostname}-wait`,
             title: 'Wait for aggregate migration to complete',
-            description: 'Ensure host is properly moved to Runpod aggregate before VM deployment',
-            command: 'Wait 60 seconds after host aggregate migration completes',
+            description: 'Ensure host is properly moved to Runpod aggregate before VM deployment - prevents deployment failures',
+            command: 'sleep 60  # Wait for OpenStack aggregate membership to propagate across all services',
             timing: '60s delay',
             type: 'timing',
             checked: true
@@ -2295,8 +2295,8 @@ function generateDetailedOperationSteps(operation) {
         steps.push({
             id: `step-${operation.hostname}-launch`,
             title: 'Deploy VM via Hyperstack API',
-            description: 'Creates new virtual machine on the specified host with correct specifications',
-            command: operation.commands ? operation.commands[0] : `Launch VM ${operation.vm_name} on ${operation.hostname}`,
+            description: 'Creates new virtual machine on the specified host with correct specifications and flavor',
+            command: operation.commands ? operation.commands[0] : `curl -X POST https://infrahub-api.nexgencloud.com/v1/core/virtual-machines \\\n  -H 'api_key: <key>' \\\n  -d '{"name": "${operation.vm_name}", "flavor_name": "<gpu-flavor>", "image_name": "Ubuntu 22.04 LTS", "user_data": "#!/bin/bash\\necho \\"api_key=<runpod-key>\\" > /tmp/runpod-config"}'`,
             timing: 'Immediate',
             type: 'api',
             checked: true
@@ -2306,8 +2306,8 @@ function generateDetailedOperationSteps(operation) {
             steps.push({
                 id: `step-${operation.hostname}-storage`,
                 title: 'Attach storage network (Canada hosts only)',
-                description: 'Connects VM to RunPod-Storage-Canada-1 network for high-performance storage access',
-                command: `neutron port-create --network-id=<RunPod-Storage-Canada-1> --device-id=<vm-id>`,
+                description: 'Creates a port on RunPod-Storage-Canada-1 network and attaches it to the VM for high-performance storage access',
+                command: `1. Find RunPod-Storage-Canada-1 network: openstack network show "RunPod-Storage-Canada-1"\n2. Create port: openstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port"\n3. Attach port to VM: openstack server add port ${operation.hostname} <port-id>`,
                 timing: '120s after VM launch',
                 type: 'network',
                 checked: true
@@ -2317,7 +2317,7 @@ function generateDetailedOperationSteps(operation) {
                 id: `step-${operation.hostname}-firewall`,
                 title: 'Update firewall rules (preserves existing VMs)',
                 description: 'Retrieves current firewall attachments and adds new VM while maintaining security rules for all existing VMs',
-                command: `1. GET /core/firewalls/971 → Extract existing VM IDs\n2. POST /core/firewalls/971/update-attachments -d '{"vms": [existing_ids + new_vm_id]}'`,
+                command: `1. Get current attachments: curl -H 'api_key: <key>' GET ${operation.hostname.startsWith('CA1-') ? 'https://infrahub-api.nexgencloud.com/v1' : '<api-url>'}/core/firewalls/971\n2. Extract existing VM IDs from response.attachments[].vm.id\n3. Update firewall with all VMs: curl -X POST -H 'api_key: <key>' -d '{"vms": [existing_ids + new_vm_id]}' .../core/firewalls/971/update-attachments`,
                 timing: '180s after VM launch',
                 type: 'security',
                 checked: true
@@ -2329,7 +2329,7 @@ function generateDetailedOperationSteps(operation) {
         steps.push({
             id: `step-${operation.hostname}-remove`,
             title: `Remove host from ${operation.sourceAggregate}`,
-            description: `Removes compute host from current aggregate to prepare for relocation`,
+            description: `Removes compute host from current aggregate to prepare for relocation - host must be empty of VMs`,
             command: `openstack aggregate remove host ${operation.sourceAggregate} ${operation.hostname}`,
             timing: 'Immediate',
             type: 'migration',
@@ -2339,7 +2339,7 @@ function generateDetailedOperationSteps(operation) {
         steps.push({
             id: `step-${operation.hostname}-add`,
             title: `Add host to ${operation.targetAggregate}`,
-            description: `Adds compute host to target aggregate for new resource pool assignment`,
+            description: `Adds compute host to target aggregate for new resource pool assignment - enables different billing model`,
             command: `openstack aggregate add host ${operation.targetAggregate} ${operation.hostname}`,
             timing: 'After removal completes',
             type: 'migration',
