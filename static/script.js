@@ -1808,26 +1808,35 @@ function updatePendingOperationsDisplay() {
             'Deploy new virtual machine with automated networking and security configuration' :
             'Relocate compute host between resource pools for different billing models';
         
-        const stepsHtml = steps.map((step, stepIndex) => `
-            <div class="operation-step">
-                <div class="step-header">
-                    <input type="checkbox" class="form-check-input operation-step-checkbox me-2" 
-                           id="${step.id}" ${step.checked ? 'checked' : ''} 
-                           onchange="updateCommitButtonState()">
-                    <label class="form-check-label step-title" for="${step.id}">
-                        <i class="${getStepIcon(step.type)}"></i>
-                        <strong>${step.title}</strong>
-                        <span class="badge bg-secondary ms-2">${step.timing}</span>
-                    </label>
+        const stepsHtml = steps.map((step, stepIndex) => {
+            const isCompleted = op.completedSteps && op.completedSteps.includes(step.title);
+            const stepClass = isCompleted ? 'operation-step completed-step' : 'operation-step';
+            const statusIcon = isCompleted ? '<i class="fas fa-check-circle text-success me-1"></i>' : '';
+            const disabledAttr = isCompleted ? 'disabled' : '';
+            const checkedAttr = isCompleted ? 'checked' : (step.checked ? 'checked' : '');
+            
+            return `
+                <div class="${stepClass}">
+                    <div class="step-header">
+                        <input type="checkbox" class="form-check-input operation-step-checkbox me-2" 
+                               id="${step.id}" ${checkedAttr} ${disabledAttr}
+                               onchange="updateCommitButtonState()">
+                        <label class="form-check-label step-title" for="${step.id}">
+                            ${statusIcon}
+                            <i class="${getStepIcon(step.type)}"></i>
+                            <strong>${step.title}</strong>
+                            <span class="badge ${isCompleted ? 'bg-success' : 'bg-secondary'} ms-2">${isCompleted ? 'Completed' : step.timing}</span>
+                        </label>
+                    </div>
+                    <div class="step-description">
+                        <small class="text-muted">${step.description}</small>
+                    </div>
+                    <div class="step-command">
+                        <code class="d-block mt-1 p-2 bg-light rounded">${step.command}</code>
+                    </div>
                 </div>
-                <div class="step-description">
-                    <small class="text-muted">${step.description}</small>
-                </div>
-                <div class="step-command">
-                    <code class="d-block mt-1 p-2 bg-light rounded">${step.command}</code>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
         return `
             <div class="pending-operation-card card mb-3" data-index="${index}">
@@ -2186,6 +2195,47 @@ function commitAllOperations() {
     executeOperationsSequentially([...migrations, ...launches], 0, [], 0);
 }
 
+function removeCompletedOperations() {
+    // Get all checkboxes that were checked (executed steps)
+    const allCheckboxes = document.querySelectorAll('.operation-step-checkbox');
+    const executedSteps = new Set();
+    
+    allCheckboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+            // Mark this step as executed
+            executedSteps.add(checkbox.id);
+        }
+    });
+    
+    // Process each operation and determine what to keep
+    const operationsToKeep = [];
+    
+    pendingOperations.forEach((operation, opIndex) => {
+        const steps = generateDetailedOperationSteps(operation);
+        const remainingSteps = [];
+        
+        // Check which steps of this operation were NOT executed
+        steps.forEach(step => {
+            if (!executedSteps.has(step.id)) {
+                remainingSteps.push(step);
+            }
+        });
+        
+        // If any steps remain, keep the operation but mark completed steps
+        if (remainingSteps.length > 0) {
+            // Add executed steps info to the operation for display
+            const executedStepsForOp = steps.filter(step => executedSteps.has(step.id));
+            if (executedStepsForOp.length > 0) {
+                operation.completedSteps = executedStepsForOp.map(s => s.title);
+            }
+            operationsToKeep.push(operation);
+        }
+        // If no steps remain, the entire operation was completed - don't keep it
+    });
+    
+    pendingOperations = operationsToKeep;
+}
+
 function executeOperationsSequentially(operations, index, errors, completed) {
     if (index >= operations.length) {
         const commitBtn = document.getElementById('commitBtn');
@@ -2196,9 +2246,11 @@ function executeOperationsSequentially(operations, index, errors, completed) {
             showNotification(`Completed with ${errors.length} errors: ${errors.join(', ')}`, 'warning');
         } else {
             showNotification(`Successfully executed ${completed} operations`, 'success');
-            pendingOperations = []; // Clear pending operations on success
-            updatePendingOperationsDisplay();
         }
+        
+        // Remove only the operations that were executed (and steps that were completed)
+        removeCompletedOperations();
+        updatePendingOperationsDisplay();
         
         refreshData();
         loadCommandLog();

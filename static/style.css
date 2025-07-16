@@ -1396,3 +1396,22 @@ body {
     border-color: #dee2e6;
     background: #f8f9fa;
 }
+
+/* Completed step styling */
+.completed-step {
+    border-color: #28a745 !important;
+    background: #f8fff8 !important;
+    opacity: 0.8;
+}
+
+.completed-step .step-title {
+    color: #28a745 !important;
+}
+
+.completed-step .step-description {
+    opacity: 0.7;
+}
+
+.completed-step input[type="checkbox"] {
+    pointer-events: none;
+}
