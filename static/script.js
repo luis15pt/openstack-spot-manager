@@ -261,7 +261,7 @@ function renderAggregateData(data) {
     
     // Render hosts for each column
     if (data.ondemand.hosts) {
-        renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand', data.ondemand.name);
+        renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand', data.ondemand.name, data.ondemand_variants);
     }
     if (data.runpod.hosts) {
         renderHosts('runpodHosts', data.runpod.hosts, 'runpod', data.runpod.name);
@@ -274,8 +274,149 @@ function renderAggregateData(data) {
     setupDragAndDrop();
 }
 
+function renderOnDemandVariants(container, hosts, variants) {
+    let variantsHtml = '';
+    
+    // Create a section for each variant
+    variants.forEach(variant => {
+        const variantHosts = hosts.filter(host => host.variant === variant.aggregate);
+        
+        if (variantHosts.length === 0) {
+            variantsHtml += `
+                <div class="variant-section">
+                    <div class="variant-header">
+                        <h6>
+                            <i class="fas fa-microchip"></i>
+                            ${variant.variant}
+                            <span class="badge bg-secondary ms-2">0</span>
+                        </h6>
+                    </div>
+                    <div class="variant-hosts">
+                        <div class="drop-zone" data-type="ondemand" data-variant="${variant.aggregate}">
+                            <div class="empty-state">
+                                <i class="fas fa-server"></i>
+                                <p>No hosts in this variant</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Separate hosts into groups
+        const availableHosts = variantHosts.filter(host => !host.has_vms);
+        const inUseHosts = variantHosts.filter(host => host.has_vms);
+        
+        let sectionsHtml = '';
+        
+        // Available hosts section
+        if (availableHosts.length > 0) {
+            // Group available hosts by owner
+            const nexgenHosts = availableHosts.filter(host => host.owner_group === 'Nexgen Cloud');
+            const investorHosts = availableHosts.filter(host => host.owner_group === 'Investors');
+            
+            const availableId = `available-${variant.aggregate}`;
+            let availableSubGroups = '';
+            
+            // Nexgen Cloud devices sub-group
+            if (nexgenHosts.length > 0) {
+                const nexgenCards = nexgenHosts.map(host => createHostCard(host, 'ondemand', variant.aggregate)).join('');
+                const nexgenSubGroupId = `available-nexgen-${variant.aggregate}`;
+                
+                availableSubGroups += `
+                    <div class="host-subgroup nexgen-group">
+                        <div class="host-subgroup-header clickable" onclick="toggleGroup('${nexgenSubGroupId}')">
+                            <i class="fas fa-cloud text-info"></i>
+                            <span class="subgroup-title">Nexgen Cloud (${nexgenHosts.length})</span>
+                            <i class="fas fa-chevron-down toggle-icon" id="${nexgenSubGroupId}-icon"></i>
+                        </div>
+                        <div class="host-subgroup-content" id="${nexgenSubGroupId}">
+                            ${nexgenCards}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Investors devices sub-group
+            if (investorHosts.length > 0) {
+                const investorCards = investorHosts.map(host => createHostCard(host, 'ondemand', variant.aggregate)).join('');
+                const investorSubGroupId = `available-investor-${variant.aggregate}`;
+                
+                availableSubGroups += `
+                    <div class="host-subgroup investors-group">
+                        <div class="host-subgroup-header clickable" onclick="toggleGroup('${investorSubGroupId}')">
+                            <i class="fas fa-users text-warning"></i>
+                            <span class="subgroup-title">Investors (${investorHosts.length})</span>
+                            <i class="fas fa-chevron-down toggle-icon" id="${investorSubGroupId}-icon"></i>
+                        </div>
+                        <div class="host-subgroup-content" id="${investorSubGroupId}">
+                            ${investorCards}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            sectionsHtml += `
+                <div class="host-group">
+                    <div class="host-group-header clickable" onclick="toggleGroup('${availableId}')">
+                        <i class="fas fa-check-circle text-success"></i>
+                        <h6>Available (${availableHosts.length})</h6>
+                        <small class="text-muted">Ready for deployment</small>
+                        <i class="fas fa-chevron-down toggle-icon" id="${availableId}-icon"></i>
+                    </div>
+                    <div class="host-group-content" id="${availableId}">
+                        <div class="subgroups-container">
+                            ${availableSubGroups}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // In-use hosts section
+        if (inUseHosts.length > 0) {
+            const inUseCards = inUseHosts.map(host => createHostCard(host, 'ondemand', variant.aggregate)).join('');
+            const inUseId = `inuse-${variant.aggregate}`;
+            
+            sectionsHtml += `
+                <div class="host-group">
+                    <div class="host-group-header clickable" onclick="toggleGroup('${inUseId}')">
+                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                        <h6>In Use (${inUseHosts.length})</h6>
+                        <small class="text-muted">Have running VMs</small>
+                        <i class="fas fa-chevron-down toggle-icon" id="${inUseId}-icon"></i>
+                    </div>
+                    <div class="host-group-content" id="${inUseId}">
+                        ${inUseCards}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Add drop zone for this variant
+        variantsHtml += `
+            <div class="variant-section">
+                <div class="variant-header">
+                    <h6>
+                        <i class="fas fa-microchip"></i>
+                        ${variant.variant}
+                        <span class="badge bg-secondary ms-2">${variantHosts.length}</span>
+                    </h6>
+                </div>
+                <div class="variant-hosts">
+                    <div class="drop-zone" data-type="ondemand" data-variant="${variant.aggregate}">
+                        ${sectionsHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = variantsHtml;
+}
 
-function renderHosts(containerId, hosts, type, aggregateName = null) {
+function renderHosts(containerId, hosts, type, aggregateName = null, variants = null) {
     const container = document.getElementById(containerId);
     
     if (hosts.length === 0) {
@@ -287,6 +428,12 @@ function renderHosts(containerId, hosts, type, aggregateName = null) {
                 </div>
             </div>
         `;
+        return;
+    }
+    
+    // If this is on-demand with multiple variants, render by variant
+    if (type === 'ondemand' && variants && variants.length > 1) {
+        renderOnDemandVariants(container, hosts, variants);
         return;
     }
     
@@ -623,9 +770,10 @@ function handleDrop(e) {
     const hostname = e.dataTransfer.getData('text/plain');
     const sourceType = e.dataTransfer.getData('source-type');
     const targetType = this.dataset.type;
+    const targetVariant = this.dataset.variant; // For variant-specific drop zones
     
     if (sourceType !== targetType) {
-        addToPendingOperations(hostname, sourceType, targetType);
+        addToPendingOperations(hostname, sourceType, targetType, { targetVariant });
     }
 }
 
@@ -1860,7 +2008,11 @@ function addToPendingOperations(hostname, sourceType, targetType, options = {}) 
         const sourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
         
         let targetAggregate = '';
-        if (aggregateData.ondemand_variants && aggregateData.spot) {
+        
+        // If targetVariant is provided, use it directly
+        if (options.targetVariant) {
+            targetAggregate = options.targetVariant;
+        } else if (aggregateData.ondemand_variants && aggregateData.spot) {
             if (targetType === 'spot') {
                 targetAggregate = aggregateData.spot.name;
             } else {
