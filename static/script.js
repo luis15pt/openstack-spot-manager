@@ -261,7 +261,7 @@ function renderAggregateData(data) {
     
     // Render hosts for each column
     if (data.ondemand.hosts) {
-        renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand', data.ondemand.name, data.ondemand_variants);
+        renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand', data.ondemand.name, data.ondemand.variants);
     }
     if (data.runpod.hosts) {
         renderHosts('runpodHosts', data.runpod.hosts, 'runpod', data.runpod.name);
@@ -894,13 +894,13 @@ function previewMultipleMigration(hostnames, sourceType, targetType) {
         const hostSourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
         
         let hostTargetAggregate = '';
-        if (aggregateData.ondemand_variants && aggregateData.spot) {
+        if (aggregateData.ondemand.variants && aggregateData.spot) {
             if (targetType === 'spot') {
                 // Moving to spot - always use the single spot aggregate
                 hostTargetAggregate = aggregateData.spot.name;
             } else {
                 // Moving to on-demand - find the original variant for this host
-                const sourceVariant = aggregateData.ondemand_variants.find(variant => 
+                const sourceVariant = aggregateData.ondemand.variants.find(variant => 
                     variant.aggregate === hostSourceAggregate
                 );
                 if (sourceVariant) {
@@ -1707,13 +1707,13 @@ function addToPendingOperations(hostname, sourceType, targetType) {
     
     // For target aggregate, determine based on new data structure
     let targetAggregate = '';
-    if (aggregateData.ondemand_variants && aggregateData.spot) {
+    if (aggregateData.ondemand.variants && aggregateData.spot) {
         if (targetType === 'spot') {
             // Moving to spot - always use the single spot aggregate
             targetAggregate = aggregateData.spot.name;
         } else {
             // Moving to on-demand - find the original variant for this host
-            const sourceVariant = aggregateData.ondemand_variants.find(variant => 
+            const sourceVariant = aggregateData.ondemand.variants.find(variant => 
                 variant.aggregate === sourceAggregate
             );
             if (sourceVariant) {
@@ -2012,11 +2012,11 @@ function addToPendingOperations(hostname, sourceType, targetType, options = {}) 
         // If targetVariant is provided, use it directly
         if (options.targetVariant) {
             targetAggregate = options.targetVariant;
-        } else if (aggregateData.ondemand_variants && aggregateData.spot) {
+        } else if (aggregateData.ondemand.variants && aggregateData.spot) {
             if (targetType === 'spot') {
                 targetAggregate = aggregateData.spot.name;
             } else {
-                const sourceVariant = aggregateData.ondemand_variants.find(variant => 
+                const sourceVariant = aggregateData.ondemand.variants.find(variant => 
                     variant.aggregate === sourceAggregate
                 );
                 targetAggregate = sourceVariant ? sourceVariant.aggregate : (aggregateData.ondemand.name || '');
