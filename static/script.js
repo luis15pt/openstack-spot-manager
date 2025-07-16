@@ -2171,9 +2171,23 @@ function executeRunpodLaunch(hostname) {
             .then(data => {
                 if (data.success) {
                     let message = `Successfully launched VM ${data.vm_name} on ${hostname}`;
-                    if (data.storage_network_scheduled && hostname.startsWith('CA1-')) {
-                        message += `. Storage network will be attached in 120 seconds.`;
+                    if (data.vm_id) {
+                        message += ` (ID: ${data.vm_id})`;
                     }
+                    
+                    // Add post-launch task notifications
+                    let tasks = [];
+                    if (data.storage_network_scheduled && hostname.startsWith('CA1-')) {
+                        tasks.push('storage network (120s)');
+                    }
+                    if (data.firewall_scheduled) {
+                        tasks.push('firewall (180s)');
+                    }
+                    
+                    if (tasks.length > 0) {
+                        message += `. Scheduled: ${tasks.join(', ')}.`;
+                    }
+                    
                     showNotification(message, 'success');
                     resolve(true);
                 } else {

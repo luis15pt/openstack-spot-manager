@@ -32,6 +32,7 @@ NETBOX_API_KEY = os.getenv('NETBOX_API_KEY')
 HYPERSTACK_API_URL = os.getenv('HYPERSTACK_API_URL', 'https://infrahub-api.nexgencloud.com/v1')
 HYPERSTACK_API_KEY = os.getenv('HYPERSTACK_API_KEY')
 RUNPOD_API_KEY = os.getenv('RUNPOD_API_KEY')
+HYPERSTACK_FIREWALL_CA1_ID = os.getenv('HYPERSTACK_FIREWALL_CA1_ID')  # Firewall ID for CA1 hosts
 
 # Cache for NetBox tenant lookups to avoid repeated API calls
 _tenant_cache = {}
@@ -1226,24 +1227,44 @@ power_state:
         if response.status_code in [200, 201]:
             result_data = response.json()
             
+            # Extract VM ID from response
+            vm_id = None
+            if result_data.get('instances') and len(result_data['instances']) > 0:
+                vm_id = result_data['instances'][0].get('id')
+                print(f"🆔 Extracted VM ID: {vm_id} for VM {hostname}")
+            
             # Log the successful command
             log_command(masked_command, {
                 'success': True,
-                'stdout': f'Successfully launched VM {hostname} with flavor {flavor_name}',
+                'stdout': f'Successfully launched VM {hostname} with flavor {flavor_name} (ID: {vm_id})',
                 'stderr': '',
                 'returncode': 0
             }, 'executed')
             
-            # Schedule storage network attachment after 120 seconds
+            # Schedule storage network attachment after 120 seconds (OpenStack)
             attach_runpod_storage_network(hostname, delay_seconds=120)
+            
+            # Schedule firewall attachment after 180 seconds (Hyperstack API) - Canada hosts only
+            firewall_scheduled = False
+            if vm_id and hostname.startswith('CA1-') and HYPERSTACK_FIREWALL_CA1_ID:
+                attach_firewall_to_vm(vm_id, hostname, delay_seconds=180)
+                firewall_scheduled = True
+            elif vm_id and hostname.startswith('CA1-'):
+                print(f"⚠️ No CA1 firewall ID configured - firewall attachment will be skipped for {hostname}")
+            elif vm_id:
+                print(f"🌍 VM {hostname} is not in Canada - firewall attachment will be skipped")
+            else:
+                print(f"⚠️ No VM ID found in response - skipping firewall attachment for {hostname}")
             
             return jsonify({
                 'success': True,
                 'message': f'Successfully launched VM {hostname} on Hyperstack',
                 'vm_name': hostname,
+                'vm_id': vm_id,
                 'flavor_name': flavor_name,
                 'response': result_data,
-                'storage_network_scheduled': True
+                'storage_network_scheduled': True,
+                'firewall_scheduled': firewall_scheduled
             })
         else:
             error_msg = f'Failed to launch VM {hostname}: HTTP {response.status_code}'
@@ -1373,6 +1394,94 @@ def attach_runpod_storage_network(vm_name, delay_seconds=120):
         print(f"🚀 Scheduled storage network attachment for {vm_name} (Canada host) in {delay_seconds} seconds")
     else:
         print(f"🌍 VM {vm_name} is not in Canada - storage network attachment will be skipped")
+
+def attach_firewall_to_vm(vm_id, vm_name, delay_seconds=180):
+    """Attach firewall to VM after specified delay using Hyperstack API (Canada hosts only)"""
+    def delayed_firewall_attach():
+        try:
+            print(f"⏳ Waiting {delay_seconds}s before attaching firewall to VM {vm_name} (ID: {vm_id})...")
+            time.sleep(delay_seconds)
+            
+            # Check if host is in Canada (CA1 prefix) and use CA1 firewall ID
+            if not vm_name.startswith('CA1-'):
+                print(f"🌍 Skipping firewall attachment for {vm_name} - not a Canada host")
+                return
+            
+            # Check if CA1 firewall ID is configured
+            if not HYPERSTACK_FIREWALL_CA1_ID:
+                print(f"⚠️ No CA1 firewall ID configured - skipping firewall attachment for VM {vm_name}")
+                return
+            
+            firewall_id = HYPERSTACK_FIREWALL_CA1_ID
+            print(f"🔥 Starting firewall attachment for VM {vm_name} (ID: {vm_id}) with firewall {firewall_id}...")
+            
+            # Prepare the API call to attach firewall
+            headers = {
+                'api_key': HYPERSTACK_API_KEY,
+                'Content-Type': 'application/json'
+            }
+            
+            payload = {
+                "vms": [int(vm_id)]
+            }
+            
+            response = requests.post(
+                f"{HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            # Build command for logging (with masked API key)
+            masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments -H 'api_key: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"vms\": [{vm_id}]}}'"
+            
+            if response.status_code in [200, 201]:
+                print(f"✅ Successfully attached firewall to VM {vm_name} (ID: {vm_id})")
+                
+                # Log the successful command
+                log_command(masked_command, {
+                    'success': True,
+                    'stdout': f'Successfully attached firewall to VM {vm_name} (ID: {vm_id})',
+                    'stderr': '',
+                    'returncode': 0
+                }, 'executed')
+                
+            else:
+                error_msg = f'Failed to attach firewall to VM {vm_name}: HTTP {response.status_code}'
+                if response.text:
+                    error_msg += f' - {response.text}'
+                
+                print(f"❌ {error_msg}")
+                
+                # Log the failed command
+                log_command(masked_command, {
+                    'success': False,
+                    'stdout': '',
+                    'stderr': error_msg,
+                    'returncode': response.status_code
+                }, 'error')
+                
+        except Exception as e:
+            error_msg = f"Failed to attach firewall to VM {vm_name}: {str(e)}"
+            print(f"❌ {error_msg}")
+            
+            # Log the failure
+            log_command(f"firewall attach to VM {vm_name} (ID: {vm_id})", {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': -1
+            }, 'error')
+    
+    # Start the delayed firewall attachment in a separate thread
+    thread = threading.Thread(target=delayed_firewall_attach, daemon=True)
+    thread.start()
+    if vm_name.startswith('CA1-') and HYPERSTACK_FIREWALL_CA1_ID:
+        print(f"🔥 Scheduled firewall attachment for VM {vm_name} (ID: {vm_id}) with firewall {HYPERSTACK_FIREWALL_CA1_ID} in {delay_seconds} seconds")
+    elif vm_name.startswith('CA1-'):
+        print(f"⚠️ No CA1 firewall ID configured - firewall attachment will be skipped for {vm_name}")
+    else:
+        print(f"🌍 VM {vm_name} is not in Canada - firewall attachment will be skipped")
 
 if __name__ == '__main__':
     print("=" * 60)
