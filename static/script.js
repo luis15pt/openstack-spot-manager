@@ -82,6 +82,10 @@ function initializeEventListeners() {
     // Preload all button
     document.getElementById('preloadAllBtn').addEventListener('click', handlePreloadAll);
     
+    // New pending operations buttons
+    document.getElementById('selectAllPendingBtn').addEventListener('click', selectAllPendingOperations);
+    document.getElementById('deselectAllPendingBtn').addEventListener('click', deselectAllPendingOperations);
+    
     // Tab switching - refresh data when switching to command log or results
     document.getElementById('commands-tab').addEventListener('click', loadCommandLog);
     document.getElementById('results-tab').addEventListener('click', loadResultsSummary);
@@ -1602,11 +1606,13 @@ function addToPendingOperations(hostname, sourceType, targetType) {
 }
 
 function updatePendingOperationsDisplay() {
-    const section = document.getElementById('pendingOperationsSection');
     const list = document.getElementById('pendingOperationsList');
     const count = document.getElementById('pendingCount');
+    const tabCount = document.getElementById('pendingTabCount');
     
+    // Update counts
     count.textContent = pendingOperations.length;
+    tabCount.textContent = pendingOperations.length;
     count.classList.add('updated');
     setTimeout(() => count.classList.remove('updated'), 500);
     
@@ -1614,47 +1620,76 @@ function updatePendingOperationsDisplay() {
     updateCardPendingIndicators();
     
     if (pendingOperations.length === 0) {
-        section.style.display = 'none';
+        list.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-clock fa-3x mb-3"></i>
+                <p>No pending operations. Select hosts and add operations to see them here.</p>
+            </div>
+        `;
+        updateCommitButtonState();
         return;
     }
     
-    section.style.display = 'block';
-    
     const operationsHtml = pendingOperations.map((op, index) => {
-        const commands = generateCommandsForOperation(op);
-        return `
-        <div class="pending-operation-item" data-index="${index}">
-            <div class="operation-details">
-                <div class="operation-header">
-                    <strong>${op.hostname}</strong>
-                    <span class="operation-flow">
-                        <span class="badge bg-${op.sourceType === 'ondemand' ? 'primary' : 'warning'}">${op.sourceAggregate}</span>
-                        <i class="fas fa-arrow-right mx-2"></i>
-                        <span class="badge bg-${op.targetType === 'ondemand' ? 'primary' : 'warning'}">${op.targetAggregate}</span>
-                    </span>
-                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="toggleCommands(${index})" title="Show/hide commands">
-                        <i class="fas fa-code"></i>
-                    </button>
+        const steps = generateDetailedOperationSteps(op);
+        const operationTitle = op.type === 'runpod-launch' ? 
+            `🚀 Launch VM '${op.vm_name}' on ${op.hostname}` : 
+            `🔄 Move ${op.hostname} from ${op.sourceAggregate} to ${op.targetAggregate}`;
+        
+        const purposeText = op.type === 'runpod-launch' ? 
+            'Deploy new virtual machine with automated networking and security configuration' :
+            'Relocate compute host between resource pools for different billing models';
+        
+        const stepsHtml = steps.map((step, stepIndex) => `
+            <div class="operation-step">
+                <div class="step-header">
+                    <input type="checkbox" class="form-check-input operation-step-checkbox me-2" 
+                           id="${step.id}" ${step.checked ? 'checked' : ''} 
+                           onchange="updateCommitButtonState()">
+                    <label class="form-check-label step-title" for="${step.id}">
+                        <i class="${getStepIcon(step.type)}"></i>
+                        <strong>${step.title}</strong>
+                        <span class="badge bg-secondary ms-2">${step.timing}</span>
+                    </label>
                 </div>
-                <div class="operation-commands" id="commands-${index}" style="display: none;">
-                    <div class="command-list">
-                        ${commands.map((cmd, cmdIndex) => `
-                            <div class="command-item">
-                                <span class="command-number">${cmdIndex + 1}.</span>
-                                <code class="command-text">${cmd}</code>
-                            </div>
-                        `).join('')}
+                <div class="step-description">
+                    <small class="text-muted">${step.description}</small>
+                </div>
+                <div class="step-command">
+                    <code class="d-block mt-1 p-2 bg-light rounded">${step.command}</code>
+                </div>
+            </div>
+        `).join('');
+        
+        return `
+            <div class="pending-operation-card card mb-3" data-index="${index}">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">${operationTitle}</h6>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removePendingOperation(${index})" title="Remove operation">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">
+                        <strong>Purpose:</strong> ${purposeText}
+                    </small>
+                </div>
+                <div class="card-body">
+                    <div class="operation-steps">
+                        ${stepsHtml}
+                    </div>
+                    <div class="operation-meta mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-clock"></i> Added ${new Date(op.timestamp).toLocaleString()}
+                        </small>
                     </div>
                 </div>
             </div>
-            <button class="btn btn-sm btn-outline-danger" onclick="removePendingOperation(${index})">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
         `;
     }).join('');
     
     list.innerHTML = operationsHtml;
+    updateCommitButtonState();
 }
 
 function toggleCommands(index) {
@@ -1918,134 +1953,39 @@ function addToPendingOperations(hostname, sourceType, targetType, options = {}) 
     }
 }
 
-// Enhanced updatePendingOperationsDisplay to show countdown timers
-function updatePendingOperationsDisplay() {
-    const section = document.getElementById('pendingOperationsSection');
-    const list = document.getElementById('pendingOperationsList');
-    const count = document.getElementById('pendingCount');
-    
-    count.textContent = pendingOperations.length;
-    count.classList.add('updated');
-    setTimeout(() => count.classList.remove('updated'), 500);
-    
-    if (pendingOperations.length === 0) {
-        section.style.display = 'none';
-        return;
-    }
-    
-    section.style.display = 'block';
-    
-    const currentTime = Date.now();
-    const operationsHtml = pendingOperations.map((op, index) => {
-        if (op.type === 'runpod-launch') {
-            const commandsHtml = op.commands ? `
-                <div class="operation-commands">
-                    <div class="command-list">
-                        ${op.commands.map((cmd, cmdIndex) => `
-                            <div class="command-item">
-                                <span class="command-number">${cmdIndex + 1}.</span>
-                                <span class="command-text">${cmd}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            ` : '';
-            
-            return `
-                <div class="pending-operation-item ready">
-                    <div class="operation-details">
-                        <div class="operation-header">
-                            <strong><i class="fas fa-rocket text-primary"></i> Launch VM '${op.vm_name}' on host ${op.hostname}</strong>
-                            <div class="operation-actions">
-                                <span class="badge bg-success">Ready to launch</span>
-                                <button class="btn btn-sm btn-outline-danger ms-2" onclick="removePendingOperation(${index})" title="Remove operation">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                        ${commandsHtml}
-                        <div class="operation-details-text">
-                            <small class="text-muted">
-                                Manual VM launch • VM name: ${op.vm_name} • ${new Date(op.timestamp).toLocaleTimeString()}
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            `;
-        } else {
-            // Regular migration operation
-            const commandsHtml = op.commands ? `
-                <div class="operation-commands">
-                    <div class="command-list">
-                        ${op.commands.map((cmd, cmdIndex) => `
-                            <div class="command-item">
-                                <span class="command-number">${cmdIndex + 1}.</span>
-                                <span class="command-text">${cmd}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            ` : '';
-            
-            return `
-                <div class="pending-operation-item">
-                    <div class="operation-details">
-                        <div class="operation-header">
-                            <strong>${op.hostname}</strong>
-                            <div class="operation-actions">
-                                <button class="btn btn-sm btn-outline-danger ms-2" onclick="removePendingOperation(${index})" title="Remove operation">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="operation-flow">
-                            <span class="badge bg-secondary">${op.sourceType}</span>
-                            <i class="fas fa-arrow-right mx-2"></i>
-                            <span class="badge bg-primary">${op.targetType}</span>
-                        </div>
-                        ${commandsHtml}
-                        <div class="operation-details-text">
-                            <small class="text-muted">${op.sourceAggregate} → ${op.targetAggregate} • ${new Date(op.timestamp).toLocaleTimeString()}</small>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-    }).join('');
-    
-    list.innerHTML = operationsHtml;
-    
-    // Update pending indicators on cards
-    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
-        card.classList.remove('pending-operation');
-    });
-    
-    pendingOperations.forEach(op => {
-        const card = document.querySelector(`[data-host="${op.hostname}"]`);
-        if (card) {
-            card.classList.add('pending-operation');
-        }
-    });
-}
 
-// Enhanced commitAllOperations to handle runpod launches
+// Enhanced commitAllOperations to handle runpod launches and checkboxes
 function commitAllOperations() {
     if (pendingOperations.length === 0) {
         showNotification('No pending operations to commit', 'warning');
         return;
     }
     
-    // Separate migration and launch operations
-    const migrations = pendingOperations.filter(op => op.type === 'migration');
-    const launches = pendingOperations.filter(op => op.type === 'runpod-launch');
+    // Check which steps are selected
+    const selectedSteps = document.querySelectorAll('.operation-step-checkbox:checked');
+    if (selectedSteps.length === 0) {
+        showNotification('No operation steps selected. Please select at least one step to execute.', 'warning');
+        return;
+    }
     
-    let confirmMessage = '';
-    if (migrations.length > 0 && launches.length > 0) {
-        confirmMessage = `Execute ${migrations.length} migration(s) and ${launches.length} VM launch(es)?`;
-    } else if (migrations.length > 0) {
-        confirmMessage = `Execute ${migrations.length} migration(s)?`;
-    } else {
-        confirmMessage = `Execute ${launches.length} VM launch(es)?`;
+    // Count selected operations by type
+    const selectedOperations = new Set();
+    selectedSteps.forEach(checkbox => {
+        const operationCard = checkbox.closest('.pending-operation-card');
+        if (operationCard) {
+            selectedOperations.add(operationCard.dataset.index);
+        }
+    });
+    
+    const selectedCount = selectedOperations.size;
+    
+    // Check for warnings and show them in confirmation
+    const warnings = checkCriticalStepDependencies();
+    let confirmMessage = `Execute ${selectedSteps.length} selected step(s) across ${selectedCount} operation(s)?`;
+    
+    if (warnings.length > 0) {
+        confirmMessage += `\n\n⚠️  ${warnings.length} Warning(s):\n` + warnings.map(w => `• ${w}`).join('\n');
+        confirmMessage += `\n\nDo you want to continue anyway?`;
     }
     
     if (!confirm(confirmMessage)) return;
@@ -2054,7 +1994,16 @@ function commitAllOperations() {
     commitBtn.disabled = true;
     commitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
     
-    // Execute migrations first, then launches
+    // Filter operations and execute only those with selected steps
+    const operationsToExecute = pendingOperations.filter((op, index) => 
+        selectedOperations.has(index.toString())
+    );
+    
+    // Separate migration and launch operations
+    const migrations = operationsToExecute.filter(op => op.type !== 'runpod-launch');
+    const launches = operationsToExecute.filter(op => op.type === 'runpod-launch');
+    
+    // Execute migrations first, then launches with 2-minute delays
     executeOperationsSequentially([...migrations, ...launches], 0, [], 0);
 }
 
@@ -2062,7 +2011,7 @@ function executeOperationsSequentially(operations, index, errors, completed) {
     if (index >= operations.length) {
         const commitBtn = document.getElementById('commitBtn');
         commitBtn.disabled = false;
-        commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit All Operations';
+        commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit Selected Operations';
         
         if (errors.length > 0) {
             showNotification(`Completed with ${errors.length} errors: ${errors.join(', ')}`, 'warning');
@@ -2081,21 +2030,50 @@ function executeOperationsSequentially(operations, index, errors, completed) {
     const operation = operations[index];
     
     if (operation.type === 'runpod-launch') {
-        // Execute VM launch
-        executeRunpodLaunch(operation.hostname)
-            .then(success => {
-                if (success) {
-                    completed++;
-                } else {
+        // Check if this is a subsequent runpod launch (not the first one)
+        const previousRunpodLaunches = operations.slice(0, index).filter(op => op.type === 'runpod-launch');
+        const isSubsequentLaunch = previousRunpodLaunches.length > 0;
+        
+        if (isSubsequentLaunch) {
+            // Add 2-minute delay between runpod launches
+            showNotification(`Waiting 2 minutes before launching next VM (${operation.hostname}) to prevent naming conflicts...`, 'info');
+            const commitBtn = document.getElementById('commitBtn');
+            commitBtn.innerHTML = '<i class="fas fa-clock"></i> Waiting 2 minutes for next launch...';
+            
+            setTimeout(() => {
+                commitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
+                executeRunpodLaunch(operation.hostname)
+                    .then(success => {
+                        if (success) {
+                            completed++;
+                        } else {
+                            errors.push(`Launch ${operation.hostname}`);
+                        }
+                        executeOperationsSequentially(operations, index + 1, errors, completed);
+                    })
+                    .catch(error => {
+                        console.error(`Error launching ${operation.hostname}:`, error);
+                        errors.push(`Launch ${operation.hostname}`);
+                        executeOperationsSequentially(operations, index + 1, errors, completed);
+                    });
+            }, 120000); // 2 minutes delay
+        } else {
+            // Execute first runpod launch immediately
+            executeRunpodLaunch(operation.hostname)
+                .then(success => {
+                    if (success) {
+                        completed++;
+                    } else {
+                        errors.push(`Launch ${operation.hostname}`);
+                    }
+                    executeOperationsSequentially(operations, index + 1, errors, completed);
+                })
+                .catch(error => {
+                    console.error(`Error launching ${operation.hostname}:`, error);
                     errors.push(`Launch ${operation.hostname}`);
-                }
-                executeOperationsSequentially(operations, index + 1, errors, completed);
-            })
-            .catch(error => {
-                console.error(`Error launching ${operation.hostname}:`, error);
-                errors.push(`Launch ${operation.hostname}`);
-                executeOperationsSequentially(operations, index + 1, errors, completed);
-            });
+                    executeOperationsSequentially(operations, index + 1, errors, completed);
+                });
+        }
     } else {
         // Execute migration (existing logic)
         fetch('/api/execute-migration', {
@@ -2207,5 +2185,179 @@ function executeRunpodLaunch(hostname) {
             resolve(false);
         });
     });
+}
+
+// Enhanced Pending Operations Functions
+function selectAllPendingOperations() {
+    const checkboxes = document.querySelectorAll('.operation-step-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateCommitButtonState();
+}
+
+function deselectAllPendingOperations() {
+    const checkboxes = document.querySelectorAll('.operation-step-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateCommitButtonState();
+}
+
+function updateCommitButtonState() {
+    const commitBtn = document.getElementById('commitBtn');
+    const selectedSteps = document.querySelectorAll('.operation-step-checkbox:checked');
+    
+    if (selectedSteps.length === 0) {
+        commitBtn.disabled = true;
+        commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit Selected Operations';
+        return;
+    }
+    
+    // Check for critical step warnings
+    const warnings = checkCriticalStepDependencies();
+    
+    if (warnings.length > 0) {
+        commitBtn.disabled = false;
+        commitBtn.innerHTML = `<i class="fas fa-exclamation-triangle text-warning"></i> Commit Selected Operations (${selectedSteps.length} steps) - ${warnings.length} warnings`;
+        commitBtn.title = warnings.join('\n');
+    } else {
+        commitBtn.disabled = false;
+        commitBtn.innerHTML = `<i class="fas fa-check"></i> Commit Selected Operations (${selectedSteps.length} steps)`;
+        commitBtn.title = '';
+    }
+}
+
+function checkCriticalStepDependencies() {
+    const warnings = [];
+    
+    // Check each operation for critical step dependencies
+    document.querySelectorAll('.pending-operation-card').forEach(card => {
+        const operationIndex = card.dataset.index;
+        const operation = pendingOperations[operationIndex];
+        
+        if (operation && operation.type === 'runpod-launch') {
+            const launchCheckbox = card.querySelector(`input[id*="launch"]`);
+            const storageCheckbox = card.querySelector(`input[id*="storage"]`);
+            const firewallCheckbox = card.querySelector(`input[id*="firewall"]`);
+            
+            // Warning if VM launch is selected but networking steps are not
+            if (launchCheckbox && launchCheckbox.checked) {
+                if (storageCheckbox && !storageCheckbox.checked) {
+                    warnings.push(`${operation.hostname}: VM launch selected but storage network attachment disabled - VM may have limited storage performance`);
+                }
+                if (firewallCheckbox && !firewallCheckbox.checked) {
+                    warnings.push(`${operation.hostname}: VM launch selected but firewall attachment disabled - VM will be unprotected`);
+                }
+            }
+            
+            // Warning if storage/firewall selected but launch is not
+            if (!launchCheckbox || !launchCheckbox.checked) {
+                if (storageCheckbox && storageCheckbox.checked) {
+                    warnings.push(`${operation.hostname}: Storage network attachment selected but VM launch disabled - storage attachment will fail`);
+                }
+                if (firewallCheckbox && firewallCheckbox.checked) {
+                    warnings.push(`${operation.hostname}: Firewall attachment selected but VM launch disabled - firewall attachment will fail`);
+                }
+            }
+        } else if (operation && operation.type !== 'runpod-launch') {
+            // Check host migration dependencies
+            const removeCheckbox = card.querySelector(`input[id*="remove"]`);
+            const addCheckbox = card.querySelector(`input[id*="add"]`);
+            
+            if (removeCheckbox && removeCheckbox.checked && addCheckbox && !addCheckbox.checked) {
+                warnings.push(`${operation.hostname}: Host will be removed from ${operation.sourceAggregate} but not added to ${operation.targetAggregate} - host will be unassigned`);
+            }
+            if (addCheckbox && addCheckbox.checked && removeCheckbox && !removeCheckbox.checked) {
+                warnings.push(`${operation.hostname}: Host will be added to ${operation.targetAggregate} but not removed from ${operation.sourceAggregate} - host will be in multiple aggregates`);
+            }
+        }
+    });
+    
+    return warnings;
+}
+
+function generateDetailedOperationSteps(operation) {
+    const steps = [];
+    
+    if (operation.type === 'runpod-launch') {
+        // Runpod VM launch steps
+        steps.push({
+            id: `step-${operation.hostname}-wait`,
+            title: 'Wait for aggregate migration to complete',
+            description: 'Ensure host is properly moved to Runpod aggregate before VM deployment',
+            command: 'Wait 60 seconds after host aggregate migration completes',
+            timing: '60s delay',
+            type: 'timing',
+            checked: true
+        });
+        
+        steps.push({
+            id: `step-${operation.hostname}-launch`,
+            title: 'Deploy VM via Hyperstack API',
+            description: 'Creates new virtual machine on the specified host with correct specifications',
+            command: operation.commands ? operation.commands[0] : `Launch VM ${operation.vm_name} on ${operation.hostname}`,
+            timing: 'Immediate',
+            type: 'api',
+            checked: true
+        });
+        
+        if (operation.hostname.startsWith('CA1-')) {
+            steps.push({
+                id: `step-${operation.hostname}-storage`,
+                title: 'Attach storage network (Canada hosts only)',
+                description: 'Connects VM to RunPod-Storage-Canada-1 network for high-performance storage access',
+                command: `neutron port-create --network-id=<RunPod-Storage-Canada-1> --device-id=<vm-id>`,
+                timing: '120s after VM launch',
+                type: 'network',
+                checked: true
+            });
+            
+            steps.push({
+                id: `step-${operation.hostname}-firewall`,
+                title: 'Update firewall rules (preserves existing VMs)',
+                description: 'Retrieves current firewall attachments and adds new VM while maintaining security rules for all existing VMs',
+                command: `1. GET /core/firewalls/971 → Extract existing VM IDs\n2. POST /core/firewalls/971/update-attachments -d '{"vms": [existing_ids + new_vm_id]}'`,
+                timing: '180s after VM launch',
+                type: 'security',
+                checked: true
+            });
+        }
+        
+    } else {
+        // Regular host migration steps
+        steps.push({
+            id: `step-${operation.hostname}-remove`,
+            title: `Remove host from ${operation.sourceAggregate}`,
+            description: `Removes compute host from current aggregate to prepare for relocation`,
+            command: `openstack aggregate remove host ${operation.sourceAggregate} ${operation.hostname}`,
+            timing: 'Immediate',
+            type: 'migration',
+            checked: true
+        });
+        
+        steps.push({
+            id: `step-${operation.hostname}-add`,
+            title: `Add host to ${operation.targetAggregate}`,
+            description: `Adds compute host to target aggregate for new resource pool assignment`,
+            command: `openstack aggregate add host ${operation.targetAggregate} ${operation.hostname}`,
+            timing: 'After removal completes',
+            type: 'migration',
+            checked: true
+        });
+    }
+    
+    return steps;
+}
+
+function getStepIcon(type) {
+    switch(type) {
+        case 'timing': return 'fas fa-clock text-warning';
+        case 'api': return 'fas fa-rocket text-primary';
+        case 'network': return 'fas fa-network-wired text-info';
+        case 'security': return 'fas fa-shield-alt text-success';
+        case 'migration': return 'fas fa-exchange-alt text-secondary';
+        default: return 'fas fa-cog text-muted';
+    }
 }
 

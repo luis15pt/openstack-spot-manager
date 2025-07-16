@@ -1395,6 +1395,45 @@ def attach_runpod_storage_network(vm_name, delay_seconds=120):
     else:
         print(f"🌍 VM {vm_name} is not in Canada - storage network attachment will be skipped")
 
+def get_firewall_current_attachments(firewall_id):
+    """Get current VM attachments for a firewall to preserve existing VMs"""
+    try:
+        headers = {
+            'api_key': HYPERSTACK_API_KEY,
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.get(
+            f"{HYPERSTACK_API_URL}/core/firewalls/{firewall_id}",
+            headers=headers,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            firewall_data = response.json()
+            
+            # Extract VM IDs from attachments
+            vm_ids = []
+            if 'firewall' in firewall_data and 'attachments' in firewall_data['firewall']:
+                for attachment in firewall_data['firewall']['attachments']:
+                    if 'vm' in attachment and 'id' in attachment['vm']:
+                        vm_ids.append(attachment['vm']['id'])
+            elif 'attachments' in firewall_data:
+                for attachment in firewall_data['attachments']:
+                    if 'vm' in attachment and 'id' in attachment['vm']:
+                        vm_ids.append(attachment['vm']['id'])
+            
+            print(f"📋 Retrieved {len(vm_ids)} existing VM attachments for firewall {firewall_id}")
+            return vm_ids
+        else:
+            print(f"⚠️ Failed to get firewall {firewall_id} details: HTTP {response.status_code}")
+            if response.text:
+                print(f"   Response: {response.text}")
+            return []
+    except Exception as e:
+        print(f"⚠️ Error getting firewall attachments: {e}")
+        return []
+
 def attach_firewall_to_vm(vm_id, vm_name, delay_seconds=180):
     """Attach firewall to VM after specified delay using Hyperstack API (Canada hosts only)"""
     def delayed_firewall_attach():
@@ -1415,15 +1454,34 @@ def attach_firewall_to_vm(vm_id, vm_name, delay_seconds=180):
             firewall_id = HYPERSTACK_FIREWALL_CA1_ID
             print(f"🔥 Starting firewall attachment for VM {vm_name} (ID: {vm_id}) with firewall {firewall_id}...")
             
-            # Prepare the API call to attach firewall
+            # Get current firewall attachments to preserve existing VMs
+            try:
+                existing_vm_ids = get_firewall_current_attachments(firewall_id)
+                print(f"📋 Found {len(existing_vm_ids)} existing VM attachments for firewall {firewall_id}")
+            except Exception as e:
+                print(f"⚠️ Failed to get current firewall attachments: {e}")
+                print(f"⚠️ Proceeding without preserving existing attachments (this may remove other VMs from firewall)")
+                existing_vm_ids = []
+            
+            # Prepare the API call to attach firewall with all VMs (existing + new)
             headers = {
                 'api_key': HYPERSTACK_API_KEY,
                 'Content-Type': 'application/json'
             }
             
+            # Include existing VMs plus the new one
+            all_vm_ids = existing_vm_ids + [int(vm_id)]
+            # Remove duplicates while preserving order
+            unique_vm_ids = list(dict.fromkeys(all_vm_ids))
+            
             payload = {
-                "vms": [int(vm_id)]
+                "vms": unique_vm_ids
             }
+            
+            print(f"🔗 Attaching firewall to {len(unique_vm_ids)} VMs: {unique_vm_ids}")
+            print(f"   - Existing VMs: {existing_vm_ids}")
+            print(f"   - New VM: {vm_id}")
+            print(f"   - Total unique VMs: {unique_vm_ids}")
             
             response = requests.post(
                 f"{HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments",
@@ -1433,15 +1491,17 @@ def attach_firewall_to_vm(vm_id, vm_name, delay_seconds=180):
             )
             
             # Build command for logging (with masked API key)
-            masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments -H 'api_key: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"vms\": [{vm_id}]}}'"
+            vm_ids_str = ', '.join(map(str, unique_vm_ids))
+            masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments -H 'api_key: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"vms\": [{vm_ids_str}]}}'"
             
             if response.status_code in [200, 201]:
-                print(f"✅ Successfully attached firewall to VM {vm_name} (ID: {vm_id})")
+                print(f"✅ Successfully attached firewall to {len(unique_vm_ids)} VMs including new VM {vm_name} (ID: {vm_id})")
+                print(f"   🔐 Firewall now protects VMs: {unique_vm_ids}")
                 
                 # Log the successful command
                 log_command(masked_command, {
                     'success': True,
-                    'stdout': f'Successfully attached firewall to VM {vm_name} (ID: {vm_id})',
+                    'stdout': f'Successfully attached firewall to {len(unique_vm_ids)} VMs including new VM {vm_name} (ID: {vm_id})',
                     'stderr': '',
                     'returncode': 0
                 }, 'executed')
@@ -1452,6 +1512,7 @@ def attach_firewall_to_vm(vm_id, vm_name, delay_seconds=180):
                     error_msg += f' - {response.text}'
                 
                 print(f"❌ {error_msg}")
+                print(f"   ⚠️ This may have left existing VMs without firewall protection")
                 
                 # Log the failed command
                 log_command(masked_command, {

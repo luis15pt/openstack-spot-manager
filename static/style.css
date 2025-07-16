@@ -1227,3 +1227,172 @@ body {
     padding: 15px;
     min-height: 100px;
 }
+
+/* Enhanced Pending Operations Styles */
+.pending-operation-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.pending-operation-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: #dee2e6;
+}
+
+.pending-operation-card .card-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    padding: 12px 16px;
+}
+
+.pending-operation-card .card-header h6 {
+    font-weight: 600;
+    color: #495057;
+    margin: 0;
+}
+
+.operation-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.operation-step {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    background: #fafafa;
+    transition: all 0.2s ease;
+}
+
+.operation-step:hover {
+    background: #f5f5f5;
+    border-color: #dee2e6;
+}
+
+.step-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.step-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: #495057;
+    cursor: pointer;
+    flex: 1;
+}
+
+.step-title i {
+    font-size: 1.1em;
+}
+
+.step-description {
+    margin: 6px 0;
+    padding-left: 26px;
+}
+
+.step-command {
+    margin-top: 8px;
+    padding-left: 26px;
+}
+
+.step-command code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+    color: #495057;
+    background: #e9ecef;
+    border: 1px solid #dee2e6;
+    display: block;
+    padding: 8px 12px;
+    border-radius: 4px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.operation-step-checkbox {
+    margin-right: 8px;
+    transform: scale(1.1);
+}
+
+.operation-step-checkbox:checked + .step-title {
+    color: #0d6efd;
+}
+
+.operation-step-checkbox:checked + .step-title i {
+    color: #0d6efd;
+}
+
+.operation-step-checkbox:not(:checked) + .step-title {
+    color: #6c757d;
+    opacity: 0.7;
+}
+
+.operation-step-checkbox:not(:checked) ~ .step-description {
+    opacity: 0.6;
+}
+
+.operation-step-checkbox:not(:checked) ~ .step-command {
+    opacity: 0.6;
+}
+
+.operation-meta {
+    border-top: 1px solid #e9ecef;
+    padding-top: 12px;
+    margin-top: 16px;
+}
+
+.operation-meta .text-muted {
+    font-size: 0.85em;
+}
+
+/* Tab badge styling */
+.nav-tabs .nav-link .badge {
+    font-size: 0.7em;
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+.nav-tabs .nav-link .badge.bg-warning {
+    background-color: #ffc107 !important;
+    color: #000;
+}
+
+/* Responsive adjustments for pending operations */
+@media (max-width: 768px) {
+    .pending-operation-card .card-header {
+        padding: 10px 12px;
+    }
+    
+    .operation-step {
+        padding: 10px;
+    }
+    
+    .step-command code {
+        font-size: 0.8em;
+        padding: 6px 8px;
+    }
+    
+    .step-title {
+        font-size: 0.9em;
+    }
+}
+
+/* Animation for step state changes */
+.operation-step {
+    transition: all 0.3s ease;
+}
+
+.operation-step:has(.operation-step-checkbox:checked) {
+    border-color: #0d6efd;
+    background: #f8f9ff;
+}
+
+.operation-step:has(.operation-step-checkbox:not(:checked)) {
+    border-color: #dee2e6;
+    background: #f8f9fa;
+}

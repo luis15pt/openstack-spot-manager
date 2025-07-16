@@ -74,6 +74,12 @@
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab">
+                                <i class="fas fa-clock"></i> Pending Operations
+                                <span class="badge bg-warning ms-1" id="pendingTabCount">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
                             <button class="nav-link" id="commands-tab" data-bs-toggle="tab" data-bs-target="#commands" type="button" role="tab">
                                 <i class="fas fa-terminal"></i> Command Log
                                 <span class="badge bg-secondary ms-1" id="commandCount">0</span>
@@ -210,33 +216,6 @@
                                 </div>
                             </div>
                             
-                            <!-- Pending Operations Section -->
-                            <div class="row mt-4" id="pendingOperationsSection" style="display: none;">
-                                <div class="col-12">
-                                    <div class="card border-warning">
-                                        <div class="card-header bg-warning text-dark">
-                                            <h5 class="mb-0">
-                                                <i class="fas fa-clock"></i> Pending Operations
-                                                <span class="badge bg-dark ms-2" id="pendingCount">0</span>
-                                            </h5>
-                                        </div>
-                                        <div class="card-body">
-                                            <div id="pendingOperationsList" class="mb-3">
-                                                <!-- Pending operations will be listed here -->
-                                            </div>
-                                            <div class="text-center">
-                                                <button id="commitBtn" class="btn btn-success me-2">
-                                                    <i class="fas fa-check"></i> Commit All Operations
-                                                </button>
-                                                <button id="clearPendingBtn" class="btn btn-outline-danger">
-                                                    <i class="fas fa-times"></i> Clear All
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
                             <!-- Control Buttons -->
                             <div class="row mt-4">
                                 <div class="col-md-12 text-center">
@@ -252,6 +231,44 @@
                                     <button id="refreshBtn" class="btn btn-secondary">
                                         <i class="fas fa-sync"></i> Refresh
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pending Operations Tab -->
+                        <div class="tab-pane fade" id="pending" role="tabpanel">
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header bg-warning text-dark">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-clock"></i> Pending Operations
+                                                <span class="badge bg-dark ms-2" id="pendingCount">0</span>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="pendingOperationsList" class="mb-3">
+                                                <div class="text-center text-muted">
+                                                    <i class="fas fa-clock fa-3x mb-3"></i>
+                                                    <p>No pending operations. Select hosts and add operations to see them here.</p>
+                                                </div>
+                                            </div>
+                                            <div class="text-center">
+                                                <button id="commitBtn" class="btn btn-success me-2">
+                                                    <i class="fas fa-check"></i> Commit Selected Operations
+                                                </button>
+                                                <button id="clearPendingBtn" class="btn btn-outline-danger me-2">
+                                                    <i class="fas fa-times"></i> Clear All
+                                                </button>
+                                                <button id="selectAllPendingBtn" class="btn btn-outline-primary me-2">
+                                                    <i class="fas fa-check-square"></i> Select All
+                                                </button>
+                                                <button id="deselectAllPendingBtn" class="btn btn-outline-secondary">
+                                                    <i class="fas fa-square"></i> Deselect All
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
