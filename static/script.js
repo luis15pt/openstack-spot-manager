@@ -2239,15 +2239,19 @@ function checkCriticalStepDependencies() {
         if (operation && operation.type === 'runpod-launch') {
             const launchCheckbox = card.querySelector(`input[id*="launch"]`);
             const storageCheckbox = card.querySelector(`input[id*="storage"]`);
-            const firewallCheckbox = card.querySelector(`input[id*="firewall"]`);
+            const firewallGetCheckbox = card.querySelector(`input[id*="firewall-get"]`);
+            const firewallUpdateCheckbox = card.querySelector(`input[id*="firewall-update"]`);
             
             // Warning if VM launch is selected but networking steps are not
             if (launchCheckbox && launchCheckbox.checked) {
                 if (storageCheckbox && !storageCheckbox.checked) {
                     warnings.push(`${operation.hostname}: VM launch selected but storage network attachment disabled - VM may have limited storage performance`);
                 }
-                if (firewallCheckbox && !firewallCheckbox.checked) {
-                    warnings.push(`${operation.hostname}: VM launch selected but firewall attachment disabled - VM will be unprotected`);
+                if (firewallGetCheckbox && !firewallGetCheckbox.checked) {
+                    warnings.push(`${operation.hostname}: VM launch selected but firewall retrieval disabled - VM will be unprotected`);
+                }
+                if (firewallUpdateCheckbox && !firewallUpdateCheckbox.checked) {
+                    warnings.push(`${operation.hostname}: VM launch selected but firewall update disabled - VM will be unprotected`);
                 }
             }
             
@@ -2256,9 +2260,17 @@ function checkCriticalStepDependencies() {
                 if (storageCheckbox && storageCheckbox.checked) {
                     warnings.push(`${operation.hostname}: Storage network attachment selected but VM launch disabled - storage attachment will fail`);
                 }
-                if (firewallCheckbox && firewallCheckbox.checked) {
-                    warnings.push(`${operation.hostname}: Firewall attachment selected but VM launch disabled - firewall attachment will fail`);
+                if (firewallGetCheckbox && firewallGetCheckbox.checked) {
+                    warnings.push(`${operation.hostname}: Firewall retrieval selected but VM launch disabled - firewall operation will fail`);
                 }
+                if (firewallUpdateCheckbox && firewallUpdateCheckbox.checked) {
+                    warnings.push(`${operation.hostname}: Firewall update selected but VM launch disabled - firewall operation will fail`);
+                }
+            }
+            
+            // Warning if firewall update is selected but get is not
+            if (firewallUpdateCheckbox && firewallUpdateCheckbox.checked && firewallGetCheckbox && !firewallGetCheckbox.checked) {
+                warnings.push(`${operation.hostname}: Firewall update selected but firewall retrieval disabled - update will fail without existing VM IDs`);
             }
         } else if (operation && operation.type !== 'runpod-launch') {
             // Check host migration dependencies
@@ -2286,7 +2298,7 @@ function generateDetailedOperationSteps(operation) {
             id: `step-${operation.hostname}-wait`,
             title: 'Wait for aggregate migration to complete',
             description: 'Ensure host is properly moved to Runpod aggregate before VM deployment - prevents deployment failures',
-            command: 'sleep 60  # Wait for OpenStack aggregate membership to propagate across all services',
+            command: `sleep 60  # Wait for OpenStack aggregate membership to propagate across all services\n\n# Verify aggregate membership:\n# openstack aggregate show <runpod-aggregate-name>\n# openstack hypervisor show ${operation.hostname}`,
             timing: '60s delay',
             type: 'timing',
             checked: true
@@ -2296,7 +2308,7 @@ function generateDetailedOperationSteps(operation) {
             id: `step-${operation.hostname}-launch`,
             title: 'Deploy VM via Hyperstack API',
             description: 'Creates new virtual machine on the specified host with correct specifications and flavor',
-            command: operation.commands ? operation.commands[0] : `curl -X POST https://infrahub-api.nexgencloud.com/v1/core/virtual-machines \\\n  -H 'api_key: <key>' \\\n  -d '{"name": "${operation.vm_name}", "flavor_name": "<gpu-flavor>", "image_name": "Ubuntu 22.04 LTS", "user_data": "#!/bin/bash\\necho \\"api_key=<runpod-key>\\" > /tmp/runpod-config"}'`,
+            command: operation.commands ? operation.commands[0] : `# Hyperstack API call:\ncurl -X POST https://infrahub-api.nexgencloud.com/v1/core/virtual-machines \\\n  -H 'api_key: <key>' \\\n  -d '{"name": "${operation.vm_name || operation.hostname}", "flavor_name": "<gpu-flavor>", "image_name": "Ubuntu 22.04 LTS", "user_data": "#!/bin/bash\\necho \\"api_key=<runpod-key>\\" > /tmp/runpod-config"}'\n\n# Verify VM creation (OpenStack):\n# openstack server show ${operation.vm_name || operation.hostname}\n# openstack server list --host ${operation.hostname}`,
             timing: 'Immediate',
             type: 'api',
             checked: true
@@ -2307,18 +2319,28 @@ function generateDetailedOperationSteps(operation) {
                 id: `step-${operation.hostname}-storage`,
                 title: 'Attach storage network (Canada hosts only)',
                 description: 'Creates a port on RunPod-Storage-Canada-1 network and attaches it to the VM for high-performance storage access',
-                command: `1. Find RunPod-Storage-Canada-1 network: openstack network show "RunPod-Storage-Canada-1"\n2. Create port: openstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port"\n3. Attach port to VM: openstack server add port ${operation.hostname} <port-id>`,
+                command: `# OpenStack CLI commands (for manual testing):\n1. Find network: openstack network show "RunPod-Storage-Canada-1"\n2. Create port: openstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port"\n3. Attach to VM: openstack server add port ${operation.hostname} <port-id>\n\n# Alternative neutron commands:\n# neutron net-show "RunPod-Storage-Canada-1"\n# neutron port-create --network-id=<network-id> --name="${operation.hostname}-storage-port"\n# nova interface-attach --port-id <port-id> ${operation.hostname}`,
                 timing: '120s after VM launch',
                 type: 'network',
                 checked: true
             });
             
             steps.push({
-                id: `step-${operation.hostname}-firewall`,
-                title: 'Update firewall rules (preserves existing VMs)',
-                description: 'Retrieves current firewall attachments and adds new VM while maintaining security rules for all existing VMs',
-                command: `1. Get current attachments: curl -H 'api_key: <key>' GET ${operation.hostname.startsWith('CA1-') ? 'https://infrahub-api.nexgencloud.com/v1' : '<api-url>'}/core/firewalls/971\n2. Extract existing VM IDs from response.attachments[].vm.id\n3. Update firewall with all VMs: curl -X POST -H 'api_key: <key>' -d '{"vms": [existing_ids + new_vm_id]}' .../core/firewalls/971/update-attachments`,
+                id: `step-${operation.hostname}-firewall-get`,
+                title: 'Get current firewall attachments',
+                description: 'Retrieves existing VM IDs attached to firewall to preserve them during update',
+                command: `curl -H 'api_key: <key>' GET ${operation.hostname.startsWith('CA1-') ? 'https://infrahub-api.nexgencloud.com/v1' : '<api-url>'}/core/firewalls/971`,
                 timing: '180s after VM launch',
+                type: 'security',
+                checked: true
+            });
+            
+            steps.push({
+                id: `step-${operation.hostname}-firewall-update`,
+                title: 'Update firewall with all VMs (existing + new)',
+                description: 'Updates firewall attachments to include all existing VMs plus the new VM - prevents removing other VMs',
+                command: `curl -X POST -H 'api_key: <key>' -d '{"vms": [existing_vm_ids + ${operation.vm_name || operation.hostname}_vm_id]}' ${operation.hostname.startsWith('CA1-') ? 'https://infrahub-api.nexgencloud.com/v1' : '<api-url>'}/core/firewalls/971/update-attachments`,
+                timing: 'After getting existing attachments',
                 type: 'security',
                 checked: true
             });
