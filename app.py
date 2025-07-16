@@ -1309,6 +1309,17 @@ def attach_runpod_storage_network(vm_name, delay_seconds=120):
     """Attach RunPod-Storage-Canada-1 network to VM after specified delay (Canada hosts only)"""
     def delayed_attach():
         try:
+            # Log the start of waiting period
+            log_command(
+                f"⏳ Waiting {delay_seconds}s before attaching storage network to {vm_name}...",
+                {
+                    'success': True,
+                    'stdout': f'Scheduled storage network attachment for {vm_name} in {delay_seconds}s',
+                    'stderr': '',
+                    'returncode': 0
+                },
+                'queued'
+            )
             print(f"⏳ Waiting {delay_seconds}s before attaching storage network to {vm_name}...")
             time.sleep(delay_seconds)
             
@@ -1323,15 +1334,51 @@ def attach_runpod_storage_network(vm_name, delay_seconds=120):
                 print(f"❌ No OpenStack connection available for network attachment to {vm_name}")
                 return
             
-            # Find the VM by name
+            # Find the VM by name with retry mechanism (VM might still be synchronizing)
             server = None
-            for s in conn.compute.servers():
-                if s.name == vm_name:
-                    server = s
+            max_retries = 3
+            retry_delay = 30  # 30 seconds between retries
+            
+            for attempt in range(max_retries):
+                all_servers = list(conn.compute.servers())
+                
+                # Try exact match first
+                for s in all_servers:
+                    if s.name == vm_name:
+                        server = s
+                        break
+                
+                # If no exact match, try partial match (in case of naming differences)
+                if not server:
+                    for s in all_servers:
+                        if vm_name in s.name or s.name in vm_name:
+                            print(f"🔍 Found VM with similar name: {s.name} (looking for {vm_name})")
+                            server = s
+                            break
+                
+                if server:
                     break
+                    
+                if attempt < max_retries - 1:
+                    print(f"🔄 VM {vm_name} not found yet, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})...")
+                    time.sleep(retry_delay)
             
             if not server:
-                print(f"❌ VM {vm_name} not found in OpenStack")
+                print(f"❌ VM {vm_name} not found in OpenStack after {max_retries} attempts. Available VMs:")
+                for s in all_servers[-5:]:  # Show last 5 VMs for debugging
+                    print(f"  - {s.name} (Status: {s.status})")
+                    
+                # Log the failure
+                log_command(
+                    f"openstack server show {vm_name}",
+                    {
+                        'success': False,
+                        'stdout': '',
+                        'stderr': f'VM {vm_name} not found in OpenStack after {max_retries} attempts',
+                        'returncode': 1
+                    },
+                    'error'
+                )
                 return
             
             # Find the RunPod-Storage-Canada-1 network

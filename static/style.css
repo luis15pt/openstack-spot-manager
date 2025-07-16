@@ -585,6 +585,11 @@ body {
     background-color: #fff3cd;
 }
 
+.command-log-entry.queued {
+    border-left: 4px solid #6c757d;
+    background-color: #f8f9fa;
+}
+
 .command-header {
     display: flex;
     justify-content: between;
@@ -658,6 +663,11 @@ body {
 .command-status.timeout {
     background-color: #ffc107;
     color: black;
+}
+
+.command-status.queued {
+    background-color: #6c757d;
+    color: white;
 }
 
 /* Statistics Cards */

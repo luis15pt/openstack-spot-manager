@@ -2191,32 +2191,78 @@ function commitAllOperations() {
     const migrations = operationsToExecute.filter(op => op.type !== 'runpod-launch');
     const launches = operationsToExecute.filter(op => op.type === 'runpod-launch');
     
+    // Add queued commands to command log
+    logQueuedCommands([...migrations, ...launches]);
+    
     // Execute migrations first, then launches with 2-minute delays
     executeOperationsSequentially([...migrations, ...launches], 0, [], 0);
 }
 
-function removeCompletedOperations() {
-    // Get all checkboxes that were checked (executed steps)
-    const allCheckboxes = document.querySelectorAll('.operation-step-checkbox');
-    const executedSteps = new Set();
-    
-    allCheckboxes.forEach(checkbox => {
-        if (checkbox.checked) {
-            // Mark this step as executed
-            executedSteps.add(checkbox.id);
-        }
+// Global variable to track actually executed steps
+let executedStepsGlobal = new Set();
+
+function logQueuedCommands(operations) {
+    // Add queued commands to command log to show what's scheduled
+    operations.forEach(operation => {
+        const steps = generateDetailedOperationSteps(operation);
+        const selectedSteps = steps.filter(step => {
+            const checkbox = document.getElementById(step.id);
+            return checkbox && checkbox.checked;
+        });
+        
+        selectedSteps.forEach(step => {
+            const queuedCommand = {
+                command: step.command,
+                timestamp: new Date().toISOString(),
+                status: 'queued',
+                hostname: operation.hostname,
+                step_title: step.title,
+                timing: step.timing
+            };
+            
+            // Add to frontend command log display with queued status
+            addQueuedCommandToDisplay(queuedCommand.command, `Queued: ${step.title} (${step.timing})`);
+        });
     });
+}
+
+function addQueuedCommandToDisplay(command, message) {
+    const container = document.getElementById('commandLogContainer');
+    const timestamp = new Date().toLocaleString();
     
-    // Process each operation and determine what to keep
+    const commandHtml = `
+        <div class="command-log-entry queued">
+            <div class="command-header">
+                <span class="command-status queued">Queued</span>
+                <span class="command-timestamp">${timestamp}</span>
+            </div>
+            <div class="command-text">${command}</div>
+            <div class="command-output">${message}</div>
+        </div>
+    `;
+    
+    // Add to the top of the command log
+    container.insertAdjacentHTML('afterbegin', commandHtml);
+    
+    // Update command count
+    const commandCountElement = document.getElementById('commandCount');
+    const currentCount = parseInt(commandCountElement.textContent) || 0;
+    commandCountElement.textContent = currentCount + 1;
+    commandCountElement.classList.add('updated');
+    setTimeout(() => commandCountElement.classList.remove('updated'), 500);
+}
+
+function removeCompletedOperations() {
+    // Use the global tracking of actually executed steps
     const operationsToKeep = [];
     
     pendingOperations.forEach((operation, opIndex) => {
         const steps = generateDetailedOperationSteps(operation);
         const remainingSteps = [];
         
-        // Check which steps of this operation were NOT executed
+        // Check which steps of this operation were NOT actually executed
         steps.forEach(step => {
-            if (!executedSteps.has(step.id)) {
+            if (!executedStepsGlobal.has(step.id)) {
                 remainingSteps.push(step);
             }
         });
@@ -2224,7 +2270,7 @@ function removeCompletedOperations() {
         // If any steps remain, keep the operation but mark completed steps
         if (remainingSteps.length > 0) {
             // Add executed steps info to the operation for display
-            const executedStepsForOp = steps.filter(step => executedSteps.has(step.id));
+            const executedStepsForOp = steps.filter(step => executedStepsGlobal.has(step.id));
             if (executedStepsForOp.length > 0) {
                 operation.completedSteps = executedStepsForOp.map(s => s.title);
             }
@@ -2378,6 +2424,34 @@ function updateAggregateCounters() {
     if (availableCount) availableCount.textContent = totalAvailable;
 }
 
+function markStepAsExecuted(stepId) {
+    const checkbox = document.getElementById(stepId);
+    if (checkbox) {
+        // Update the step visual state to show it's completed
+        const stepElement = checkbox.closest('.operation-step');
+        if (stepElement) {
+            stepElement.classList.add('completed-step');
+            
+            // Update the badge to show "Completed"
+            const badge = stepElement.querySelector('.badge');
+            if (badge) {
+                badge.textContent = 'Completed';
+                badge.classList.remove('bg-secondary');
+                badge.classList.add('bg-success');
+            }
+            
+            // Add checkmark icon
+            const title = stepElement.querySelector('.step-title');
+            if (title && !title.querySelector('.fa-check-circle')) {
+                title.insertAdjacentHTML('afterbegin', '<i class="fas fa-check-circle text-success me-1"></i>');
+            }
+            
+            // Disable the checkbox
+            checkbox.disabled = true;
+        }
+    }
+}
+
 function executeOperationsSequentially(operations, index, errors, completed) {
     if (index >= operations.length) {
         const commitBtn = document.getElementById('commitBtn');
@@ -2402,6 +2476,27 @@ function executeOperationsSequentially(operations, index, errors, completed) {
     
     const operation = operations[index];
     
+    // Mark the current operation's selected steps as being executed
+    const steps = generateDetailedOperationSteps(operation);
+    const selectedSteps = steps.filter(step => {
+        const checkbox = document.getElementById(step.id);
+        return checkbox && checkbox.checked;
+    });
+    
+    // Add debug output for this operation
+    console.log(`🔧 Executing operation ${index + 1}/${operations.length}: ${operation.hostname} (${operation.type})`);
+    console.log(`📋 Selected steps for ${operation.hostname}:`, selectedSteps.map(s => s.title));
+    
+    // Mark these steps as executed in the global tracker
+    selectedSteps.forEach(step => {
+        executedStepsGlobal.add(step.id);
+        // Update the step display to show it's being executed
+        markStepAsExecuted(step.id);
+        
+        // Add debug output for each step
+        console.log(`✅ Marked step as executed: ${step.title} (${step.id})`);
+    });
+    
     if (operation.type === 'runpod-launch') {
         // Check if this is a subsequent runpod launch (not the first one)
         const previousRunpodLaunches = operations.slice(0, index).filter(op => op.type === 'runpod-launch');
@@ -2415,34 +2510,46 @@ function executeOperationsSequentially(operations, index, errors, completed) {
             
             setTimeout(() => {
                 commitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
+                console.log(`🚀 Starting delayed Runpod launch for ${operation.hostname} after 2-minute wait`);
+                
                 executeRunpodLaunch(operation.hostname)
                     .then(success => {
+                        console.log(`📊 Runpod launch result for ${operation.hostname}: ${success ? 'Success' : 'Failed'}`);
+                        
                         if (success) {
                             completed++;
+                            console.log(`✅ Runpod launch succeeded for ${operation.hostname} (total completed: ${completed + 1})`);
                         } else {
                             errors.push(`Launch ${operation.hostname}`);
+                            console.error(`❌ Runpod launch failed for ${operation.hostname}`);
                         }
                         executeOperationsSequentially(operations, index + 1, errors, completed);
                     })
                     .catch(error => {
-                        console.error(`Error launching ${operation.hostname}:`, error);
+                        console.error(`💥 Exception during Runpod launch for ${operation.hostname}:`, error);
                         errors.push(`Launch ${operation.hostname}`);
                         executeOperationsSequentially(operations, index + 1, errors, completed);
                     });
             }, 120000); // 2 minutes delay
         } else {
             // Execute first runpod launch immediately
+            console.log(`🚀 Starting immediate Runpod launch for ${operation.hostname} (first launch)`);
+            
             executeRunpodLaunch(operation.hostname)
                 .then(success => {
+                    console.log(`📊 First Runpod launch result for ${operation.hostname}: ${success ? 'Success' : 'Failed'}`);
+                    
                     if (success) {
                         completed++;
+                        console.log(`✅ First Runpod launch succeeded for ${operation.hostname} (total completed: ${completed + 1})`);
                     } else {
                         errors.push(`Launch ${operation.hostname}`);
+                        console.error(`❌ First Runpod launch failed for ${operation.hostname}`);
                     }
                     executeOperationsSequentially(operations, index + 1, errors, completed);
                 })
                 .catch(error => {
-                    console.error(`Error launching ${operation.hostname}:`, error);
+                    console.error(`💥 Exception during first Runpod launch for ${operation.hostname}:`, error);
                     errors.push(`Launch ${operation.hostname}`);
                     executeOperationsSequentially(operations, index + 1, errors, completed);
                 });
@@ -2462,17 +2569,31 @@ function executeOperationsSequentially(operations, index, errors, completed) {
         })
         .then(response => response.json())
         .then(data => {
+            // Add detailed debug output for migration result
+            console.log(`📊 Migration result for ${operation.hostname}:`, data);
+            
             if (data.success) {
                 completed++;
+                console.log(`✅ Migration succeeded for ${operation.hostname}`);
+                
+                // Log detailed success information
+                if (data.commands && data.commands.length > 0) {
+                    console.log(`📝 Commands executed for ${operation.hostname}:`, data.commands);
+                }
             } else {
                 errors.push(`Migration ${operation.hostname}`);
-                console.error(`Migration failed for ${operation.hostname}:`, data.error);
+                console.error(`❌ Migration failed for ${operation.hostname}:`, data.error);
+                
+                // Log detailed error information
+                if (data.stderr) {
+                    console.error(`📄 Error details for ${operation.hostname}:`, data.stderr);
+                }
             }
             executeOperationsSequentially(operations, index + 1, errors, completed);
         })
         .catch(error => {
             errors.push(`Migration ${operation.hostname}`);
-            console.error(`Error migrating ${operation.hostname}:`, error);
+            console.error(`💥 Exception migrating ${operation.hostname}:`, error);
             executeOperationsSequentially(operations, index + 1, errors, completed);
         });
     }
@@ -2480,6 +2601,8 @@ function executeOperationsSequentially(operations, index, errors, completed) {
 
 function executeRunpodLaunch(hostname) {
     return new Promise((resolve) => {
+        console.log(`🔍 Starting Runpod launch process for ${hostname}`);
+        
         // First, preview the launch
         fetch('/api/preview-runpod-launch', {
             method: 'POST',
@@ -2490,11 +2613,16 @@ function executeRunpodLaunch(hostname) {
         })
         .then(response => response.json())
         .then(previewData => {
+            console.log(`📋 Preview data for ${hostname}:`, previewData);
+            
             if (previewData.error) {
+                console.error(`❌ Preview failed for ${hostname}:`, previewData.error);
                 showNotification(`Preview failed for ${hostname}: ${previewData.error}`, 'danger');
                 resolve(false);
                 return;
             }
+            
+            console.log(`✅ Preview successful for ${hostname} - VM: ${previewData.vm_name}, Flavor: ${previewData.flavor_name}`);
             
             // Show confirmation with preview
             const confirmLaunch = confirm(
@@ -2506,9 +2634,12 @@ function executeRunpodLaunch(hostname) {
             );
             
             if (!confirmLaunch) {
+                console.log(`❌ User cancelled launch for ${hostname}`);
                 resolve(false);
                 return;
             }
+            
+            console.log(`✅ User confirmed launch for ${hostname} - proceeding with execution`);
             
             // Execute the launch
             fetch('/api/execute-runpod-launch', {
@@ -2520,7 +2651,11 @@ function executeRunpodLaunch(hostname) {
             })
             .then(response => response.json())
             .then(data => {
+                console.log(`📊 Launch execution result for ${hostname}:`, data);
+                
                 if (data.success) {
+                    console.log(`✅ Launch successful for ${hostname} - VM ID: ${data.vm_id || 'N/A'}`);
+                    
                     let message = `Successfully launched VM ${data.vm_name} on ${hostname}`;
                     if (data.vm_id) {
                         message += ` (ID: ${data.vm_id})`;
@@ -2530,9 +2665,11 @@ function executeRunpodLaunch(hostname) {
                     let tasks = [];
                     if (data.storage_network_scheduled && hostname.startsWith('CA1-')) {
                         tasks.push('storage network (120s)');
+                        console.log(`🔌 Storage network attachment scheduled for ${hostname} in 120s`);
                     }
                     if (data.firewall_scheduled) {
                         tasks.push('firewall (180s)');
+                        console.log(`🔥 Firewall attachment scheduled for ${hostname} in 180s`);
                     }
                     
                     if (tasks.length > 0) {
@@ -2543,21 +2680,23 @@ function executeRunpodLaunch(hostname) {
                     
                     // Refresh host status to show it's now in use
                     updateHostAfterVMLaunch(hostname);
+                    console.log(`🔄 Updated host status for ${hostname} to show VM is running`);
                     
                     resolve(true);
                 } else {
+                    console.error(`❌ Launch failed for ${hostname}:`, data.error);
                     showNotification(`Launch failed for ${hostname}: ${data.error}`, 'danger');
                     resolve(false);
                 }
             })
             .catch(error => {
-                console.error(`Error launching VM on ${hostname}:`, error);
+                console.error(`💥 Exception during launch execution for ${hostname}:`, error);
                 showNotification(`Network error launching VM on ${hostname}`, 'danger');
                 resolve(false);
             });
         })
         .catch(error => {
-            console.error(`Error previewing launch for ${hostname}:`, error);
+            console.error(`💥 Exception during preview for ${hostname}:`, error);
             showNotification(`Preview error for ${hostname}`, 'danger');
             resolve(false);
         });
