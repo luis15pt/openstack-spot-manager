@@ -277,21 +277,21 @@ function renderAggregateData(data) {
 function renderOnDemandVariants(container, hosts, variants) {
     let variantsHtml = '';
     
-    // Create a section for each variant
-    variants.forEach(variant => {
+    // Create a section for each variant with collapsible structure
+    variants.forEach((variant, index) => {
         const variantHosts = hosts.filter(host => host.variant === variant.aggregate);
+        const variantId = `variant-${variant.aggregate.replace(/[^a-zA-Z0-9]/g, '-')}`;
         
         if (variantHosts.length === 0) {
             variantsHtml += `
-                <div class="variant-section">
-                    <div class="variant-header">
-                        <h6>
-                            <i class="fas fa-microchip"></i>
-                            ${variant.variant}
-                            <span class="badge bg-secondary ms-2">0</span>
-                        </h6>
+                <div class="host-group">
+                    <div class="host-group-header clickable" onclick="toggleGroup('${variantId}')">
+                        <i class="fas fa-microchip text-primary"></i>
+                        <h6>${variant.variant} <span class="badge bg-secondary ms-2">0</span></h6>
+                        <small class="text-muted">No hosts available</small>
+                        <i class="fas fa-chevron-down toggle-icon" id="${variantId}-icon"></i>
                     </div>
-                    <div class="variant-hosts">
+                    <div class="host-group-content collapsed" id="${variantId}">
                         <div class="drop-zone" data-type="ondemand" data-variant="${variant.aggregate}">
                             <div class="empty-state">
                                 <i class="fas fa-server"></i>
@@ -394,26 +394,32 @@ function renderOnDemandVariants(container, hosts, variants) {
             `;
         }
         
-        // Add drop zone for this variant
+        // Create collapsible variant section
         variantsHtml += `
-            <div class="variant-section">
-                <div class="variant-header">
-                    <h6>
-                        <i class="fas fa-microchip"></i>
-                        ${variant.variant}
-                        <span class="badge bg-secondary ms-2">${variantHosts.length}</span>
-                    </h6>
+            <div class="host-group">
+                <div class="host-group-header clickable" onclick="toggleGroup('${variantId}')">
+                    <i class="fas fa-microchip text-primary"></i>
+                    <h6>${variant.variant} <span class="badge bg-secondary ms-2">${variantHosts.length}</span></h6>
+                    <small class="text-muted">Available: ${availableHosts.length} | In Use: ${inUseHosts.length}</small>
+                    <i class="fas fa-chevron-down toggle-icon" id="${variantId}-icon"></i>
                 </div>
-                <div class="variant-hosts">
+                <div class="host-group-content" id="${variantId}">
                     <div class="drop-zone" data-type="ondemand" data-variant="${variant.aggregate}">
-                        ${sectionsHtml}
+                        <div class="subgroups-container">
+                            ${sectionsHtml}
+                        </div>
                     </div>
                 </div>
             </div>
         `;
     });
     
-    container.innerHTML = variantsHtml;
+    // Wrap all variants in a main drop zone for the column
+    container.innerHTML = `
+        <div class="drop-zone" data-type="ondemand">
+            ${variantsHtml}
+        </div>
+    `;
 }
 
 function renderHosts(containerId, hosts, type, aggregateName = null, variants = null) {
@@ -898,6 +904,14 @@ function previewMultipleMigration(hostnames, sourceType, targetType) {
             if (targetType === 'spot') {
                 // Moving to spot - always use the single spot aggregate
                 hostTargetAggregate = aggregateData.spot.name;
+            } else if (targetType === 'runpod') {
+                // Moving to runpod - use the runpod aggregate if it exists
+                if (aggregateData.runpod) {
+                    hostTargetAggregate = aggregateData.runpod.name;
+                } else {
+                    showNotification(`No runpod aggregate available for ${aggregateData.gpu_type || 'this GPU type'}`, 'warning');
+                    return;
+                }
             } else {
                 // Moving to on-demand - find the original variant for this host
                 const sourceVariant = aggregateData.ondemand.variants.find(variant => 
@@ -909,7 +923,13 @@ function previewMultipleMigration(hostnames, sourceType, targetType) {
             }
         } else {
             // Fallback for old data structure
-            hostTargetAggregate = targetType === 'ondemand' ? aggregateData.ondemand.name : aggregateData.spot.name;
+            if (targetType === 'ondemand') {
+                hostTargetAggregate = aggregateData.ondemand.name;
+            } else if (targetType === 'runpod') {
+                hostTargetAggregate = aggregateData.runpod ? aggregateData.runpod.name : '';
+            } else {
+                hostTargetAggregate = aggregateData.spot.name;
+            }
         }
         
         commands.push(`openstack aggregate remove host ${hostSourceAggregate} ${hostname}`);
@@ -2015,6 +2035,13 @@ function addToPendingOperations(hostname, sourceType, targetType, options = {}) 
         } else if (aggregateData.ondemand.variants && aggregateData.spot) {
             if (targetType === 'spot') {
                 targetAggregate = aggregateData.spot.name;
+            } else if (targetType === 'runpod') {
+                if (aggregateData.runpod) {
+                    targetAggregate = aggregateData.runpod.name;
+                } else {
+                    showNotification(`No runpod aggregate available for ${aggregateData.gpu_type || 'this GPU type'}`, 'warning');
+                    return;
+                }
             } else {
                 const sourceVariant = aggregateData.ondemand.variants.find(variant => 
                     variant.aggregate === sourceAggregate
