@@ -3,6 +3,16 @@
 
 // Application state
 let backgroundLoadingStarted = false;
+let currentGpuType = '';
+let gpuDataCache = new Map(); // Cache for loaded GPU data
+let backgroundLoadingInProgress = false;
+
+// Make global variables accessible to modules
+window.backgroundLoadingStarted = backgroundLoadingStarted;
+window.currentGpuType = currentGpuType;
+window.gpuDataCache = gpuDataCache;
+window.backgroundLoadingInProgress = backgroundLoadingInProgress;
+window.startBackgroundLoading = startBackgroundLoading;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -49,14 +59,12 @@ function initializeEventListeners() {
     document.getElementById('gpuTypeSelect').addEventListener('change', function() {
         const selectedType = this.value;
         if (selectedType) {
+            currentGpuType = selectedType;
+            window.currentGpuType = selectedType; // Update global reference
             console.log(`📊 Loading data for GPU type: ${selectedType}`);
             window.OpenStack.loadAggregateData(selectedType);
-            
-            // Start background loading for other types
-            if (!backgroundLoadingStarted) {
-                startBackgroundLoading(selectedType);
-                backgroundLoadingStarted = true;
-            }
+        } else {
+            window.Frontend.hideMainContent();
         }
     });
     
@@ -95,15 +103,27 @@ function initializeEventListeners() {
 
 // Start background loading of other GPU types
 function startBackgroundLoading(currentGpuType) {
+    if (backgroundLoadingStarted || backgroundLoadingInProgress) {
+        return;
+    }
+    
     if (!window.Frontend.availableGpuTypes || window.Frontend.availableGpuTypes.length <= 1) {
         return;
     }
     
-    const typesToLoad = window.Frontend.availableGpuTypes.filter(type => type !== currentGpuType);
+    // Get GPU types to load in background (excluding current one and already cached)
+    const typesToLoad = window.Frontend.availableGpuTypes.filter(type => 
+        type !== currentGpuType && !gpuDataCache.has(type)
+    );
     
     if (typesToLoad.length === 0) {
         return;
     }
+    
+    backgroundLoadingStarted = true;
+    backgroundLoadingInProgress = true;
+    window.backgroundLoadingStarted = true;
+    window.backgroundLoadingInProgress = true;
     
     console.log(`📋 Loading ${typesToLoad.length} GPU types in background: ${typesToLoad.join(', ')}`);
     window.Logs.addToDebugLog('System', `Background loading ${typesToLoad.length} GPU types`, 'info');
@@ -133,6 +153,10 @@ function startBackgroundLoading(currentGpuType) {
             
             // Update GPU type selector to show cached types with ⚡ indicators
             window.Frontend.updateGpuTypeSelector(cachedTypes);
+            
+            // Reset background loading progress
+            backgroundLoadingInProgress = false;
+            window.backgroundLoadingInProgress = false;
         })
         .catch(error => {
             console.error('Background loading error:', error);
@@ -141,6 +165,10 @@ function startBackgroundLoading(currentGpuType) {
             if (statusElement) {
                 statusElement.style.display = 'none';
             }
+            
+            // Reset background loading progress
+            backgroundLoadingInProgress = false;
+            window.backgroundLoadingInProgress = false;
         });
 }
 

@@ -49,6 +49,23 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
     console.log(`📊 Loading aggregate data for ${gpuType} (background: ${isBackgroundLoad})`);
     window.Logs.addToDebugLog('OpenStack', `Loading aggregate data for ${gpuType}`, 'info');
     
+    // Check cache first
+    if (window.gpuDataCache && window.gpuDataCache.has(gpuType)) {
+        console.log(`✅ Loading ${gpuType} from cache`);
+        if (!isBackgroundLoad) {
+            const cachedData = window.gpuDataCache.get(gpuType);
+            window.Frontend.aggregateData = cachedData;
+            window.Frontend.renderAggregateData(cachedData);
+            window.Frontend.showMainContent();
+            
+            // Start background loading after first successful load
+            if (!window.backgroundLoadingStarted) {
+                window.startBackgroundLoading(gpuType);
+            }
+        }
+        return Promise.resolve(window.gpuDataCache.get(gpuType));
+    }
+    
     if (!isBackgroundLoad) {
         window.Frontend.showLoading(true, `Loading ${gpuType} aggregate data...`, 'Discovering aggregates...', 10);
     }
@@ -79,6 +96,10 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
             window.Logs.addToDebugLog('OpenStack', `Successfully loaded aggregate data for ${gpuType}`, 'success');
             
             // Cache the data
+            if (window.gpuDataCache) {
+                window.gpuDataCache.set(gpuType, data);
+                console.log(`📦 Cached data for ${gpuType}`);
+            }
             window.Frontend.aggregateData = data;
             
             if (!isBackgroundLoad) {
@@ -89,6 +110,11 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
                 setTimeout(() => {
                     window.Frontend.showLoading(false);
                     window.Frontend.showMainContent();
+                    
+                    // Start background loading after first successful load
+                    if (!window.backgroundLoadingStarted) {
+                        window.startBackgroundLoading(gpuType);
+                    }
                 }, 500);
             }
             
