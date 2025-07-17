@@ -563,19 +563,23 @@ function updateHostAfterVMLaunch(hostname) {
 }
 
 // Update GPU type selector to show cached indicators
-function updateGpuTypeSelector() {
+function updateGpuTypeSelector(cachedTypes = []) {
     const select = document.getElementById('gpuTypeSelect');
     if (!select) return;
     
     const options = select.querySelectorAll('option');
     
     options.forEach(option => {
-        if (option.value && option.value !== select.value) {
-            // Add indicator for cached types (simplified for now)
+        if (option.value && cachedTypes.includes(option.value)) {
+            // Add indicator for actually cached types
             if (!option.textContent.includes('⚡')) {
                 option.textContent = option.textContent + ' ⚡';
                 option.title = 'Cached - will load instantly';
             }
+        } else if (option.value && option.textContent.includes('⚡')) {
+            // Remove indicator if not cached
+            option.textContent = option.textContent.replace(' ⚡', '');
+            option.title = '';
         }
     });
 }

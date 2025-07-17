@@ -181,8 +181,7 @@ function loadGpuTypes() {
                 }
             }
             
-            console.log('🔄 Updating GPU type selector...');
-            window.Frontend.updateGpuTypeSelector();
+            console.log('✅ GPU types loaded successfully');
         })
         .catch(error => {
             console.error('❌ Error loading GPU types:', error);

@@ -117,10 +117,13 @@ function startBackgroundLoading(currentGpuType) {
     // Load all types concurrently using Promise.allSettled for better error handling
     Promise.allSettled(typesToLoad.map(type => window.OpenStack.loadAggregateData(type, true)))
         .then(results => {
-            const successful = results.filter(result => result.status === 'fulfilled').length;
-            const failed = results.filter(result => result.status === 'rejected').length;
+            // Get successfully cached types
+            const cachedTypes = typesToLoad.filter((type, index) => results[index].status === 'fulfilled');
+            const successful = cachedTypes.length;
+            const failed = results.length - successful;
             
             console.log(`📊 Background loading completed: ${successful} successful, ${failed} failed`);
+            console.log(`✅ Successfully cached types: ${cachedTypes.join(', ')}`);
             window.Logs.addToDebugLog('System', `Background loading completed: ${successful} successful, ${failed} failed`, 'info');
             
             // Hide background loading status
@@ -128,8 +131,8 @@ function startBackgroundLoading(currentGpuType) {
                 statusElement.style.display = 'none';
             }
             
-            // Update GPU type selector to show cached types
-            updateGpuTypeSelector();
+            // Update GPU type selector to show cached types with ⚡ indicators
+            window.Frontend.updateGpuTypeSelector(cachedTypes);
         })
         .catch(error => {
             console.error('Background loading error:', error);
@@ -139,19 +142,6 @@ function startBackgroundLoading(currentGpuType) {
                 statusElement.style.display = 'none';
             }
         });
-}
-
-// Update GPU type selector to show cached types
-function updateGpuTypeSelector() {
-    const select = document.getElementById('gpuTypeSelect');
-    if (!select) return;
-    
-    Array.from(select.options).forEach(option => {
-        if (option.value && option.value !== select.value) {
-            option.textContent = option.value + ' ⚡';
-            option.title = 'Cached - will load instantly';
-        }
-    });
 }
 
 // Preload all GPU types
