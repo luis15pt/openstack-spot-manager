@@ -584,6 +584,63 @@ function updateGpuTypeSelector(cachedTypes = []) {
     });
 }
 
+// Show migration preview modal
+function showMigrationModal(data, hasVms = false) {
+    console.log('📋 Showing migration modal:', data);
+    window.Logs.addToDebugLog('Frontend', 'Showing migration preview modal', 'info');
+    
+    const modal = new bootstrap.Modal(document.getElementById('migrationModal'));
+    const warningDiv = document.getElementById('migrationWarning');
+    const commandPreview = document.getElementById('commandPreview');
+    const confirmBtn = document.getElementById('confirmMigrationBtn');
+    
+    // Show/hide warning based on VM presence
+    if (hasVms) {
+        warningDiv.classList.remove('d-none');
+    } else {
+        warningDiv.classList.add('d-none');
+    }
+    
+    // Display commands that will be executed
+    if (data.commands && data.commands.length > 0) {
+        const commandsHtml = data.commands.map((cmd, index) => `
+            <div class="command-item mb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>${index + 1}. ${cmd.title || `Command ${index + 1}`}</strong>
+                    <span class="badge bg-secondary">${cmd.estimated_duration || '~30s'}</span>
+                </div>
+                <div class="mt-1">
+                    <code class="text-muted">${cmd.command || cmd.description || 'Command details'}</code>
+                </div>
+                ${cmd.description ? `<small class="text-muted">${cmd.description}</small>` : ''}
+            </div>
+        `).join('');
+        
+        commandPreview.innerHTML = commandsHtml;
+    } else {
+        commandPreview.innerHTML = '<p class="text-muted">No specific commands available for preview.</p>';
+    }
+    
+    // Set up confirm button click handler
+    confirmBtn.onclick = function() {
+        console.log('✅ Migration confirmed by user');
+        window.Logs.addToDebugLog('Frontend', 'Migration confirmed by user', 'info');
+        
+        // Add migration to pending operations
+        if (data.hostname && data.sourceType && data.targetType) {
+            addToPendingOperations(data.hostname, data.sourceType, data.targetType);
+            showNotification(`Added ${data.hostname} migration to pending operations`, 'success');
+        } else {
+            console.error('❌ Invalid migration data:', data);
+            showNotification('Error: Invalid migration data', 'danger');
+        }
+        
+        modal.hide();
+    };
+    
+    modal.show();
+}
+
 // Export Frontend functions
 window.Frontend = {
     // State - use getters/setters for proper state management
@@ -619,6 +676,7 @@ window.Frontend = {
     updateCardPendingIndicators,
     updateHostAfterVMLaunch,
     updateGpuTypeSelector,
+    showMigrationModal,
     
     // Helper functions
     getAggregateFromCard,

@@ -1,17 +1,86 @@
 // Main application logic for OpenStack Spot Manager
 // Coordinates between modules and handles application initialization
 
-// Application state
-let backgroundLoadingStarted = false;
-let currentGpuType = '';
-let gpuDataCache = new Map(); // Cache for loaded GPU data
-let backgroundLoadingInProgress = false;
+// Application state - store directly on window for proper module access
+window.backgroundLoadingStarted = false;
+window.currentGpuType = '';
+window.gpuDataCache = new Map(); // Cache for loaded GPU data
+window.backgroundLoadingInProgress = false;
 
-// Make global variables accessible to modules
-window.backgroundLoadingStarted = backgroundLoadingStarted;
-window.currentGpuType = currentGpuType;
-window.gpuDataCache = gpuDataCache;
-window.backgroundLoadingInProgress = backgroundLoadingInProgress;
+// Local references for convenience
+const backgroundLoadingStarted = () => window.backgroundLoadingStarted;
+const currentGpuType = () => window.currentGpuType;
+const gpuDataCache = window.gpuDataCache;
+const backgroundLoadingInProgress = () => window.backgroundLoadingInProgress;
+
+// Function declarations need to be available before DOM ready
+function startBackgroundLoading(currentGpuType) {
+    if (window.backgroundLoadingStarted || window.backgroundLoadingInProgress) {
+        return;
+    }
+    
+    if (!window.Frontend?.availableGpuTypes || window.Frontend.availableGpuTypes.length <= 1) {
+        return;
+    }
+    
+    // Get GPU types to load in background (excluding current one and already cached)
+    const typesToLoad = window.Frontend.availableGpuTypes.filter(type => 
+        type !== currentGpuType && !window.gpuDataCache.has(type)
+    );
+    
+    if (typesToLoad.length === 0) {
+        return;
+    }
+    
+    window.backgroundLoadingStarted = true;
+    window.backgroundLoadingInProgress = true;
+    
+    console.log(`📋 Loading ${typesToLoad.length} GPU types in background: ${typesToLoad.join(', ')}`);
+    window.Logs?.addToDebugLog('System', `Background loading ${typesToLoad.length} GPU types`, 'info');
+    
+    // Show background loading status
+    const statusElement = document.getElementById('backgroundLoadingStatus');
+    if (statusElement) {
+        statusElement.style.display = 'inline';
+    }
+    
+    // Load all types concurrently using Promise.allSettled for better error handling
+    Promise.allSettled(typesToLoad.map(type => window.OpenStack.loadAggregateData(type, true)))
+        .then(results => {
+            // Get successfully cached types
+            const cachedTypes = typesToLoad.filter((type, index) => results[index].status === 'fulfilled');
+            const successful = cachedTypes.length;
+            const failed = results.length - successful;
+            
+            console.log(`📊 Background loading completed: ${successful} successful, ${failed} failed`);
+            console.log(`✅ Successfully cached types: ${cachedTypes.join(', ')}`);
+            window.Logs?.addToDebugLog('System', `Background loading completed: ${successful} successful, ${failed} failed`, 'info');
+            
+            // Hide background loading status
+            if (statusElement) {
+                statusElement.style.display = 'none';
+            }
+            
+            // Update GPU type selector to show cached types with ⚡ indicators
+            window.Frontend?.updateGpuTypeSelector(cachedTypes);
+            
+            // Reset background loading progress
+            window.backgroundLoadingInProgress = false;
+        })
+        .catch(error => {
+            console.error('Background loading error:', error);
+            window.Logs?.addToDebugLog('System', `Background loading error: ${error.message}`, 'error');
+            
+            if (statusElement) {
+                statusElement.style.display = 'none';
+            }
+            
+            // Reset background loading progress
+            window.backgroundLoadingInProgress = false;
+        });
+}
+
+// Make function globally available
 window.startBackgroundLoading = startBackgroundLoading;
 
 // Initialize the application
@@ -59,8 +128,7 @@ function initializeEventListeners() {
     document.getElementById('gpuTypeSelect').addEventListener('change', function() {
         const selectedType = this.value;
         if (selectedType) {
-            currentGpuType = selectedType;
-            window.currentGpuType = selectedType; // Update global reference
+            window.currentGpuType = selectedType;
             console.log(`📊 Loading data for GPU type: ${selectedType}`);
             window.OpenStack.loadAggregateData(selectedType);
         } else {
@@ -101,77 +169,6 @@ function initializeEventListeners() {
     });
 }
 
-// Start background loading of other GPU types
-function startBackgroundLoading(currentGpuType) {
-    if (backgroundLoadingStarted || backgroundLoadingInProgress) {
-        return;
-    }
-    
-    if (!window.Frontend.availableGpuTypes || window.Frontend.availableGpuTypes.length <= 1) {
-        return;
-    }
-    
-    // Get GPU types to load in background (excluding current one and already cached)
-    const typesToLoad = window.Frontend.availableGpuTypes.filter(type => 
-        type !== currentGpuType && !gpuDataCache.has(type)
-    );
-    
-    if (typesToLoad.length === 0) {
-        return;
-    }
-    
-    backgroundLoadingStarted = true;
-    backgroundLoadingInProgress = true;
-    window.backgroundLoadingStarted = true;
-    window.backgroundLoadingInProgress = true;
-    
-    console.log(`📋 Loading ${typesToLoad.length} GPU types in background: ${typesToLoad.join(', ')}`);
-    window.Logs.addToDebugLog('System', `Background loading ${typesToLoad.length} GPU types`, 'info');
-    
-    // Show background loading status
-    const statusElement = document.getElementById('backgroundLoadingStatus');
-    if (statusElement) {
-        statusElement.style.display = 'inline';
-    }
-    
-    // Load all types concurrently using Promise.allSettled for better error handling
-    Promise.allSettled(typesToLoad.map(type => window.OpenStack.loadAggregateData(type, true)))
-        .then(results => {
-            // Get successfully cached types
-            const cachedTypes = typesToLoad.filter((type, index) => results[index].status === 'fulfilled');
-            const successful = cachedTypes.length;
-            const failed = results.length - successful;
-            
-            console.log(`📊 Background loading completed: ${successful} successful, ${failed} failed`);
-            console.log(`✅ Successfully cached types: ${cachedTypes.join(', ')}`);
-            window.Logs.addToDebugLog('System', `Background loading completed: ${successful} successful, ${failed} failed`, 'info');
-            
-            // Hide background loading status
-            if (statusElement) {
-                statusElement.style.display = 'none';
-            }
-            
-            // Update GPU type selector to show cached types with ⚡ indicators
-            window.Frontend.updateGpuTypeSelector(cachedTypes);
-            
-            // Reset background loading progress
-            backgroundLoadingInProgress = false;
-            window.backgroundLoadingInProgress = false;
-        })
-        .catch(error => {
-            console.error('Background loading error:', error);
-            window.Logs.addToDebugLog('System', `Background loading error: ${error.message}`, 'error');
-            
-            if (statusElement) {
-                statusElement.style.display = 'none';
-            }
-            
-            // Reset background loading progress
-            backgroundLoadingInProgress = false;
-            window.backgroundLoadingInProgress = false;
-        });
-}
-
 // Preload all GPU types
 function preloadAllGpuTypes() {
     const currentType = document.getElementById('gpuTypeSelect').value;
@@ -180,9 +177,8 @@ function preloadAllGpuTypes() {
         return;
     }
     
-    if (!backgroundLoadingStarted) {
+    if (!window.backgroundLoadingStarted) {
         startBackgroundLoading(currentType);
-        backgroundLoadingStarted = true;
     }
 }
 
