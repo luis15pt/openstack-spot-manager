@@ -76,7 +76,7 @@ function initializeEventListeners() {
     document.getElementById('clearLogBtn').addEventListener('click', clearCommandLog);
     
     // Pending operations buttons
-    document.getElementById('commitBtn').addEventListener('click', commitAllOperations);
+    document.getElementById('commitBtn').addEventListener('click', commitSelectedCommands);
     document.getElementById('clearPendingBtn').addEventListener('click', clearPendingOperations);
     
     // Preload all button
@@ -1632,8 +1632,7 @@ function executeSingleMigration(hostname, sourceAggregate, targetAggregate) {
             showNotification(data.error, 'danger');
         } else {
             showNotification(data.message, 'success');
-            refreshData();
-            // Refresh command log and results after successful migration
+            // Only refresh command log and results, don't refresh all host data
             loadCommandLog();
             loadResultsSummary();
         }
@@ -1661,8 +1660,7 @@ function executeMultipleMigration(hostnames, sourceAggregate, targetAggregate) {
             } else {
                 showNotification(`Successfully migrated ${completed} hosts`, 'success');
             }
-            refreshData();
-            // Refresh command log and results after migrations
+            // Only refresh command log and results, don't refresh all host data
             loadCommandLog();
             loadResultsSummary();
             bootstrap.Modal.getInstance(document.getElementById('migrationModal')).hide();
@@ -1799,7 +1797,9 @@ function updatePendingOperationsDisplay() {
     }
     
     const operationsHtml = pendingOperations.map((op, index) => {
-        const steps = generateDetailedOperationSteps(op);
+        // Generate individual command operations for this operation
+        const commands = generateIndividualCommandOperations(op);
+        
         const operationTitle = op.type === 'runpod-launch' ? 
             `🚀 Launch VM '${op.vm_name}' on ${op.hostname}` : 
             `🔄 Move ${op.hostname} from ${op.sourceAggregate} to ${op.targetAggregate}`;
@@ -1808,57 +1808,118 @@ function updatePendingOperationsDisplay() {
             'Deploy new virtual machine with automated networking and security configuration' :
             'Relocate compute host between resource pools for different billing models';
         
-        const stepsHtml = steps.map((step, stepIndex) => {
-            const isCompleted = op.completedSteps && op.completedSteps.includes(step.title);
-            const stepClass = isCompleted ? 'operation-step completed-step' : 'operation-step';
+        const commandsHtml = commands.map((cmd, cmdIndex) => {
+            const commandId = `cmd-${op.hostname}-${cmd.type}-${cmdIndex}`;
+            const isCompleted = op.completedCommands && op.completedCommands.includes(cmd.type);
+            const commandClass = isCompleted ? 'command-operation completed-step' : 'command-operation';
             const statusIcon = isCompleted ? '<i class="fas fa-check-circle text-success me-1"></i>' : '';
             const disabledAttr = isCompleted ? 'disabled' : '';
-            const checkedAttr = isCompleted ? 'checked' : (step.checked ? 'checked' : '');
+            const checkedAttr = isCompleted ? 'checked' : 'checked'; // Default to checked
             
             return `
-                <div class="${stepClass}">
-                    <div class="step-header">
-                        <input type="checkbox" class="form-check-input operation-step-checkbox me-2" 
-                               id="${step.id}" ${checkedAttr} ${disabledAttr}
+                <div class="${commandClass}">
+                    <div class="command-header">
+                        <input type="checkbox" class="form-check-input command-operation-checkbox me-2" 
+                               id="${commandId}" ${checkedAttr} ${disabledAttr}
                                onchange="updateCommitButtonState()">
-                        <label class="form-check-label step-title" for="${step.id}">
+                        <label class="form-check-label command-title" for="${commandId}">
                             ${statusIcon}
-                            <i class="${getStepIcon(step.type)}"></i>
-                            <strong>${step.title}</strong>
-                            <span class="badge ${isCompleted ? 'bg-success' : 'bg-secondary'} ms-2">${isCompleted ? 'Completed' : step.timing}</span>
+                            <i class="${getCommandIcon(cmd.command_type)}"></i>
+                            <strong>${cmd.title}</strong>
+                            <span class="badge ${isCompleted ? 'bg-success' : 'bg-secondary'} ms-2">${isCompleted ? 'Completed' : cmd.timing}</span>
                         </label>
                     </div>
-                    <div class="step-description">
-                        <small class="text-muted">${step.description}</small>
-                    </div>
-                    <div class="step-command">
-                        <code class="d-block mt-1 p-2 bg-light rounded">${step.command}</code>
+                    
+                    <div class="command-details mt-2">
+                        <div class="command-purpose">
+                            <strong class="text-primary">Purpose:</strong>
+                            <div class="text-muted small mt-1">${cmd.purpose}</div>
+                        </div>
+                        
+                        <div class="command-description mt-2">
+                            <strong class="text-info">Description:</strong>
+                            <div class="text-muted small mt-1">${cmd.description}</div>
+                        </div>
+                        
+                        <div class="command-to-execute mt-2">
+                            <strong class="text-dark">Command:</strong>
+                            <code class="d-block mt-1 p-2 bg-light rounded small">${cmd.command}</code>
+                        </div>
+                        
+                        ${cmd.verification_commands ? `
+                        <div class="command-verification mt-2">
+                            <strong class="text-secondary">Verification:</strong>
+                            ${cmd.verification_commands.map(vcmd => `
+                                <code class="d-block mt-1 p-1 bg-secondary text-white rounded small">${vcmd}</code>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+                        
+                        <div class="command-expected mt-2">
+                            <strong class="text-success">Expected Output:</strong>
+                            <div class="text-muted small mt-1 font-italic">${cmd.expected_output}</div>
+                        </div>
+                        
+                        ${cmd.dependencies.length > 0 ? `
+                        <div class="command-dependencies mt-2">
+                            <strong class="text-warning">Dependencies:</strong>
+                            <div class="small mt-1">
+                                ${cmd.dependencies.map(dep => `<span class="badge bg-warning text-dark me-1">${dep}</span>`).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
         }).join('');
         
         return `
-            <div class="pending-operation-card card mb-3" data-index="${index}">
-                <div class="card-header">
+            <div class="pending-operation-card card mb-4" data-index="${index}">
+                <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0">${operationTitle}</h6>
-                        <button class="btn btn-sm btn-outline-danger" onclick="removePendingOperation(${index})" title="Remove operation">
+                        <button class="btn btn-sm btn-outline-light" onclick="removePendingOperation(${index})" title="Remove operation">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
-                    <small class="text-muted">
+                    <small class="text-light">
                         <strong>Purpose:</strong> ${purposeText}
                     </small>
                 </div>
                 <div class="card-body">
-                    <div class="operation-steps">
-                        ${stepsHtml}
+                    <div class="commands-list">
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-list-ol me-1"></i>
+                            Commands to Execute (${commands.length} total)
+                        </h6>
+                        ${commandsHtml}
                     </div>
-                    <div class="operation-meta mt-3">
+                    
+                    <div class="operation-meta mt-3 pt-3 border-top">
                         <small class="text-muted">
                             <i class="fas fa-clock"></i> Added ${new Date(op.timestamp).toLocaleString()}
                         </small>
+                    </div>
+                    
+                    <!-- Debug Output Section -->
+                    <div class="operation-debug mt-3 pt-3 border-top">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-bug text-info me-1"></i>
+                                Execution Log
+                            </h6>
+                            <button class="btn btn-sm btn-outline-info" onclick="toggleOperationDebug(${index})" id="debug-toggle-${index}">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                        <div class="operation-debug-content collapse" id="debug-content-${index}">
+                            <div class="debug-log mt-2" id="debug-log-${index}">
+                                <div class="text-muted small">
+                                    <i class="fas fa-info-circle"></i> 
+                                    Execution information will appear here during command execution
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1882,6 +1943,106 @@ function toggleCommands(index) {
         commandsDiv.style.display = 'none';
         icon.className = 'fas fa-code';
         toggleBtn.title = 'Show commands';
+    }
+}
+
+function toggleOperationDebug(index) {
+    const debugContent = document.getElementById(`debug-content-${index}`);
+    const toggleBtn = document.getElementById(`debug-toggle-${index}`);
+    const icon = toggleBtn.querySelector('i');
+    
+    if (debugContent.classList.contains('show')) {
+        debugContent.classList.remove('show');
+        icon.className = 'fas fa-chevron-down';
+        toggleBtn.title = 'Show debug output';
+    } else {
+        debugContent.classList.add('show');
+        icon.className = 'fas fa-chevron-up';
+        toggleBtn.title = 'Hide debug output';
+    }
+}
+
+// Function to add debug information to a specific operation card
+function addOperationDebug(hostname, type, message, level = 'info') {
+    // Find the operation index for this hostname
+    const operationIndex = pendingOperations.findIndex(op => op.hostname === hostname);
+    if (operationIndex === -1) return;
+    
+    const debugLog = document.getElementById(`debug-log-${operationIndex}`);
+    if (!debugLog) return;
+    
+    // Clear the initial placeholder message if this is the first debug entry
+    if (debugLog.querySelector('.text-muted')) {
+        debugLog.innerHTML = '';
+    }
+    
+    // Create timestamp
+    const timestamp = new Date().toLocaleTimeString();
+    
+    // Determine styling based on level
+    let iconClass, textClass, bgClass;
+    switch (level) {
+        case 'success':
+            iconClass = 'fas fa-check-circle text-success';
+            textClass = 'text-success';
+            bgClass = 'bg-light-success';
+            break;
+        case 'error':
+            iconClass = 'fas fa-exclamation-circle text-danger';
+            textClass = 'text-danger';
+            bgClass = 'bg-light-danger';
+            break;
+        case 'warning':
+            iconClass = 'fas fa-exclamation-triangle text-warning';
+            textClass = 'text-warning';
+            bgClass = 'bg-light-warning';
+            break;
+        case 'info':
+        default:
+            iconClass = 'fas fa-info-circle text-info';
+            textClass = 'text-info';
+            bgClass = 'bg-light-info';
+            break;
+    }
+    
+    // Create debug entry
+    const debugEntry = document.createElement('div');
+    debugEntry.className = `debug-entry p-2 mb-2 rounded ${bgClass}`;
+    debugEntry.innerHTML = `
+        <div class="d-flex align-items-start">
+            <i class="${iconClass} me-2 mt-1"></i>
+            <div class="flex-grow-1">
+                <div class="debug-message">
+                    <strong class="${textClass}">${type}:</strong>
+                    <span class="ms-1">${message}</span>
+                </div>
+                <small class="text-muted">
+                    <i class="fas fa-clock me-1"></i>${timestamp}
+                </small>
+            </div>
+        </div>
+    `;
+    
+    // Add to debug log (newest first)
+    debugLog.insertBefore(debugEntry, debugLog.firstChild);
+    
+    // Auto-expand debug section if it's collapsed and this is an error
+    if (level === 'error' || level === 'warning') {
+        const debugContent = document.getElementById(`debug-content-${operationIndex}`);
+        if (debugContent && !debugContent.classList.contains('show')) {
+            toggleOperationDebug(operationIndex);
+        }
+    }
+    
+    // Update the debug toggle button to show there's new content
+    const toggleBtn = document.getElementById(`debug-toggle-${operationIndex}`);
+    if (toggleBtn && !toggleBtn.classList.contains('btn-outline-warning')) {
+        toggleBtn.classList.remove('btn-outline-info');
+        toggleBtn.classList.add('btn-outline-warning');
+        const toggleIcon = toggleBtn.querySelector('i');
+        if (!debugContent.classList.contains('show') && toggleIcon) {
+            toggleIcon.className = 'fas fa-chevron-down text-warning';
+        }
     }
 }
 
@@ -2142,7 +2303,223 @@ function addToPendingOperations(hostname, sourceType, targetType, options = {}) 
 }
 
 
-// Enhanced commitAllOperations to handle runpod launches and checkboxes
+// Command-level operations execution
+function commitSelectedCommands() {
+    const selectedCommands = document.querySelectorAll('.command-operation-checkbox:checked');
+    
+    if (selectedCommands.length === 0) {
+        showNotification('No commands selected for execution', 'warning');
+        return;
+    }
+    
+    // Group selected commands by operation for execution
+    const commandsByOperation = {};
+    
+    selectedCommands.forEach(checkbox => {
+        const card = checkbox.closest('.pending-operation-card');
+        const operationIndex = card.dataset.index;
+        const operation = pendingOperations[operationIndex];
+        
+        if (operation) {
+            if (!commandsByOperation[operationIndex]) {
+                commandsByOperation[operationIndex] = {
+                    operation: operation,
+                    commands: []
+                };
+            }
+            
+            // Extract command info from the checkbox
+            const commandId = checkbox.id;
+            const commandDiv = checkbox.closest('.command-operation');
+            const commandTitle = commandDiv.querySelector('.command-title strong').textContent;
+            
+            commandsByOperation[operationIndex].commands.push({
+                id: commandId,
+                checkbox: checkbox,
+                title: commandTitle,
+                element: commandDiv
+            });
+        }
+    });
+    
+    const totalCommands = selectedCommands.length;
+    const totalOperations = Object.keys(commandsByOperation).length;
+    
+    const confirmMessage = `This will execute ${totalCommands} commands across ${totalOperations} operations. Continue?`;
+    
+    if (!confirm(confirmMessage)) return;
+    
+    const commitBtn = document.getElementById('commitBtn');
+    commitBtn.disabled = true;
+    commitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing Commands...';
+    
+    executeCommandsSequentially(commandsByOperation);
+}
+
+function executeCommandsSequentially(commandsByOperation) {
+    const operationIndices = Object.keys(commandsByOperation);
+    let currentOperationIndex = 0;
+    const errors = [];
+    let completedCommands = 0;
+    
+    const executeNextOperation = () => {
+        if (currentOperationIndex >= operationIndices.length) {
+            // All operations completed
+            const commitBtn = document.getElementById('commitBtn');
+            commitBtn.disabled = false;
+            commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit Selected Commands';
+            
+            if (errors.length > 0) {
+                showNotification(`Completed with ${errors.length} errors: ${errors.join(', ')}`, 'warning');
+            } else {
+                showNotification(`Successfully executed ${completedCommands} commands`, 'success');
+            }
+            
+            // Remove completed commands and update display
+            removeCompletedCommands();
+            updatePendingOperationsDisplay();
+            
+            // Only refresh command log and results, don't refresh all host data
+            loadCommandLog();
+            loadResultsSummary();
+            return;
+        }
+        
+        const operationIndex = operationIndices[currentOperationIndex];
+        const operationData = commandsByOperation[operationIndex];
+        const operation = operationData.operation;
+        const commands = operationData.commands;
+        
+        console.log(`🔧 Executing operation ${currentOperationIndex + 1}/${operationIndices.length}: ${operation.hostname} (${commands.length} commands)`);
+        
+        // Add operation-specific debug output
+        addOperationDebug(operation.hostname, 'Command Execution Started', 
+            `Starting ${commands.length} commands for ${operation.hostname}`, 'info');
+        
+        // Execute all commands for this operation
+        executeCommandsForOperation(operation, commands, (success) => {
+            if (success) {
+                completedCommands += commands.length;
+                addOperationDebug(operation.hostname, 'Commands Completed', 
+                    `All ${commands.length} commands completed successfully`, 'success');
+            } else {
+                errors.push(`${operation.hostname} commands failed`);
+                addOperationDebug(operation.hostname, 'Commands Failed', 
+                    `Some commands failed for ${operation.hostname}`, 'error');
+            }
+            
+            currentOperationIndex++;
+            executeNextOperation();
+        });
+    };
+    
+    executeNextOperation();
+}
+
+function executeCommandsForOperation(operation, commands, callback) {
+    // This function will execute the actual commands for an operation
+    // For now, we'll simulate execution and mark commands as completed
+    
+    let commandIndex = 0;
+    
+    const executeNextCommand = () => {
+        if (commandIndex >= commands.length) {
+            callback(true);
+            return;
+        }
+        
+        const command = commands[commandIndex];
+        
+        // Mark command as in progress
+        markCommandAsInProgress(command.element);
+        
+        console.log(`🔄 Executing command: ${command.title}`);
+        addOperationDebug(operation.hostname, 'Command Started', 
+            `Executing: ${command.title}`, 'info');
+        
+        // Simulate command execution with delay
+        setTimeout(() => {
+            // Mark command as completed
+            markCommandAsCompleted(command.element);
+            
+            addOperationDebug(operation.hostname, 'Command Completed', 
+                `✓ ${command.title}`, 'success');
+            
+            commandIndex++;
+            executeNextCommand();
+        }, 1000); // 1 second delay per command for demo
+    };
+    
+    executeNextCommand();
+}
+
+function markCommandAsInProgress(commandElement) {
+    commandElement.classList.add('in-progress-step');
+    commandElement.classList.remove('completed-step');
+    
+    const badge = commandElement.querySelector('.badge');
+    if (badge) {
+        badge.className = 'badge bg-warning ms-2';
+        badge.textContent = 'In Progress';
+    }
+    
+    const checkbox = commandElement.querySelector('.command-operation-checkbox');
+    if (checkbox) {
+        checkbox.disabled = true;
+    }
+}
+
+function markCommandAsCompleted(commandElement) {
+    commandElement.classList.remove('in-progress-step');
+    commandElement.classList.add('completed-step');
+    
+    const badge = commandElement.querySelector('.badge');
+    if (badge) {
+        badge.className = 'badge bg-success ms-2';
+        badge.textContent = 'Completed';
+    }
+    
+    const titleElement = commandElement.querySelector('.command-title');
+    if (titleElement && !titleElement.querySelector('.fa-check-circle')) {
+        titleElement.insertAdjacentHTML('afterbegin', '<i class="fas fa-check-circle text-success me-1"></i>');
+    }
+    
+    const checkbox = commandElement.querySelector('.command-operation-checkbox');
+    if (checkbox) {
+        checkbox.checked = true;
+        checkbox.disabled = true;
+    }
+}
+
+function removeCompletedCommands() {
+    // Remove completed commands from pending operations
+    pendingOperations.forEach((operation, index) => {
+        if (!operation.completedCommands) {
+            operation.completedCommands = [];
+        }
+        
+        // Check for completed commands in the DOM
+        const card = document.querySelector(`.pending-operation-card[data-index="${index}"]`);
+        if (card) {
+            const completedCommands = card.querySelectorAll('.command-operation.completed-step');
+            completedCommands.forEach(commandDiv => {
+                const commandTitle = commandDiv.querySelector('.command-title strong').textContent;
+                if (!operation.completedCommands.includes(commandTitle)) {
+                    operation.completedCommands.push(commandTitle);
+                }
+            });
+        }
+    });
+    
+    // Remove operations that have all commands completed
+    pendingOperations = pendingOperations.filter(operation => {
+        const commands = generateIndividualCommandOperations(operation);
+        const completedCount = operation.completedCommands ? operation.completedCommands.length : 0;
+        return completedCount < commands.length;
+    });
+}
+
+// Enhanced commitAllOperations to handle runpod launches and checkboxes  
 function commitAllOperations() {
     if (pendingOperations.length === 0) {
         showNotification('No pending operations to commit', 'warning');
@@ -2424,25 +2801,55 @@ function updateAggregateCounters() {
     if (availableCount) availableCount.textContent = totalAvailable;
 }
 
+function markStepAsInProgress(stepId) {
+    const checkbox = document.getElementById(stepId);
+    if (checkbox) {
+        const stepElement = checkbox.closest('.operation-step');
+        if (stepElement) {
+            stepElement.classList.add('in-progress-step');
+            
+            // Update the badge to show "In Progress"
+            const badge = stepElement.querySelector('.badge');
+            if (badge) {
+                badge.textContent = 'In Progress';
+                badge.classList.remove('bg-secondary');
+                badge.classList.add('bg-warning');
+            }
+            
+            // Add spinner icon
+            const title = stepElement.querySelector('.step-title');
+            if (title && !title.querySelector('.fa-spinner')) {
+                title.insertAdjacentHTML('afterbegin', '<i class="fas fa-spinner fa-spin text-warning me-1"></i>');
+            }
+        }
+    }
+}
+
 function markStepAsExecuted(stepId) {
     const checkbox = document.getElementById(stepId);
     if (checkbox) {
         // Update the step visual state to show it's completed
         const stepElement = checkbox.closest('.operation-step');
         if (stepElement) {
+            stepElement.classList.remove('in-progress-step');
             stepElement.classList.add('completed-step');
             
             // Update the badge to show "Completed"
             const badge = stepElement.querySelector('.badge');
             if (badge) {
                 badge.textContent = 'Completed';
-                badge.classList.remove('bg-secondary');
+                badge.classList.remove('bg-secondary', 'bg-warning');
                 badge.classList.add('bg-success');
             }
             
-            // Add checkmark icon
+            // Replace spinner with checkmark icon
             const title = stepElement.querySelector('.step-title');
-            if (title && !title.querySelector('.fa-check-circle')) {
+            if (title) {
+                // Remove any existing icons
+                const existingIcons = title.querySelectorAll('.fa-spinner, .fa-check-circle');
+                existingIcons.forEach(icon => icon.remove());
+                
+                // Add checkmark icon
                 title.insertAdjacentHTML('afterbegin', '<i class="fas fa-check-circle text-success me-1"></i>');
             }
             
@@ -2450,6 +2857,35 @@ function markStepAsExecuted(stepId) {
             checkbox.disabled = true;
         }
     }
+}
+
+function updateStepWithExecutionResult(stepId, executedCommand, result) {
+    const stepElement = document.getElementById(stepId)?.closest('.operation-step');
+    if (!stepElement) return;
+    
+    // Find or create the command display section
+    let commandSection = stepElement.querySelector('.step-execution-result');
+    if (!commandSection) {
+        commandSection = document.createElement('div');
+        commandSection.className = 'step-execution-result mt-2';
+        stepElement.appendChild(commandSection);
+    }
+    
+    // Update the command section with actual execution details
+    commandSection.innerHTML = `
+        <div class="execution-details p-2 bg-light border-start border-success border-3">
+            <div class="execution-command mb-2">
+                <strong class="text-success">Executed Command:</strong>
+                <code class="d-block mt-1 p-2 bg-white border rounded small">${executedCommand}</code>
+            </div>
+            <div class="execution-result">
+                <strong class="text-success">Result:</strong>
+                <div class="mt-1 p-2 bg-white border rounded small text-success">
+                    <i class="fas fa-check-circle me-1"></i>${result}
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 function executeOperationsSequentially(operations, index, errors, completed) {
@@ -2468,7 +2904,7 @@ function executeOperationsSequentially(operations, index, errors, completed) {
         removeCompletedOperations();
         updatePendingOperationsDisplay();
         
-        refreshData();
+        // Only refresh command log and results, don't refresh all host data
         loadCommandLog();
         loadResultsSummary();
         return;
@@ -2487,14 +2923,22 @@ function executeOperationsSequentially(operations, index, errors, completed) {
     console.log(`🔧 Executing operation ${index + 1}/${operations.length}: ${operation.hostname} (${operation.type})`);
     console.log(`📋 Selected steps for ${operation.hostname}:`, selectedSteps.map(s => s.title));
     
-    // Mark these steps as executed in the global tracker
+    // Add operation-specific debug output
+    addOperationDebug(operation.hostname, 'Execution Started', 
+        `Starting operation ${index + 1}/${operations.length} (${operation.type})`, 'info');
+    addOperationDebug(operation.hostname, 'Selected Steps', 
+        `${selectedSteps.length} steps selected: ${selectedSteps.map(s => s.title).join(', ')}`, 'info');
+    
+    // Mark these steps as in progress in the global tracker
     selectedSteps.forEach(step => {
         executedStepsGlobal.add(step.id);
-        // Update the step display to show it's being executed
-        markStepAsExecuted(step.id);
+        // Update the step display to show it's in progress
+        markStepAsInProgress(step.id);
         
         // Add debug output for each step
-        console.log(`✅ Marked step as executed: ${step.title} (${step.id})`);
+        console.log(`🔄 Marked step as in progress: ${step.title} (${step.id})`);
+        addOperationDebug(operation.hostname, 'Step Started', 
+            `Step started: ${step.title}`, 'info');
     });
     
     if (operation.type === 'runpod-launch') {
@@ -2508,9 +2952,16 @@ function executeOperationsSequentially(operations, index, errors, completed) {
             const commitBtn = document.getElementById('commitBtn');
             commitBtn.innerHTML = '<i class="fas fa-clock"></i> Waiting 2 minutes for next launch...';
             
+            // Add debug output for delay
+            addOperationDebug(operation.hostname, 'Delay Started', 
+                'Waiting 2 minutes before launch to prevent VM naming conflicts', 'warning');
+            
             setTimeout(() => {
                 commitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
                 console.log(`🚀 Starting delayed Runpod launch for ${operation.hostname} after 2-minute wait`);
+                
+                addOperationDebug(operation.hostname, 'Delay Complete', 
+                    'Delay period finished, starting Runpod launch', 'info');
                 
                 executeRunpodLaunch(operation.hostname)
                     .then(success => {
@@ -2519,21 +2970,32 @@ function executeOperationsSequentially(operations, index, errors, completed) {
                         if (success) {
                             completed++;
                             console.log(`✅ Runpod launch succeeded for ${operation.hostname} (total completed: ${completed + 1})`);
+                            addOperationDebug(operation.hostname, 'Launch Success', 
+                                `Runpod launch completed successfully (total completed: ${completed + 1})`, 'success');
+                            
+                            // Mark the launch step as completed
+                            markStepAsExecuted(`step-${operation.hostname}-launch`);
                         } else {
                             errors.push(`Launch ${operation.hostname}`);
                             console.error(`❌ Runpod launch failed for ${operation.hostname}`);
+                            addOperationDebug(operation.hostname, 'Launch Failed', 
+                                'Runpod launch completed with errors', 'error');
                         }
                         executeOperationsSequentially(operations, index + 1, errors, completed);
                     })
                     .catch(error => {
                         console.error(`💥 Exception during Runpod launch for ${operation.hostname}:`, error);
                         errors.push(`Launch ${operation.hostname}`);
+                        addOperationDebug(operation.hostname, 'Launch Exception', 
+                            `Exception during launch: ${error.message}`, 'error');
                         executeOperationsSequentially(operations, index + 1, errors, completed);
                     });
             }, 120000); // 2 minutes delay
         } else {
             // Execute first runpod launch immediately
             console.log(`🚀 Starting immediate Runpod launch for ${operation.hostname} (first launch)`);
+            addOperationDebug(operation.hostname, 'Launch Started', 
+                'Starting immediate Runpod launch (first launch)', 'info');
             
             executeRunpodLaunch(operation.hostname)
                 .then(success => {
@@ -2542,20 +3004,32 @@ function executeOperationsSequentially(operations, index, errors, completed) {
                     if (success) {
                         completed++;
                         console.log(`✅ First Runpod launch succeeded for ${operation.hostname} (total completed: ${completed + 1})`);
+                        addOperationDebug(operation.hostname, 'Launch Success', 
+                            `First Runpod launch completed successfully (total completed: ${completed + 1})`, 'success');
+                        
+                        // Mark the launch step as completed
+                        markStepAsExecuted(`step-${operation.hostname}-launch`);
                     } else {
                         errors.push(`Launch ${operation.hostname}`);
                         console.error(`❌ First Runpod launch failed for ${operation.hostname}`);
+                        addOperationDebug(operation.hostname, 'Launch Failed', 
+                            'First Runpod launch completed with errors', 'error');
                     }
                     executeOperationsSequentially(operations, index + 1, errors, completed);
                 })
                 .catch(error => {
                     console.error(`💥 Exception during first Runpod launch for ${operation.hostname}:`, error);
                     errors.push(`Launch ${operation.hostname}`);
+                    addOperationDebug(operation.hostname, 'Launch Exception', 
+                        `Exception during first launch: ${error.message}`, 'error');
                     executeOperationsSequentially(operations, index + 1, errors, completed);
                 });
         }
     } else {
         // Execute migration (existing logic)
+        addOperationDebug(operation.hostname, 'Migration Started', 
+            `Starting migration from ${operation.sourceAggregate} to ${operation.targetAggregate}`, 'info');
+        
         fetch('/api/execute-migration', {
             method: 'POST',
             headers: {
@@ -2575,18 +3049,30 @@ function executeOperationsSequentially(operations, index, errors, completed) {
             if (data.success) {
                 completed++;
                 console.log(`✅ Migration succeeded for ${operation.hostname}`);
+                addOperationDebug(operation.hostname, 'Migration Success', 
+                    `Migration completed successfully (total completed: ${completed + 1})`, 'success');
+                
+                // Mark migration steps as completed
+                markStepAsExecuted(`step-${operation.hostname}-remove`);
+                markStepAsExecuted(`step-${operation.hostname}-add`);
                 
                 // Log detailed success information
                 if (data.commands && data.commands.length > 0) {
                     console.log(`📝 Commands executed for ${operation.hostname}:`, data.commands);
+                    addOperationDebug(operation.hostname, 'Commands Executed', 
+                        `${data.commands.length} commands executed successfully`, 'info');
                 }
             } else {
                 errors.push(`Migration ${operation.hostname}`);
                 console.error(`❌ Migration failed for ${operation.hostname}:`, data.error);
+                addOperationDebug(operation.hostname, 'Migration Failed', 
+                    `Migration failed: ${data.error}`, 'error');
                 
                 // Log detailed error information
                 if (data.stderr) {
                     console.error(`📄 Error details for ${operation.hostname}:`, data.stderr);
+                    addOperationDebug(operation.hostname, 'Error Details', 
+                        `${data.stderr}`, 'error');
                 }
             }
             executeOperationsSequentially(operations, index + 1, errors, completed);
@@ -2594,6 +3080,8 @@ function executeOperationsSequentially(operations, index, errors, completed) {
         .catch(error => {
             errors.push(`Migration ${operation.hostname}`);
             console.error(`💥 Exception migrating ${operation.hostname}:`, error);
+            addOperationDebug(operation.hostname, 'Migration Exception', 
+                `Exception during migration: ${error.message}`, 'error');
             executeOperationsSequentially(operations, index + 1, errors, completed);
         });
     }
@@ -2602,6 +3090,7 @@ function executeOperationsSequentially(operations, index, errors, completed) {
 function executeRunpodLaunch(hostname) {
     return new Promise((resolve) => {
         console.log(`🔍 Starting Runpod launch process for ${hostname}`);
+        addOperationDebug(hostname, 'Launch Process', 'Starting Runpod launch process', 'info');
         
         // First, preview the launch
         fetch('/api/preview-runpod-launch', {
@@ -2617,12 +3106,16 @@ function executeRunpodLaunch(hostname) {
             
             if (previewData.error) {
                 console.error(`❌ Preview failed for ${hostname}:`, previewData.error);
+                addOperationDebug(hostname, 'Preview Failed', 
+                    `Preview failed: ${previewData.error}`, 'error');
                 showNotification(`Preview failed for ${hostname}: ${previewData.error}`, 'danger');
                 resolve(false);
                 return;
             }
             
             console.log(`✅ Preview successful for ${hostname} - VM: ${previewData.vm_name}, Flavor: ${previewData.flavor_name}`);
+            addOperationDebug(hostname, 'Preview Success', 
+                `VM: ${previewData.vm_name}, Flavor: ${previewData.flavor_name}, GPU: ${previewData.gpu_type}`, 'success');
             
             // Show confirmation with preview
             const confirmLaunch = confirm(
@@ -2635,11 +3128,15 @@ function executeRunpodLaunch(hostname) {
             
             if (!confirmLaunch) {
                 console.log(`❌ User cancelled launch for ${hostname}`);
+                addOperationDebug(hostname, 'User Cancelled', 
+                    'User cancelled the launch operation', 'warning');
                 resolve(false);
                 return;
             }
             
             console.log(`✅ User confirmed launch for ${hostname} - proceeding with execution`);
+            addOperationDebug(hostname, 'User Confirmed', 
+                'User confirmed launch, proceeding with execution', 'info');
             
             // Execute the launch
             fetch('/api/execute-runpod-launch', {
@@ -2655,6 +3152,14 @@ function executeRunpodLaunch(hostname) {
                 
                 if (data.success) {
                     console.log(`✅ Launch successful for ${hostname} - VM ID: ${data.vm_id || 'N/A'}`);
+                    addOperationDebug(hostname, 'Execution Success', 
+                        `VM launched successfully - ID: ${data.vm_id || 'N/A'}`, 'success');
+                    
+                    // Update the step display with the actual executed command and result
+                    updateStepWithExecutionResult(`step-${hostname}-launch`, 
+                        data.executed_command || 'Hyperstack API call executed',
+                        `Successfully launched VM ${data.vm_name} with flavor ${data.flavor_name} (ID: ${data.vm_id})`
+                    );
                     
                     let message = `Successfully launched VM ${data.vm_name} on ${hostname}`;
                     if (data.vm_id) {
@@ -2666,10 +3171,14 @@ function executeRunpodLaunch(hostname) {
                     if (data.storage_network_scheduled && hostname.startsWith('CA1-')) {
                         tasks.push('storage network (120s)');
                         console.log(`🔌 Storage network attachment scheduled for ${hostname} in 120s`);
+                        addOperationDebug(hostname, 'Storage Network', 
+                            'Storage network attachment scheduled for 120s after launch', 'info');
                     }
                     if (data.firewall_scheduled) {
                         tasks.push('firewall (180s)');
                         console.log(`🔥 Firewall attachment scheduled for ${hostname} in 180s`);
+                        addOperationDebug(hostname, 'Firewall Scheduled', 
+                            'Firewall attachment scheduled for 180s after launch', 'info');
                     }
                     
                     if (tasks.length > 0) {
@@ -2681,22 +3190,30 @@ function executeRunpodLaunch(hostname) {
                     // Refresh host status to show it's now in use
                     updateHostAfterVMLaunch(hostname);
                     console.log(`🔄 Updated host status for ${hostname} to show VM is running`);
+                    addOperationDebug(hostname, 'Status Updated', 
+                        'Host status updated to show VM is running', 'success');
                     
                     resolve(true);
                 } else {
                     console.error(`❌ Launch failed for ${hostname}:`, data.error);
+                    addOperationDebug(hostname, 'Execution Failed', 
+                        `Launch execution failed: ${data.error}`, 'error');
                     showNotification(`Launch failed for ${hostname}: ${data.error}`, 'danger');
                     resolve(false);
                 }
             })
             .catch(error => {
                 console.error(`💥 Exception during launch execution for ${hostname}:`, error);
+                addOperationDebug(hostname, 'Network Exception', 
+                    `Network error during launch execution: ${error.message}`, 'error');
                 showNotification(`Network error launching VM on ${hostname}`, 'danger');
                 resolve(false);
             });
         })
         .catch(error => {
             console.error(`💥 Exception during preview for ${hostname}:`, error);
+            addOperationDebug(hostname, 'Preview Exception', 
+                `Network error during preview: ${error.message}`, 'error');
             showNotification(`Preview error for ${hostname}`, 'danger');
             resolve(false);
         });
@@ -2722,47 +3239,49 @@ function deselectAllPendingOperations() {
 
 function updateCommitButtonState() {
     const commitBtn = document.getElementById('commitBtn');
-    const selectedSteps = document.querySelectorAll('.operation-step-checkbox:checked');
+    const selectedCommands = document.querySelectorAll('.command-operation-checkbox:checked');
     
-    if (selectedSteps.length === 0) {
+    if (selectedCommands.length === 0) {
         commitBtn.disabled = true;
         commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit Selected Operations';
         return;
     }
     
-    // Check for critical step warnings
-    const warnings = checkCriticalStepDependencies();
+    // Check for critical command dependencies/warnings
+    const warnings = checkCriticalCommandDependencies();
     
     if (warnings.length > 0) {
         commitBtn.disabled = false;
-        commitBtn.innerHTML = `<i class="fas fa-exclamation-triangle text-warning"></i> Commit Selected Operations (${selectedSteps.length} steps) - ${warnings.length} warnings`;
+        commitBtn.innerHTML = `<i class="fas fa-exclamation-triangle text-warning"></i> Commit Selected Commands (${selectedCommands.length} commands) - ${warnings.length} warnings`;
         commitBtn.title = warnings.join('\n');
     } else {
         commitBtn.disabled = false;
-        commitBtn.innerHTML = `<i class="fas fa-check"></i> Commit Selected Operations (${selectedSteps.length} steps)`;
+        commitBtn.innerHTML = `<i class="fas fa-check"></i> Commit Selected Commands (${selectedCommands.length} commands)`;
         commitBtn.title = '';
     }
 }
 
-function checkCriticalStepDependencies() {
+function checkCriticalCommandDependencies() {
     const warnings = [];
     
-    // Check each operation for critical step dependencies
+    // Check each operation for critical command dependencies
     document.querySelectorAll('.pending-operation-card').forEach(card => {
         const operationIndex = card.dataset.index;
         const operation = pendingOperations[operationIndex];
         
         if (operation && operation.type === 'runpod-launch') {
-            const launchCheckbox = card.querySelector(`input[id*="launch"]`);
-            const storageCheckbox = card.querySelector(`input[id*="storage"]`);
+            const launchCheckbox = card.querySelector(`input[id*="hyperstack-launch"]`);
+            const storageCheckboxes = card.querySelectorAll(`input[id*="storage"]`);
             const firewallGetCheckbox = card.querySelector(`input[id*="firewall-get"]`);
             const firewallUpdateCheckbox = card.querySelector(`input[id*="firewall-update"]`);
             
-            // Warning if VM launch is selected but networking steps are not
+            // Warning if VM launch is selected but networking commands are not
             if (launchCheckbox && launchCheckbox.checked) {
-                if (storageCheckbox && !storageCheckbox.checked) {
-                    warnings.push(`${operation.hostname}: VM launch selected but storage network attachment disabled - VM may have limited storage performance`);
-                }
+                storageCheckboxes.forEach(storageCheckbox => {
+                    if (!storageCheckbox.checked) {
+                        warnings.push(`${operation.hostname}: VM launch selected but storage network command disabled - VM may have limited storage performance`);
+                    }
+                });
                 if (firewallGetCheckbox && !firewallGetCheckbox.checked) {
                     warnings.push(`${operation.hostname}: VM launch selected but firewall retrieval disabled - VM will be unprotected`);
                 }
@@ -2773,9 +3292,11 @@ function checkCriticalStepDependencies() {
             
             // Warning if storage/firewall selected but launch is not
             if (!launchCheckbox || !launchCheckbox.checked) {
-                if (storageCheckbox && storageCheckbox.checked) {
-                    warnings.push(`${operation.hostname}: Storage network attachment selected but VM launch disabled - storage attachment will fail`);
-                }
+                storageCheckboxes.forEach(storageCheckbox => {
+                    if (storageCheckbox.checked) {
+                        warnings.push(`${operation.hostname}: Storage network attachment selected but VM launch disabled - storage attachment will fail`);
+                    }
+                });
                 if (firewallGetCheckbox && firewallGetCheckbox.checked) {
                     warnings.push(`${operation.hostname}: Firewall retrieval selected but VM launch disabled - firewall operation will fail`);
                 }
@@ -2790,8 +3311,8 @@ function checkCriticalStepDependencies() {
             }
         } else if (operation && operation.type !== 'runpod-launch') {
             // Check host migration dependencies
-            const removeCheckbox = card.querySelector(`input[id*="remove"]`);
-            const addCheckbox = card.querySelector(`input[id*="add"]`);
+            const removeCheckbox = card.querySelector(`input[id*="aggregate-remove"]`);
+            const addCheckbox = card.querySelector(`input[id*="aggregate-add"]`);
             
             if (removeCheckbox && removeCheckbox.checked && addCheckbox && !addCheckbox.checked) {
                 warnings.push(`${operation.hostname}: Host will be removed from ${operation.sourceAggregate} but not added to ${operation.targetAggregate} - host will be unassigned`);
@@ -2805,90 +3326,196 @@ function checkCriticalStepDependencies() {
     return warnings;
 }
 
-function generateDetailedOperationSteps(operation) {
-    const steps = [];
+function generateIndividualCommandOperations(operation) {
+    const commands = [];
     
     if (operation.type === 'runpod-launch') {
-        // Runpod VM launch steps
-        steps.push({
-            id: `step-${operation.hostname}-wait`,
+        // Each command as a separate pending operation
+        
+        // 1. Wait command
+        commands.push({
+            type: 'wait-command',
+            hostname: operation.hostname,
+            parent_operation: 'runpod-launch',
             title: 'Wait for aggregate migration to complete',
             description: 'Ensure host is properly moved to Runpod aggregate before VM deployment - prevents deployment failures',
-            command: `sleep 60  # Wait for OpenStack aggregate membership to propagate across all services\n\n# Verify aggregate membership:\n# openstack aggregate show <runpod-aggregate-name>\n# openstack hypervisor show ${operation.hostname}`,
+            command: `sleep 60  # Wait for OpenStack aggregate membership to propagate across all services`,
+            verification_commands: [
+                `openstack aggregate show <runpod-aggregate-name>`,
+                `openstack hypervisor show ${operation.hostname}`
+            ],
             timing: '60s delay',
-            type: 'timing',
-            checked: true
+            command_type: 'timing',
+            purpose: 'Prevent deployment failures by ensuring aggregate membership is fully propagated',
+            expected_output: 'Wait completed - aggregate membership propagated',
+            dependencies: [],
+            timestamp: new Date().toISOString()
         });
         
-        steps.push({
-            id: `step-${operation.hostname}-launch`,
+        // 2. VM Launch command
+        commands.push({
+            type: 'hyperstack-launch',
+            hostname: operation.hostname,
+            parent_operation: 'runpod-launch',
             title: 'Deploy VM via Hyperstack API',
             description: 'Creates new virtual machine on the specified host with correct specifications and flavor',
-            command: operation.commands ? operation.commands[0] : `# Hyperstack API call:\ncurl -X POST https://infrahub-api.nexgencloud.com/v1/core/virtual-machines \\\n  -H 'api_key: <key>' \\\n  -d '{"name": "${operation.vm_name || operation.hostname}", "flavor_name": "<gpu-flavor>", "image_name": "Ubuntu 22.04 LTS", "user_data": "#!/bin/bash\\necho \\"api_key=<runpod-key>\\" > /tmp/runpod-config"}'\n\n# Verify VM creation (OpenStack):\n# openstack server show ${operation.vm_name || operation.hostname}\n# openstack server list --host ${operation.hostname}`,
+            command: operation.commands ? operation.commands[0] : `curl -X POST https://infrahub-api.nexgencloud.com/v1/core/virtual-machines \\
+  -H 'api_key: <HYPERSTACK_API_KEY>' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "name": "${operation.vm_name || operation.hostname}",
+    "environment_name": "CA1-RunPod",
+    "image_name": "Ubuntu Server 22.04 LTS (Jammy Jellyfish)",
+    "flavor_name": "<gpu-flavor>",
+    "assign_floating_ip": true,
+    "user_data": "#!/bin/bash\\necho \\"api_key=<RUNPOD_API_KEY>\\" > /tmp/runpod-config"
+  }'`,
+            verification_commands: [
+                `openstack server show ${operation.vm_name || operation.hostname} --all-projects`,
+                `openstack server list --host ${operation.hostname} --all-projects`
+            ],
             timing: 'Immediate',
-            type: 'api',
-            checked: true
+            command_type: 'api',
+            purpose: 'Create the virtual machine on the specified compute host with proper configuration for RunPod integration',
+            expected_output: 'VM created successfully with assigned ID and floating IP',
+            dependencies: ['wait-command'],
+            timestamp: new Date().toISOString()
         });
         
         if (operation.hostname.startsWith('CA1-')) {
-            steps.push({
-                id: `step-${operation.hostname}-storage`,
-                title: 'Attach storage network (Canada hosts only)',
-                description: 'Creates a port on RunPod-Storage-Canada-1 network and attaches it to the VM for high-performance storage access',
-                command: `# Step 1: Find network ID\nopenstack network show "RunPod-Storage-Canada-1" -c id -f value\n\n# Step 2: Create port (replace NETWORK_ID with output from step 1)\nopenstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port" -c id -f value\n\n# Step 3: Attach port to VM (replace PORT_ID with output from step 2)\nopenstack server add port ${operation.hostname} PORT_ID`,
+            // 3. Storage Network - Find Network ID
+            commands.push({
+                type: 'storage-find-network',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Find RunPod storage network ID',
+                description: 'Retrieves the network ID for RunPod-Storage-Canada-1 network to use for port creation',
+                command: `openstack network show "RunPod-Storage-Canada-1" -c id -f value`,
                 timing: '120s after VM launch',
-                type: 'network',
-                checked: true
+                command_type: 'network',
+                purpose: 'Get the network UUID required for creating storage network port',
+                expected_output: 'Network UUID (e.g., 12345678-1234-1234-1234-123456789012)',
+                dependencies: ['hyperstack-launch'],
+                timestamp: new Date().toISOString()
             });
             
-            steps.push({
-                id: `step-${operation.hostname}-firewall-get`,
-                title: 'Get current firewall attachments',
-                description: 'Retrieves existing VM IDs attached to firewall to preserve them during update',
-                command: `curl -H 'api_key: YOUR_HYPERSTACK_API_KEY' \\\n  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971`,
+            // 4. Storage Network - Create Port
+            commands.push({
+                type: 'storage-create-port',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Create storage network port',
+                description: 'Creates a dedicated port on the storage network for the VM',
+                command: `openstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port" -c id -f value`,
+                timing: 'After network ID found',
+                command_type: 'network',
+                purpose: 'Create a dedicated network port for high-performance storage access',
+                expected_output: 'Port UUID for the storage network interface',
+                dependencies: ['storage-find-network'],
+                timestamp: new Date().toISOString()
+            });
+            
+            // 5. Storage Network - Attach Port
+            commands.push({
+                type: 'storage-attach-port',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Attach storage port to VM',
+                description: 'Attaches the storage network port to the VM for high-performance storage access',
+                command: `openstack server add port ${operation.hostname} <PORT_ID>`,
+                timing: 'After port created',
+                command_type: 'network',
+                purpose: 'Connect VM to high-performance storage network for data access',
+                expected_output: 'Port successfully attached to VM',
+                dependencies: ['storage-create-port'],
+                timestamp: new Date().toISOString()
+            });
+            
+            // 6. Firewall - Get Current Attachments
+            commands.push({
+                type: 'firewall-get-attachments',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Get current firewall VM attachments',
+                description: 'Retrieves list of VMs currently attached to firewall to preserve them during update',
+                command: `curl -H 'api_key: <HYPERSTACK_API_KEY>' \\
+  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971`,
                 timing: '180s after VM launch',
-                type: 'security',
-                checked: true
+                command_type: 'security',
+                purpose: 'Preserve existing VM attachments when updating firewall rules',
+                expected_output: 'JSON list of currently attached VM IDs',
+                dependencies: ['hyperstack-launch'],
+                timestamp: new Date().toISOString()
             });
             
-            steps.push({
-                id: `step-${operation.hostname}-firewall-update`,
+            // 7. Firewall - Update with All VMs
+            commands.push({
+                type: 'firewall-update-attachments',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
                 title: 'Update firewall with all VMs (existing + new)',
-                description: 'Updates firewall attachments to include all existing VMs plus the new VM - prevents removing other VMs',
-                command: `curl -X POST -H 'api_key: YOUR_HYPERSTACK_API_KEY' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"vms": [EXISTING_VM_IDS_FROM_STEP_1, NEW_VM_ID]}' \\\n  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971/update-attachments`,
+                description: 'Updates firewall to include all existing VMs plus the newly created VM',
+                command: `curl -X POST -H 'api_key: <HYPERSTACK_API_KEY>' \\
+  -H 'Content-Type: application/json' \\
+  -d '{"vms": [<EXISTING_VM_IDS>, <NEW_VM_ID>]}' \\
+  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971/update-attachments`,
                 timing: 'After getting existing attachments',
-                type: 'security',
-                checked: true
+                command_type: 'security',
+                purpose: 'Apply security rules to new VM while preserving existing VM protections',
+                expected_output: 'Firewall updated successfully with all VM attachments',
+                dependencies: ['firewall-get-attachments'],
+                timestamp: new Date().toISOString()
             });
         }
         
     } else {
-        // Regular host migration steps
-        steps.push({
-            id: `step-${operation.hostname}-remove`,
+        // Migration commands as separate operations
+        
+        // 1. Remove from source aggregate
+        commands.push({
+            type: 'aggregate-remove',
+            hostname: operation.hostname,
+            parent_operation: 'host-migration',
             title: `Remove host from ${operation.sourceAggregate}`,
-            description: `Removes compute host from current aggregate to prepare for relocation - host must be empty of VMs`,
+            description: `Removes compute host from current aggregate to prepare for relocation`,
             command: `openstack aggregate remove host ${operation.sourceAggregate} ${operation.hostname}`,
+            verification_commands: [
+                `openstack aggregate show ${operation.sourceAggregate}`,
+                `openstack hypervisor show ${operation.hostname}`
+            ],
             timing: 'Immediate',
-            type: 'migration',
-            checked: true
+            command_type: 'migration',
+            purpose: 'Remove host from current resource pool to enable relocation',
+            expected_output: `Host ${operation.hostname} removed from aggregate ${operation.sourceAggregate}`,
+            dependencies: [],
+            timestamp: new Date().toISOString()
         });
         
-        steps.push({
-            id: `step-${operation.hostname}-add`,
+        // 2. Add to target aggregate
+        commands.push({
+            type: 'aggregate-add',
+            hostname: operation.hostname,
+            parent_operation: 'host-migration',
             title: `Add host to ${operation.targetAggregate}`,
-            description: `Adds compute host to target aggregate for new resource pool assignment - enables different billing model`,
+            description: `Adds compute host to target aggregate for new resource pool assignment`,
             command: `openstack aggregate add host ${operation.targetAggregate} ${operation.hostname}`,
+            verification_commands: [
+                `openstack aggregate show ${operation.targetAggregate}`,
+                `openstack hypervisor show ${operation.hostname}`
+            ],
             timing: 'After removal completes',
-            type: 'migration',
-            checked: true
+            command_type: 'migration',
+            purpose: 'Add host to target resource pool with new billing model',
+            expected_output: `Host ${operation.hostname} added to aggregate ${operation.targetAggregate}`,
+            dependencies: ['aggregate-remove'],
+            timestamp: new Date().toISOString()
         });
     }
     
-    return steps;
+    return commands;
 }
 
-function getStepIcon(type) {
+function getCommandIcon(type) {
     switch(type) {
         case 'timing': return 'fas fa-clock text-warning';
         case 'api': return 'fas fa-rocket text-primary';

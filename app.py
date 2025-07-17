@@ -1340,7 +1340,8 @@ def attach_runpod_storage_network(vm_name, delay_seconds=120):
             retry_delay = 30  # 30 seconds between retries
             
             for attempt in range(max_retries):
-                all_servers = list(conn.compute.servers())
+                # Use all_projects=True to search across all projects
+                all_servers = list(conn.compute.servers(all_projects=True))
                 
                 # Try exact match first
                 for s in all_servers:
