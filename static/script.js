@@ -2,7 +2,6 @@
 // Coordinates between modules and handles application initialization
 
 // Application state
-let isExecutionInProgress = false;
 let backgroundLoadingStarted = false;
 
 // Initialize the application
@@ -398,7 +397,7 @@ function commitSelectedCommands() {
         return;
     }
     
-    if (isExecutionInProgress) {
+    if (window.Frontend.isExecutionInProgress) {
         window.Frontend.showNotification('Execution already in progress', 'warning');
         return;
     }
@@ -468,12 +467,12 @@ function removePendingOperation(index) {
 
 // Execute all pending operations
 function executeAllPendingOperations() {
-    if (isExecutionInProgress) {
+    if (window.Frontend.isExecutionInProgress) {
         window.Frontend.showNotification('Execution already in progress', 'warning');
         return;
     }
     
-    isExecutionInProgress = true;
+    window.Frontend.isExecutionInProgress = true;
     window.Logs.incrementOperationsCount();
     
     console.log(`🚀 Executing ${window.Frontend.pendingOperations.length} pending operations`);
@@ -521,7 +520,7 @@ function executeAllPendingOperations() {
             window.Frontend.showNotification(`Error during execution: ${error.message}`, 'danger');
         })
         .finally(() => {
-            isExecutionInProgress = false;
+            window.Frontend.isExecutionInProgress = false;
         });
 }
 
