@@ -171,15 +171,30 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
         return;
     }
     
-    // Sort hosts by name
-    hosts.sort((a, b) => a.hostname.localeCompare(b.hostname));
+    // Filter out hosts with invalid/undefined hostnames and log them
+    const validHosts = hosts.filter(host => {
+        if (!host || !host.hostname) {
+            console.warn('⚠️ Found host with undefined hostname:', host);
+            window.Logs.addToDebugLog('Frontend', `Invalid host object found: ${JSON.stringify(host)}`, 'warning');
+            return false;
+        }
+        return true;
+    });
+    
+    if (validHosts.length !== hosts.length) {
+        console.warn(`⚠️ Filtered out ${hosts.length - validHosts.length} invalid hosts from ${type} aggregate`);
+        window.Logs.addToDebugLog('Frontend', `Filtered ${hosts.length - validHosts.length} invalid hosts from ${type}`, 'warning');
+    }
+    
+    // Sort valid hosts by name
+    validHosts.sort((a, b) => a.hostname.localeCompare(b.hostname));
     
     // Create drop zone
     let html = '<div class="drop-zone" data-type="' + type + '"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
     
-    // Add hosts
+    // Add valid hosts
     html += '<div class="row">';
-    hosts.forEach(host => {
+    validHosts.forEach(host => {
         html += `<div class="col-md-6 col-lg-4 mb-3">${createHostCard(host, type, aggregateName)}</div>`;
     });
     html += '</div>';
@@ -189,6 +204,12 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
 
 // Create a host card
 function createHostCard(host, type, aggregateName = null) {
+    // Safety check for valid host object
+    if (!host || !host.hostname) {
+        console.error('❌ Cannot create card for invalid host:', host);
+        return '<div class="col-md-6 col-lg-4 mb-3"><div class="alert alert-warning">Invalid host data</div></div>';
+    }
+    
     const isSelected = selectedHosts.has(host.hostname);
     const vmCount = host.vms ? host.vms.length : 0;
     const hasVms = vmCount > 0;
