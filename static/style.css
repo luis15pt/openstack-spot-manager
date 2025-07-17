@@ -554,6 +554,11 @@ body {
     background: #f0f8f0 !important;
 }
 
+.command-operation.failed-step {
+    border-color: #dc3545 !important;
+    background: #fdf2f2 !important;
+}
+
 .command-header {
     display: flex;
     align-items: center;
@@ -675,6 +680,16 @@ body {
 
 .command-success-output pre {
     color: #28a745;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+}
+
+.command-error-output pre {
+    color: #dc3545;
     background: transparent;
     border: none;
     padding: 0;
