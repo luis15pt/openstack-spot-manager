@@ -9,6 +9,16 @@ let pendingOperations = [];
 let availableGpuTypes = [];
 let gpuDataCache = new Map(); // Cache for loaded GPU data
 let backgroundLoadingInProgress = false;
+
+// Debug system
+let debugLog = [];
+let debugStats = {
+    sessionStart: new Date(),
+    operationsCount: 0,
+    commandsExecuted: 0,
+    errorsCount: 0
+};
+let debugTabInitialized = false;
 let backgroundLoadingStarted = false;
 
 // Initialize the application
@@ -81,6 +91,13 @@ function initializeEventListeners() {
     
     // Preload all button
     document.getElementById('preloadAllBtn').addEventListener('click', handlePreloadAll);
+    
+    // Debug tab buttons
+    document.getElementById('clearDebugBtn').addEventListener('click', clearDebugLog);
+    document.getElementById('exportDebugBtn').addEventListener('click', exportDebugLog);
+    
+    // Initialize debug tab
+    initializeDebugTab();
     
     // New pending operations buttons
     document.getElementById('selectAllPendingBtn').addEventListener('click', selectAllPendingOperations);
@@ -1846,6 +1863,17 @@ function updatePendingOperationsDisplay() {
                             <code class="d-block mt-1 p-2 bg-light rounded small">${cmd.command}</code>
                         </div>
                         
+                        <!-- Individual Command Output Section -->
+                        <div class="command-output mt-2" id="cmd-output-${commandId}" style="display: none;">
+                            <strong class="text-success">Command Output:</strong>
+                            <div class="command-output-content mt-1 p-2 bg-dark text-white rounded small">
+                                <div class="output-placeholder text-muted">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Output will appear here when command executes
+                                </div>
+                            </div>
+                        </div>
+                        
                         ${cmd.verification_commands ? `
                         <div class="command-verification mt-2">
                             <strong class="text-secondary">Verification:</strong>
@@ -1877,7 +1905,15 @@ function updatePendingOperationsDisplay() {
             <div class="pending-operation-card card mb-4" data-index="${index}">
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">${operationTitle}</h6>
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-sm btn-outline-light me-2" 
+                                    onclick="toggleOperationCollapse(${index})" 
+                                    id="collapse-btn-${index}"
+                                    title="Expand/Collapse operation">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <h6 class="mb-0">${operationTitle}</h6>
+                        </div>
                         <button class="btn btn-sm btn-outline-light" onclick="removePendingOperation(${index})" title="Remove operation">
                             <i class="fas fa-trash"></i>
                         </button>
@@ -1886,7 +1922,7 @@ function updatePendingOperationsDisplay() {
                         <strong>Purpose:</strong> ${purposeText}
                     </small>
                 </div>
-                <div class="card-body">
+                <div class="card-body collapse show" id="operation-body-${index}">
                     <div class="commands-list">
                         <h6 class="text-primary mb-3">
                             <i class="fas fa-list-ol me-1"></i>
@@ -1943,6 +1979,22 @@ function toggleCommands(index) {
         commandsDiv.style.display = 'none';
         icon.className = 'fas fa-code';
         toggleBtn.title = 'Show commands';
+    }
+}
+
+function toggleOperationCollapse(index) {
+    const operationBody = document.getElementById(`operation-body-${index}`);
+    const collapseBtn = document.getElementById(`collapse-btn-${index}`);
+    const icon = collapseBtn.querySelector('i');
+    
+    if (operationBody.classList.contains('show')) {
+        operationBody.classList.remove('show');
+        icon.className = 'fas fa-chevron-right';
+        collapseBtn.title = 'Expand operation';
+    } else {
+        operationBody.classList.add('show');
+        icon.className = 'fas fa-chevron-down';
+        collapseBtn.title = 'Collapse operation';
     }
 }
 
@@ -2433,24 +2485,56 @@ function executeCommandsForOperation(operation, commands, callback) {
         // Mark command as in progress
         markCommandAsInProgress(command.element);
         
-        console.log(`🔄 Executing command: ${command.title}`);
+        // Add to debug log
+        addToDebugLog('Command Started', `Executing: ${command.title}`, 'info', operation.hostname);
         addOperationDebug(operation.hostname, 'Command Started', 
             `Executing: ${command.title}`, 'info');
         
-        // Simulate command execution with delay
+        // Simulate command execution with delay (simulate actual execution time)
+        const executionTime = Math.floor(Math.random() * 3000) + 1000; // 1-4 seconds
+        
         setTimeout(() => {
-            // Mark command as completed
-            markCommandAsCompleted(command.element);
+            // Simulate command output
+            const simulatedOutput = generateSimulatedOutput(command.title, operation.hostname);
             
+            // Mark command as completed with output
+            markCommandAsCompleted(command.element, simulatedOutput);
+            
+            // Update debug stats
+            debugStats.commandsExecuted++;
+            updateDebugStats();
+            
+            // Add to debug log
+            addToDebugLog('Command Completed', `✓ ${command.title}`, 'success', operation.hostname);
             addOperationDebug(operation.hostname, 'Command Completed', 
                 `✓ ${command.title}`, 'success');
             
             commandIndex++;
             executeNextCommand();
-        }, 1000); // 1 second delay per command for demo
+        }, executionTime);
     };
     
     executeNextCommand();
+}
+
+function generateSimulatedOutput(commandTitle, hostname) {
+    const timestamp = new Date().toLocaleString();
+    
+    if (commandTitle.includes('Wait for aggregate')) {
+        return `[${timestamp}] Wait completed - 60 seconds elapsed\nAggregate membership propagated successfully`;
+    } else if (commandTitle.includes('Deploy VM')) {
+        return `[${timestamp}] VM created successfully\nID: vm-${Math.random().toString(36).substr(2, 9)}\nFloating IP: 10.1.110.${Math.floor(Math.random() * 200) + 50}\nStatus: ACTIVE`;
+    } else if (commandTitle.includes('storage network')) {
+        return `[${timestamp}] Storage network operation completed\nNetwork ID: ${Math.random().toString(36).substr(2, 9)}\nPort attached successfully`;
+    } else if (commandTitle.includes('firewall')) {
+        return `[${timestamp}] Firewall operation completed\nVM added to firewall rules\nCurrent attachments: 3 VMs`;
+    } else if (commandTitle.includes('Remove host')) {
+        return `[${timestamp}] Host ${hostname} removed from aggregate\nOperation completed successfully`;
+    } else if (commandTitle.includes('Add host')) {
+        return `[${timestamp}] Host ${hostname} added to aggregate\nOperation completed successfully`;
+    } else {
+        return `[${timestamp}] Command executed successfully\nOperation completed for ${hostname}`;
+    }
 }
 
 function markCommandAsInProgress(commandElement) {
@@ -2467,9 +2551,22 @@ function markCommandAsInProgress(commandElement) {
     if (checkbox) {
         checkbox.disabled = true;
     }
+    
+    // Show output section
+    const outputSection = commandElement.querySelector('.command-output');
+    if (outputSection) {
+        outputSection.style.display = 'block';
+        const outputContent = outputSection.querySelector('.command-output-content');
+        outputContent.innerHTML = `
+            <div class="output-placeholder text-warning">
+                <i class="fas fa-spinner fa-spin me-1"></i>
+                Command executing...
+            </div>
+        `;
+    }
 }
 
-function markCommandAsCompleted(commandElement) {
+function markCommandAsCompleted(commandElement, output = null) {
     commandElement.classList.remove('in-progress-step');
     commandElement.classList.add('completed-step');
     
@@ -2488,6 +2585,34 @@ function markCommandAsCompleted(commandElement) {
     if (checkbox) {
         checkbox.checked = true;
         checkbox.disabled = true;
+    }
+    
+    // Update output section with actual output
+    const outputSection = commandElement.querySelector('.command-output');
+    if (outputSection) {
+        const outputContent = outputSection.querySelector('.command-output-content');
+        const timestamp = new Date().toLocaleTimeString();
+        
+        if (output) {
+            outputContent.innerHTML = `
+                <div class="command-success-output">
+                    <div class="text-success small mb-1">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Command completed at ${timestamp}
+                    </div>
+                    <pre class="mb-0">${output}</pre>
+                </div>
+            `;
+        } else {
+            outputContent.innerHTML = `
+                <div class="command-success-output">
+                    <div class="text-success small">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Command completed successfully at ${timestamp}
+                    </div>
+                </div>
+            `;
+        }
     }
 }
 
@@ -3524,5 +3649,148 @@ function getCommandIcon(type) {
         case 'migration': return 'fas fa-exchange-alt text-secondary';
         default: return 'fas fa-cog text-muted';
     }
+}
+
+// Debug System Functions
+function initializeDebugTab() {
+    document.getElementById('sessionStartTime').textContent = debugStats.sessionStart.toLocaleString();
+    updateDebugStats();
+    debugTabInitialized = true;
+}
+
+function addToDebugLog(type, message, level = 'info', hostname = null) {
+    const timestamp = new Date();
+    const debugEntry = {
+        timestamp: timestamp,
+        type: type,
+        message: message,
+        level: level,
+        hostname: hostname
+    };
+    
+    debugLog.push(debugEntry);
+    
+    // Update debug tab if initialized
+    if (debugTabInitialized) {
+        updateDebugLogDisplay();
+        updateDebugTabBadge();
+    }
+    
+    // Also log to console for development
+    const consoleMethod = level === 'error' ? 'error' : level === 'warning' ? 'warn' : 'log';
+    console[consoleMethod](`[${type}] ${message}`, hostname ? `(${hostname})` : '');
+}
+
+function updateDebugLogDisplay() {
+    const debugContainer = document.getElementById('debugLogContainer');
+    if (!debugContainer) return;
+    
+    if (debugLog.length === 0) {
+        debugContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-bug fa-3x mb-3"></i>
+                <p>Debug information will appear here during operations.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const logHtml = debugLog.slice(-100).reverse().map(entry => {
+        let iconClass, textClass, bgClass;
+        switch (entry.level) {
+            case 'success':
+                iconClass = 'fas fa-check-circle text-success';
+                textClass = 'text-success';
+                bgClass = 'bg-light-success';
+                break;
+            case 'error':
+                iconClass = 'fas fa-exclamation-circle text-danger';
+                textClass = 'text-danger';
+                bgClass = 'bg-light-danger';
+                break;
+            case 'warning':
+                iconClass = 'fas fa-exclamation-triangle text-warning';
+                textClass = 'text-warning';
+                bgClass = 'bg-light-warning';
+                break;
+            case 'info':
+            default:
+                iconClass = 'fas fa-info-circle text-info';
+                textClass = 'text-info';
+                bgClass = 'bg-light-info';
+                break;
+        }
+        
+        return `
+            <div class="debug-entry p-2 mb-2 rounded ${bgClass}">
+                <div class="d-flex align-items-start">
+                    <i class="${iconClass} me-2 mt-1"></i>
+                    <div class="flex-grow-1">
+                        <div class="debug-message">
+                            <strong class="${textClass}">${entry.type}:</strong>
+                            <span class="ms-1">${entry.message}</span>
+                            ${entry.hostname ? `<span class="badge bg-secondary ms-2">${entry.hostname}</span>` : ''}
+                        </div>
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>${entry.timestamp.toLocaleTimeString()}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    debugContainer.innerHTML = logHtml;
+}
+
+function updateDebugStats() {
+    if (!debugTabInitialized) return;
+    
+    document.getElementById('operationsCount').textContent = debugStats.operationsCount;
+    document.getElementById('commandsExecuted').textContent = debugStats.commandsExecuted;
+    document.getElementById('errorsCount').textContent = debugStats.errorsCount;
+}
+
+function updateDebugTabBadge() {
+    const badge = document.getElementById('debugTabCount');
+    if (badge) {
+        badge.textContent = debugLog.length;
+        if (debugLog.length > 0) {
+            badge.className = 'badge bg-warning ms-1';
+        }
+    }
+}
+
+function clearDebugLog() {
+    if (confirm('Clear all debug information?')) {
+        debugLog = [];
+        debugStats.commandsExecuted = 0;
+        debugStats.errorsCount = 0;
+        updateDebugLogDisplay();
+        updateDebugStats();
+        updateDebugTabBadge();
+        addToDebugLog('System', 'Debug log cleared', 'info');
+    }
+}
+
+function exportDebugLog() {
+    const debugData = {
+        sessionStart: debugStats.sessionStart,
+        exportTime: new Date(),
+        stats: debugStats,
+        log: debugLog
+    };
+    
+    const dataStr = JSON.stringify(debugData, null, 2);
+    const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(dataBlob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `debug-log-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+    link.click();
+    
+    URL.revokeObjectURL(url);
+    addToDebugLog('System', 'Debug log exported', 'info');
 }
 

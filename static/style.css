@@ -623,6 +623,93 @@ body {
     100% { transform: translateX(100%); }
 }
 
+/* Debug System Styles */
+.debug-item {
+    margin-bottom: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.debug-item:last-child {
+    border-bottom: none;
+}
+
+.debug-entry {
+    border-left: 3px solid #dee2e6;
+    font-size: 0.9rem;
+}
+
+.bg-light-success {
+    background-color: rgba(40, 167, 69, 0.1) !important;
+    border-left-color: #28a745 !important;
+}
+
+.bg-light-danger {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+    border-left-color: #dc3545 !important;
+}
+
+.bg-light-warning {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+    border-left-color: #ffc107 !important;
+}
+
+.bg-light-info {
+    background-color: rgba(23, 162, 184, 0.1) !important;
+    border-left-color: #17a2b8 !important;
+}
+
+/* Command Output Styles */
+.command-output {
+    border-top: 1px solid #dee2e6;
+    padding-top: 8px;
+}
+
+.command-output-content {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.command-success-output pre {
+    color: #28a745;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+}
+
+.output-placeholder {
+    font-style: italic;
+    padding: 8px;
+}
+
+/* Collapsible Operations */
+.pending-operation-card .card-body.collapse {
+    transition: all 0.3s ease;
+}
+
+.pending-operation-card .card-body.collapse:not(.show) {
+    height: 0;
+    overflow: hidden;
+    padding: 0;
+}
+
+/* Debug Tab Enhancements */
+#debugLogContainer {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+#debugLogContainer .debug-entry:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
 /* Hover effects for interactive elements */
 .host-card:hover .vm-count {
     color: #495057;
