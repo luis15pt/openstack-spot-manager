@@ -171,10 +171,10 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
         return;
     }
     
-    // Filter out hosts with invalid/undefined hostnames and log them
+    // Filter out hosts with invalid/undefined names and log them
     const validHosts = hosts.filter(host => {
-        if (!host || !host.hostname) {
-            console.warn('⚠️ Found host with undefined hostname:', host);
+        if (!host || !host.name) {
+            console.warn('⚠️ Found host with undefined name:', host);
             window.Logs.addToDebugLog('Frontend', `Invalid host object found: ${JSON.stringify(host)}`, 'warning');
             return false;
         }
@@ -187,7 +187,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
     }
     
     // Sort valid hosts by name
-    validHosts.sort((a, b) => a.hostname.localeCompare(b.hostname));
+    validHosts.sort((a, b) => a.name.localeCompare(b.name));
     
     // Create drop zone
     let html = '<div class="drop-zone" data-type="' + type + '"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
@@ -205,12 +205,12 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
 // Create a host card
 function createHostCard(host, type, aggregateName = null) {
     // Safety check for valid host object
-    if (!host || !host.hostname) {
+    if (!host || !host.name) {
         console.error('❌ Cannot create card for invalid host:', host);
         return '<div class="col-md-6 col-lg-4 mb-3"><div class="alert alert-warning">Invalid host data</div></div>';
     }
     
-    const isSelected = selectedHosts.has(host.hostname);
+    const isSelected = selectedHosts.has(host.name);
     const vmCount = host.vms ? host.vms.length : 0;
     const hasVms = vmCount > 0;
     
@@ -230,7 +230,7 @@ function createHostCard(host, type, aggregateName = null) {
     const statusIcon = window.Utils.getStatusIcon(host.status || 'UNKNOWN');
     
     // Pending operation indicator
-    const pendingOp = pendingOperations.find(op => op.hostname === host.hostname);
+    const pendingOp = pendingOperations.find(op => op.hostname === host.name);
     const pendingIndicator = pendingOp ? `
         <div class="pending-indicator">
             <i class="fas fa-clock text-warning"></i>
@@ -239,14 +239,14 @@ function createHostCard(host, type, aggregateName = null) {
     
     return `
         <div class="card ${cardClass} ${selectedClass}" 
-             data-host="${host.hostname}" 
+             data-host="${host.name}" 
              data-type="${type}" 
              draggable="true"
              onclick="handleHostClick(event)">
             ${pendingIndicator}
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="card-title mb-0">${host.hostname}</h6>
+                    <h6 class="card-title mb-0">${host.name}</h6>
                     <span class="badge bg-${statusClass}">
                         <i class="${statusIcon}"></i>
                     </span>
@@ -269,7 +269,7 @@ function createHostCard(host, type, aggregateName = null) {
                             <i class="fas fa-desktop me-1"></i>
                             ${vmCount} VM${vmCount !== 1 ? 's' : ''}
                             <button class="btn btn-sm btn-outline-info ms-2" 
-                                    onclick="event.stopPropagation(); showVmDetails('${host.hostname}')">
+                                    onclick="event.stopPropagation(); showVmDetails('${host.name}')">
                                 View
                             </button>
                         </small>
@@ -278,15 +278,15 @@ function createHostCard(host, type, aggregateName = null) {
                 
                 <div class="host-actions mt-2">
                     <button class="btn btn-sm btn-primary me-1" 
-                            onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.hostname}', '${type}', 'ondemand')">
+                            onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.name}', '${type}', 'ondemand')">
                         <i class="fas fa-arrow-left"></i>
                     </button>
                     <button class="btn btn-sm btn-purple me-1" 
-                            onclick="event.stopPropagation(); window.Hyperstack.scheduleRunpodLaunch('${host.hostname}')">
+                            onclick="event.stopPropagation(); window.Hyperstack.scheduleRunpodLaunch('${host.name}')">
                         <i class="fas fa-rocket"></i>
                     </button>
                     <button class="btn btn-sm btn-warning" 
-                            onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.hostname}', '${type}', 'spot')">
+                            onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.name}', '${type}', 'spot')">
                         <i class="fas fa-arrow-right"></i>
                     </button>
                 </div>
