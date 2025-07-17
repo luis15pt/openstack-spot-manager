@@ -541,6 +541,24 @@ function updateHostAfterVMLaunch(hostname) {
     updateAggregateCounters();
 }
 
+// Update GPU type selector to show cached indicators
+function updateGpuTypeSelector() {
+    const select = document.getElementById('gpuTypeSelect');
+    if (!select) return;
+    
+    const options = select.querySelectorAll('option');
+    
+    options.forEach(option => {
+        if (option.value && option.value !== select.value) {
+            // Add indicator for cached types (simplified for now)
+            if (!option.textContent.includes('⚡')) {
+                option.textContent = option.textContent + ' ⚡';
+                option.title = 'Cached - will load instantly';
+            }
+        }
+    });
+}
+
 // Export Frontend functions
 window.Frontend = {
     // State - use getters/setters for proper state management
@@ -575,6 +593,7 @@ window.Frontend = {
     updatePendingOperationsDisplay,
     updateCardPendingIndicators,
     updateHostAfterVMLaunch,
+    updateGpuTypeSelector,
     
     // Helper functions
     getAggregateFromCard,

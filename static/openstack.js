@@ -110,35 +110,78 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
 // Get GPU types from the backend
 function loadGpuTypes() {
     console.log('📊 Loading available GPU types');
+    
+    // Check if required dependencies are available
+    if (!window.Utils) {
+        console.error('❌ Utils module not available for loadGpuTypes');
+        return;
+    }
+    if (!window.Logs) {
+        console.error('❌ Logs module not available for loadGpuTypes');
+        return;
+    }
+    
     window.Logs.addToDebugLog('OpenStack', 'Loading available GPU types', 'info');
     
+    console.log('🌐 Making API call to /api/gpu-types...');
     window.Utils.fetchWithTimeout('/api/gpu-types', {}, 10000)
         .then(window.Utils.checkResponse)
         .then(response => response.json())
         .then(data => {
+            console.log('✅ GPU types API response:', data);
+            
+            if (!data || !data.gpu_types) {
+                console.error('❌ Invalid response from /api/gpu-types:', data);
+                window.Logs.addToDebugLog('OpenStack', 'Invalid response from gpu-types API', 'error');
+                return;
+            }
+            
             console.log('✅ Available GPU types:', data.gpu_types);
             window.Logs.addToDebugLog('OpenStack', `Found ${data.gpu_types.length} GPU types`, 'success');
             
             const select = document.getElementById('gpuTypeSelect');
+            if (!select) {
+                console.error('❌ GPU type select element not found!');
+                window.Logs.addToDebugLog('OpenStack', 'GPU type select element not found', 'error');
+                return;
+            }
+            
+            console.log('🧹 Clearing existing options...');
             // Clear existing options except the default
             select.innerHTML = '<option value="">Select GPU Type...</option>';
             
+            console.log('💾 Storing GPU types for background loading...');
             // Store available GPU types for background loading
+            if (!window.Frontend) {
+                console.error('❌ Frontend module not available!');
+                return;
+            }
             window.Frontend.availableGpuTypes = data.gpu_types;
             
             // Add discovered GPU types
-            data.gpu_types.forEach(gpuType => {
+            console.log(`🎯 Adding ${data.gpu_types.length} GPU types to selector...`);
+            data.gpu_types.forEach((gpuType, index) => {
+                console.log(`  Adding option ${index + 1}: ${gpuType}`);
                 const option = document.createElement('option');
                 option.value = gpuType;
                 option.textContent = gpuType;
                 select.appendChild(option);
             });
             
+            console.log(`📊 Total options in select: ${select.options.length}`);
+            
             // Show preload button if there are types to preload
             if (data.gpu_types.length > 1) {
-                document.getElementById('preloadAllBtn').style.display = 'inline-block';
+                console.log('👀 Showing preload button...');
+                const preloadBtn = document.getElementById('preloadAllBtn');
+                if (preloadBtn) {
+                    preloadBtn.style.display = 'inline-block';
+                } else {
+                    console.warn('⚠️ Preload button not found');
+                }
             }
             
+            console.log('🔄 Updating GPU type selector...');
             window.Frontend.updateGpuTypeSelector();
         })
         .catch(error => {

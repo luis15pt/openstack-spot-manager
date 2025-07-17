@@ -8,11 +8,38 @@ let backgroundLoadingStarted = false;
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Initializing OpenStack Spot Manager');
+    
+    // Debug: Check if modules are loaded
+    console.log('📋 Checking module availability:');
+    console.log('  - window.Utils:', typeof window.Utils);
+    console.log('  - window.Logs:', typeof window.Logs);
+    console.log('  - window.OpenStack:', typeof window.OpenStack);
+    console.log('  - window.Frontend:', typeof window.Frontend);
+    console.log('  - window.Hyperstack:', typeof window.Hyperstack);
+    
+    if (!window.Logs) {
+        console.error('❌ Logs module not loaded!');
+        return;
+    }
+    
     window.Logs.addToDebugLog('System', 'Application starting up', 'info');
     
+    if (!window.OpenStack) {
+        console.error('❌ OpenStack module not loaded!');
+        window.Logs.addToDebugLog('System', 'OpenStack module not loaded', 'error');
+        return;
+    }
+    
+    console.log('🔧 Initializing event listeners...');
     initializeEventListeners();
+    
+    console.log('📊 Loading GPU types...');
     window.OpenStack.loadGpuTypes();
+    
+    console.log('🐛 Initializing debug tab...');
     window.Logs.initializeDebugTab();
+    
+    console.log('✅ Application initialization complete');
 });
 
 // Initialize event listeners
