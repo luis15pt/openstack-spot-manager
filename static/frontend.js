@@ -1043,7 +1043,10 @@ function renderOnDemandVariantColumns(ondemandData) {
             const container = document.getElementById(`${variantId}Hosts`);
             
             if (container) {
-                renderHosts(container.id, variantHosts, 'ondemand', variant.aggregate);
+                renderHosts(container.id, variantHosts, variantId, variant.aggregate);
+                
+                // Update column statistics
+                updateVariantColumnStats(variantId, variantHosts);
             }
         });
         
@@ -1075,6 +1078,70 @@ function renderOnDemandVariantColumns(ondemandData) {
                 renderHosts(container.id, ondemandData.hosts, 'ondemand', ondemandData.name);
             }
         }
+    }
+}
+
+// Update variant column statistics
+function updateVariantColumnStats(variantId, hosts) {
+    const gpuUsageElement = document.getElementById(`${variantId}GpuUsage`);
+    const gpuPercentElement = document.getElementById(`${variantId}GpuPercent`);
+    const gpuProgressBar = document.getElementById(`${variantId}GpuProgressBar`);
+    
+    if (!hosts || hosts.length === 0) {
+        if (gpuUsageElement) gpuUsageElement.textContent = '0/0';
+        if (gpuPercentElement) gpuPercentElement.textContent = '0%';
+        if (gpuProgressBar) gpuProgressBar.style.width = '0%';
+        return;
+    }
+    
+    // Calculate GPU usage
+    let totalGpuUsed = 0;
+    let totalGpuCapacity = 0;
+    
+    hosts.forEach(host => {
+        if (host.gpu_used) totalGpuUsed += host.gpu_used;
+        if (host.gpu_capacity) totalGpuCapacity += host.gpu_capacity;
+    });
+    
+    const gpuPercent = totalGpuCapacity > 0 ? Math.round((totalGpuUsed / totalGpuCapacity) * 100) : 0;
+    
+    if (gpuUsageElement) gpuUsageElement.textContent = `${totalGpuUsed}/${totalGpuCapacity}`;
+    if (gpuPercentElement) gpuPercentElement.textContent = `${gpuPercent}%`;
+    if (gpuProgressBar) gpuProgressBar.style.width = `${gpuPercent}%`;
+}
+
+// Refresh only affected columns after operations
+function refreshAffectedColumns(operations) {
+    const affectedAggregates = new Set();
+    
+    operations.forEach(op => {
+        if (op.sourceAggregate) affectedAggregates.add(op.sourceAggregate);
+        if (op.targetAggregate) affectedAggregates.add(op.targetAggregate);
+    });
+    
+    console.log('🔄 Refreshing affected aggregates:', Array.from(affectedAggregates));
+    
+    // Refresh only the affected GPU type data
+    if (window.currentGpuType) {
+        window.OpenStack.loadAggregateData(window.currentGpuType, false)
+            .then(data => {
+                // Only update the columns that were affected
+                if (data.ondemand.hosts) {
+                    renderOnDemandVariantColumns(data.ondemand);
+                }
+                if (data.runpod.hosts) {
+                    renderHosts('runpodHosts', data.runpod.hosts, 'runpod', data.runpod.name);
+                }
+                if (data.spot.hosts) {
+                    renderHosts('spotHosts', data.spot.hosts, 'spot', data.spot.name);
+                }
+                
+                // Setup drag and drop for new elements
+                setupDragAndDrop();
+            })
+            .catch(error => {
+                console.error('Error refreshing affected columns:', error);
+            });
     }
 }
 
@@ -1204,6 +1271,7 @@ window.removePendingOperation = removePendingOperation;
 window.generateIndividualCommandOperations = generateIndividualCommandOperations;
 window.updateCommitButtonState = updateCommitButtonState;
 window.toggleOperationCollapse = toggleOperationCollapse;
+window.refreshAffectedColumns = refreshAffectedColumns;
 
 // Export for modular access - only the minimum needed
 window.Frontend = {
@@ -1229,5 +1297,6 @@ window.Frontend = {
     updateGpuTypeSelector,
     addToPendingOperations,
     updatePendingOperationsDisplay,
-    updateCardPendingIndicators
+    updateCardPendingIndicators,
+    refreshAffectedColumns
 };

@@ -441,8 +441,8 @@ function executeAllPendingOperations() {
         window.Frontend.pendingOperations = [];
         window.Frontend.updatePendingOperationsDisplay();
         
-        // Refresh data
-        refreshData();
+        // Refresh only affected columns instead of all data
+        window.Frontend.refreshAffectedColumns(completedOperations);
         
         window.Frontend.isExecutionInProgress = false;
     }, 2000);
