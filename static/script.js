@@ -418,141 +418,191 @@ function removePendingOperation(index) {
     }
 }
 
-// Execute all pending operations
+// Execute all pending operations (restored from original working version)
 function executeAllPendingOperations() {
-    if (window.Frontend.isExecutionInProgress) {
-        window.Frontend.showNotification('Execution already in progress', 'warning');
-        return;
-    }
+    const operations = [...window.Frontend.pendingOperations]; // Copy the array
+    let completed = 0;
+    let errors = [];
     
-    // Get selected operations
-    const selectedOperations = getSelectedOperations();
-    if (selectedOperations.length === 0) {
-        window.Frontend.showNotification('No operations selected for execution', 'warning');
-        return;
-    }
-    
-    window.Frontend.isExecutionInProgress = true;
-    window.Logs.incrementOperationsCount();
-    
-    console.log(`🚀 Executing ${selectedOperations.length} pending operations`);
-    window.Logs.addToDebugLog('System', `Starting execution of ${selectedOperations.length} operations`, 'info');
-    
-    // Execute operations sequentially
-    executeOperationsSequentially(selectedOperations);
-}
-
-// Get selected operations from the UI
-function getSelectedOperations() {
-    const selectedOps = [];
-    const checkboxes = document.querySelectorAll('#pendingOperationsList input[type="checkbox"]:checked');
-    
-    console.log('🔍 getSelectedOperations debug:', {
-        totalCheckboxes: document.querySelectorAll('#pendingOperationsList input[type="checkbox"]').length,
-        checkedCheckboxes: checkboxes.length,
-        pendingOperationsCount: window.Frontend.pendingOperations.length
-    });
-    
-    checkboxes.forEach((checkbox, idx) => {
-        const operationIndex = parseInt(checkbox.dataset.operationIndex);
-        const commandIndex = parseInt(checkbox.dataset.commandIndex);
-        
-        console.log(`🔍 Checkbox ${idx}:`, {
-            id: checkbox.id,
-            operationIndex,
-            commandIndex,
-            hasOperationIndex: !isNaN(operationIndex),
-            hasCommandIndex: !isNaN(commandIndex)
-        });
-        
-        if (!isNaN(operationIndex) && operationIndex < window.Frontend.pendingOperations.length) {
-            const operation = window.Frontend.pendingOperations[operationIndex];
-            if (!isNaN(commandIndex)) {
-                // This is a specific command within an operation
-                const commands = window.Frontend.generateIndividualCommandOperations(operation);
-                if (commandIndex < commands.length) {
-                    selectedOps.push({
-                        ...operation,
-                        specificCommand: commands[commandIndex],
-                        operationIndex,
-                        commandIndex
-                    });
-                }
-            } else {
-                // This is an entire operation
-                selectedOps.push({
-                    ...operation,
-                    operationIndex
-                });
-            }
-        }
-    });
-    
-    console.log('🔍 Selected operations:', selectedOps);
-    return selectedOps;
-}
-
-// Execute operations sequentially
-function executeOperationsSequentially(operations) {
-    let currentIndex = 0;
-    const errors = [];
-    let completedCount = 0;
-    
-    console.log('🔍 executeOperationsSequentially called with:', {
-        operationsCount: operations.length,
-        operations: operations.map(op => ({
-            hostname: op.hostname,
-            type: op.type,
-            sourceAggregate: op.sourceAggregate,
-            targetAggregate: op.targetAggregate
-        }))
-    });
-    
-    const executeNext = () => {
-        if (currentIndex >= operations.length) {
+    const executeNext = (index) => {
+        if (index >= operations.length) {
             // All operations completed
-            window.Frontend.isExecutionInProgress = false;
+            const commitBtn = document.getElementById('commitBtn');
+            commitBtn.disabled = false;
+            commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit All Operations';
             
             if (errors.length > 0) {
-                window.Frontend.showNotification(`Completed with ${errors.length} errors. Check command log for details.`, 'warning');
+                window.Frontend.showNotification(`Completed with ${errors.length} errors: ${errors.join(', ')}`, 'warning');
             } else {
-                window.Frontend.showNotification(`Successfully executed ${completedCount} operations`, 'success');
+                window.Frontend.showNotification(`Successfully executed ${completed} operations`, 'success');
+                window.Frontend.pendingOperations = []; // Clear pending operations on success
+                window.Frontend.updatePendingOperationsDisplay();
             }
             
-            // Remove completed operations and update display
-            removeCompletedOperations();
-            
-            // Refresh data and logs
-            refreshAfterExecution();
+            refreshData();
+            window.Logs.loadCommandLog();
+            window.Logs.loadResultsSummary();
             return;
         }
         
-        const operation = operations[currentIndex];
-        console.log(`🔄 Executing operation ${currentIndex + 1}/${operations.length}: ${operation.hostname}`);
-        window.Logs.addToDebugLog('System', `Executing operation for ${operation.hostname}`, 'info');
+        const operation = operations[index];
         
-        // Execute the operation
-        executeOperation(operation, (success, error) => {
-            if (success) {
-                completedCount++;
-                console.log(`✅ Operation completed for ${operation.hostname}`);
-                window.Logs.addToDebugLog('System', `Operation completed for ${operation.hostname}`, 'success');
+        fetch('/api/execute-migration', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                host: operation.hostname,
+                source_aggregate: operation.sourceAggregate,
+                target_aggregate: operation.targetAggregate
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                errors.push(operation.hostname);
             } else {
-                errors.push(`${operation.hostname}: ${error}`);
-                console.error(`❌ Operation failed for ${operation.hostname}: ${error}`);
-                window.Logs.addToDebugLog('System', `Operation failed for ${operation.hostname}: ${error}`, 'error');
+                completed++;
+                // Remove this operation from pending list
+                const pendingIndex = window.Frontend.pendingOperations.findIndex(op => 
+                    op.hostname === operation.hostname && 
+                    op.sourceAggregate === operation.sourceAggregate &&
+                    op.targetAggregate === operation.targetAggregate
+                );
+                
+                if (pendingIndex !== -1) {
+                    window.Frontend.pendingOperations.splice(pendingIndex, 1);
+                }
+                
+                window.Frontend.updatePendingOperationsDisplay();
             }
             
-            currentIndex++;
-            executeNext();
+            // Execute next operation
+            executeNext(index + 1);
+        })
+        .catch(error => {
+            errors.push(operation.hostname);
+            console.error('Error executing operation:', error);
+            // Continue with next operation even if this one fails
+            executeNext(index + 1);
         });
     };
     
-    executeNext();
+    const commitBtn = document.getElementById('commitBtn');
+    commitBtn.disabled = true;
+    commitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing Operations...';
+    
+    executeNext(0);
 }
 
-// Execute a single operation
-function executeOperation(operation, callback) {
+// Commit selected commands (restored from original working version)
+function commitSelectedCommands() {
+    const selectedCommands = document.querySelectorAll('.command-operation-checkbox:checked');
+    
+    if (selectedCommands.length === 0) {
+        window.Frontend.showNotification('No commands selected for execution', 'warning');
+        return;
+    }
+    
+    // Group selected commands by operation for execution
+    const commandsByOperation = {};
+    
+    selectedCommands.forEach(checkbox => {
+        const operationIndex = parseInt(checkbox.dataset.operationIndex);
+        const commandIndex = parseInt(checkbox.dataset.commandIndex);
+        
+        if (!isNaN(operationIndex) && operationIndex < window.Frontend.pendingOperations.length) {
+            const operation = window.Frontend.pendingOperations[operationIndex];
+            
+            if (!commandsByOperation[operationIndex]) {
+                commandsByOperation[operationIndex] = {
+                    operation: operation,
+                    commands: []
+                };
+            }
+            
+            // Extract command info from the checkbox
+            const commandId = checkbox.id;
+            const commandDiv = checkbox.closest('.command-operation');
+            const commandTitle = commandDiv.querySelector('.command-title strong').textContent;
+            
+            commandsByOperation[operationIndex].commands.push({
+                id: commandId,
+                checkbox: checkbox,
+                title: commandTitle,
+                element: commandDiv,
+                commandIndex: commandIndex
+            });
+        }
+    });
+    
+    const totalCommands = selectedCommands.length;
+    const totalOperations = Object.keys(commandsByOperation).length;
+    
+    console.log(`🚀 Committing ${totalCommands} commands across ${totalOperations} operations`);
+    
+    const commitBtn = document.getElementById('commitBtn');
+    commitBtn.disabled = true;
+    commitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing Commands...';
+    
+    executeCommandsSequentially(commandsByOperation);
+}
+
+// Execute commands sequentially (restored from original working version)
+function executeCommandsSequentially(commandsByOperation) {
+    const operationIndices = Object.keys(commandsByOperation);
+    let currentOperationIndex = 0;
+    const errors = [];
+    let completedCommands = 0;
+    
+    const executeNextOperation = () => {
+        if (currentOperationIndex >= operationIndices.length) {
+            // All operations completed
+            const commitBtn = document.getElementById('commitBtn');
+            commitBtn.disabled = false;
+            commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit Selected Commands';
+            
+            if (errors.length > 0) {
+                window.Frontend.showNotification(`Completed with ${errors.length} errors: ${errors.join(', ')}`, 'warning');
+            } else {
+                window.Frontend.showNotification(`Successfully executed ${completedCommands} commands`, 'success');
+            }
+            
+            // Remove completed commands and update display
+            removeCompletedCommands();
+            window.Frontend.updatePendingOperationsDisplay();
+            
+            // Only refresh command log and results, don't refresh all host data
+            window.Logs.loadCommandLog();
+            window.Logs.loadResultsSummary();
+            return;
+        }
+        
+        const operationIndex = operationIndices[currentOperationIndex];
+        const operationData = commandsByOperation[operationIndex];
+        const operation = operationData.operation;
+        const commands = operationData.commands;
+        
+        executeCommandsForOperation(operation, commands, (success) => {
+            if (success) {
+                completedCommands += commands.length;
+                window.Logs.addToDebugLog('System', `Commands completed for ${operation.hostname}`, 'success');
+            } else {
+                errors.push(`${operation.hostname} commands failed`);
+                window.Logs.addToDebugLog('System', `Commands failed for ${operation.hostname}`, 'error');
+            }
+            
+            currentOperationIndex++;
+            executeNextOperation();
+        });
+    };
+    
+    executeNextOperation();
+}
+
+// Execute commands for a specific operation (restored from original working version)
+function executeCommandsForOperation(operation, commands, callback) {
     if (operation.type === 'runpod-launch') {
         // Execute RunPod launch
         executeRunPodLaunch(operation, callback);
@@ -572,13 +622,13 @@ function executeRunPodLaunch(operation, callback) {
         key_name: operation.key_name
     };
     
-    window.Utils.fetchWithTimeout('/api/execute-runpod-launch', {
+    fetch('/api/execute-runpod-launch', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestData)
-    }, 30000)
+    })
     .then(response => response.json())
     .then(data => {
         if (data.error) {
@@ -605,13 +655,13 @@ function executeOpenStackMigration(operation, callback) {
         requestData
     });
     
-    window.Utils.fetchWithTimeout('/api/execute-migration', {
+    fetch('/api/execute-migration', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestData)
-    }, 30000)
+    })
     .then(response => {
         console.log('🔍 Migration API response:', response.status, response.statusText);
         return response.json();
@@ -630,31 +680,38 @@ function executeOpenStackMigration(operation, callback) {
     });
 }
 
-// Remove completed operations
-function removeCompletedOperations() {
-    const selectedOps = getSelectedOperations();
+// Remove completed commands
+function removeCompletedCommands() {
+    const completedCheckboxes = document.querySelectorAll('.command-operation-checkbox:checked');
     
-    // Remove operations in reverse order to maintain indices
-    const operationIndices = [...new Set(selectedOps.map(op => op.operationIndex))].sort((a, b) => b - a);
-    
-    operationIndices.forEach(index => {
-        if (index >= 0 && index < window.Frontend.pendingOperations.length) {
-            window.Frontend.pendingOperations.splice(index, 1);
+    completedCheckboxes.forEach(checkbox => {
+        const operationIndex = parseInt(checkbox.dataset.operationIndex);
+        const commandIndex = parseInt(checkbox.dataset.commandIndex);
+        
+        if (!isNaN(operationIndex) && operationIndex < window.Frontend.pendingOperations.length) {
+            const operation = window.Frontend.pendingOperations[operationIndex];
+            
+            // Mark command as completed
+            if (!operation.completedCommands) {
+                operation.completedCommands = [];
+            }
+            
+            // Add command type to completed list (this is a simplified approach)
+            if (!operation.completedCommands.includes(commandIndex)) {
+                operation.completedCommands.push(commandIndex);
+            }
+            
+            // If all commands for this operation are completed, remove the operation
+            const totalCommands = 2; // Most operations have 2 commands (remove + add)
+            if (operation.completedCommands.length >= totalCommands) {
+                window.Frontend.pendingOperations.splice(operationIndex, 1);
+            }
         }
     });
-    
-    window.Frontend.updatePendingOperationsDisplay();
 }
 
-// Refresh data after execution
-function refreshAfterExecution() {
-    // Refresh command log
-    window.Logs.loadCommandLog();
-    
-    // Refresh results summary
-    window.Logs.loadResultsSummary();
-    
-    // Refresh current GPU data
+// Refresh data function (adapted for refactored structure)
+function refreshData() {
     const selectedType = document.getElementById('gpuTypeSelect').value;
     if (selectedType) {
         window.OpenStack.loadAggregateData(selectedType);
