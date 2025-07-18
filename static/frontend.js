@@ -668,29 +668,120 @@ function updatePendingOperationsDisplay() {
                 <p>No pending operations. Select hosts and add operations to see them here.</p>
             </div>
         `;
+        updateCommitButtonState();
         return;
     }
     
-    // Create a simplified pending operations display
     const operationsHtml = pendingOperations.map((op, index) => {
-        const operationTitle = `🔄 Move ${op.hostname} from ${op.sourceAggregate || op.sourceType} to ${op.targetAggregate || op.targetType}`;
+        // Generate individual command operations for this operation
+        const commands = generateIndividualCommandOperations(op);
+        
+        const operationTitle = op.type === 'runpod-launch' ? 
+            `🚀 Launch VM '${op.vm_name || op.hostname}' on ${op.hostname}` : 
+            `🔄 Move ${op.hostname} from ${op.sourceAggregate} to ${op.targetAggregate}`;
+        
+        const purposeText = op.type === 'runpod-launch' ? 
+            'Deploy new virtual machine with automated networking and security configuration' :
+            'Relocate compute host between resource pools for different billing models';
+        
+        const commandsHtml = commands.map((cmd, cmdIndex) => {
+            const commandId = `cmd-${op.hostname}-${cmd.type}-${cmdIndex}`;
+            const isCompleted = op.completedCommands && op.completedCommands.includes(cmd.type);
+            const commandClass = isCompleted ? 'command-operation completed-step' : 'command-operation';
+            const statusIcon = isCompleted ? '<i class="fas fa-check-circle text-success me-1"></i>' : '';
+            const disabledAttr = isCompleted ? 'disabled' : '';
+            const checkedAttr = isCompleted ? 'checked' : 'checked'; // Default to checked
+            
+            return `
+                <div class="${commandClass}">
+                    <div class="command-header">
+                        <input type="checkbox" class="form-check-input command-operation-checkbox me-2" 
+                               id="${commandId}" ${checkedAttr} ${disabledAttr}
+                               onchange="updateCommitButtonState()">
+                        <label class="form-check-label command-title" for="${commandId}">
+                            ${statusIcon}
+                            <i class="${window.Utils.getCommandIcon(cmd.command_type)}"></i>
+                            <strong>${cmd.title}</strong>
+                            <span class="badge ${isCompleted ? 'bg-success' : 'bg-secondary'} ms-2">${isCompleted ? 'Completed' : cmd.timing}</span>
+                        </label>
+                    </div>
+                    
+                    <div class="command-details mt-2">
+                        <div class="command-purpose">
+                            <strong class="text-primary">Purpose:</strong>
+                            <div class="text-muted small mt-1">${cmd.purpose}</div>
+                        </div>
+                        
+                        <div class="command-description mt-2">
+                            <strong class="text-info">Description:</strong>
+                            <div class="text-muted small mt-1">${cmd.description}</div>
+                        </div>
+                        
+                        <div class="command-to-execute mt-2">
+                            <strong class="text-dark">Command:</strong>
+                            <code class="d-block mt-1 p-2 bg-light rounded small">${cmd.command}</code>
+                        </div>
+                        
+                        <div class="command-expected mt-2">
+                            <strong class="text-success">Expected Output:</strong>
+                            <div class="text-muted small mt-1 font-italic">${cmd.expected_output}</div>
+                        </div>
+                        
+                        ${cmd.dependencies && cmd.dependencies.length > 0 ? `
+                        <div class="command-dependencies mt-2">
+                            <strong class="text-warning">Dependencies:</strong>
+                            <div class="small mt-1">
+                                ${cmd.dependencies.map(dep => `<span class="badge bg-warning text-dark me-1">${dep}</span>`).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
         
         return `
-            <div class="pending-operation-item border rounded p-3 mb-2" data-index="${index}">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h6 class="mb-1">${operationTitle}</h6>
-                        <small class="text-muted">Added: ${new Date(op.timestamp).toLocaleString()}</small>
+            <div class="pending-operation-card card mb-4" data-index="${index}">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-sm btn-outline-light me-2" 
+                                    onclick="toggleOperationCollapse(${index})" 
+                                    id="collapse-btn-${index}"
+                                    title="Expand/Collapse operation">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <h6 class="mb-0">${operationTitle}</h6>
+                        </div>
+                        <button class="btn btn-sm btn-outline-light" onclick="removePendingOperation(${index})" title="Remove operation">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
-                    <button class="btn btn-sm btn-outline-danger" onclick="removePendingOperation(${index})">
-                        <i class="fas fa-times"></i>
-                    </button>
+                    <small class="text-light">
+                        <strong>Purpose:</strong> ${purposeText}
+                    </small>
+                </div>
+                <div class="card-body collapse show" id="operation-body-${index}">
+                    <div class="commands-list">
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-list-ol me-1"></i>
+                            Commands to Execute (${commands.length} total)
+                        </h6>
+                        ${commandsHtml}
+                    </div>
+                    
+                    <div class="operation-meta mt-3 pt-3 border-top">
+                        <small class="text-muted">
+                            <i class="fas fa-clock"></i> Added ${new Date(op.timestamp).toLocaleString()}
+                        </small>
+                    </div>
                 </div>
             </div>
         `;
     }).join('');
     
     list.innerHTML = operationsHtml;
+    updateCommitButtonState();
 }
 
 function updateCardPendingIndicators() {
@@ -726,10 +817,132 @@ function scheduleRunpodLaunch(hostname) {
 }
 
 // Make functions globally available for HTML onclick handlers
+// Generate individual command operations for pending operations
+function generateIndividualCommandOperations(operation) {
+    const commands = [];
+    
+    if (operation.type === 'runpod-launch') {
+        // Wait command
+        commands.push({
+            type: 'wait-command',
+            hostname: operation.hostname,
+            parent_operation: 'runpod-launch',
+            title: 'Wait for aggregate migration to complete',
+            description: 'Ensure host is properly moved to Runpod aggregate before VM deployment - prevents deployment failures',
+            command: `sleep 60  # Wait for OpenStack aggregate membership to propagate across all services`,
+            timing: '60s delay',
+            command_type: 'timing',
+            purpose: 'Prevent deployment failures by ensuring aggregate membership is fully propagated',
+            expected_output: 'Wait completed - aggregate membership propagated',
+            dependencies: [],
+            timestamp: new Date().toISOString()
+        });
+        
+        // VM Launch command
+        commands.push({
+            type: 'hyperstack-launch',
+            hostname: operation.hostname,
+            parent_operation: 'runpod-launch',
+            title: 'Deploy VM via Hyperstack API',
+            description: 'Creates new virtual machine on the specified host with correct specifications and flavor',
+            command: operation.commands ? operation.commands[0] : `curl -X POST https://infrahub-api.nexgencloud.com/v1/core/virtual-machines \\
+  -H 'api_key: <HYPERSTACK_API_KEY>' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "name": "${operation.vm_name || operation.hostname}",
+    "environment_name": "CA1-RunPod",
+    "image_name": "Ubuntu Server 22.04 LTS (Jammy Jellyfish)",
+    "flavor_name": "<gpu-flavor>",
+    "assign_floating_ip": true,
+    "user_data": "#!/bin/bash\\necho \\"api_key=<RUNPOD_API_KEY>\\" > /tmp/runpod-config"
+  }'`,
+            timing: 'Immediate',
+            command_type: 'api',
+            purpose: 'Create the virtual machine on the specified compute host with proper configuration for RunPod integration',
+            expected_output: 'VM created successfully with assigned ID and floating IP',
+            dependencies: ['wait-command'],
+            timestamp: new Date().toISOString()
+        });
+        
+    } else {
+        // Migration commands
+        commands.push({
+            type: 'aggregate-remove',
+            hostname: operation.hostname,
+            parent_operation: 'host-migration',
+            title: `Remove host from ${operation.sourceAggregate}`,
+            description: `Removes compute host from current aggregate to prepare for relocation`,
+            command: `openstack aggregate remove host ${operation.sourceAggregate} ${operation.hostname}`,
+            timing: 'Immediate',
+            command_type: 'migration',
+            purpose: 'Remove host from current resource pool to enable relocation',
+            expected_output: `Host ${operation.hostname} removed from aggregate ${operation.sourceAggregate}`,
+            dependencies: [],
+            timestamp: new Date().toISOString()
+        });
+        
+        commands.push({
+            type: 'aggregate-add',
+            hostname: operation.hostname,
+            parent_operation: 'host-migration',
+            title: `Add host to ${operation.targetAggregate}`,
+            description: `Adds compute host to target aggregate for new resource pool assignment`,
+            command: `openstack aggregate add host ${operation.targetAggregate} ${operation.hostname}`,
+            timing: 'After removal completes',
+            command_type: 'migration',
+            purpose: 'Add host to target resource pool with new billing model',
+            expected_output: `Host ${operation.hostname} added to aggregate ${operation.targetAggregate}`,
+            dependencies: ['aggregate-remove'],
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    return commands;
+}
+
+// Update commit button state based on selected commands
+function updateCommitButtonState() {
+    const commitBtn = document.getElementById('commitBtn');
+    if (!commitBtn) return;
+    
+    const selectedCommands = document.querySelectorAll('.command-operation-checkbox:checked');
+    
+    if (selectedCommands.length === 0) {
+        commitBtn.disabled = true;
+        commitBtn.innerHTML = '<i class="fas fa-check"></i> Commit Selected Operations';
+        return;
+    }
+    
+    commitBtn.disabled = false;
+    commitBtn.innerHTML = `<i class="fas fa-check"></i> Commit Selected Commands (${selectedCommands.length} commands)`;
+}
+
+// Toggle operation collapse/expand
+function toggleOperationCollapse(index) {
+    const operationBody = document.getElementById(`operation-body-${index}`);
+    const collapseBtn = document.getElementById(`collapse-btn-${index}`);
+    if (!operationBody || !collapseBtn) return;
+    
+    const icon = collapseBtn.querySelector('i');
+    
+    if (operationBody.classList.contains('show')) {
+        operationBody.classList.remove('show');
+        icon.className = 'fas fa-chevron-right';
+        collapseBtn.title = 'Expand operation';
+    } else {
+        operationBody.classList.add('show');
+        icon.className = 'fas fa-chevron-down';
+        collapseBtn.title = 'Collapse operation';
+    }
+}
+
 window.toggleGroup = toggleGroup;
 window.handleHostClick = handleHostClick;
 window.scheduleRunpodLaunch = scheduleRunpodLaunch;
 window.removePendingOperation = removePendingOperation;
+window.generateIndividualCommandOperations = generateIndividualCommandOperations;
+window.updateCommitButtonState = updateCommitButtonState;
+window.toggleOperationCollapse = toggleOperationCollapse;
 
 // Export for modular access - only the minimum needed
 window.Frontend = {
