@@ -425,27 +425,205 @@ function executeAllPendingOperations() {
         return;
     }
     
+    // Get selected operations
+    const selectedOperations = getSelectedOperations();
+    if (selectedOperations.length === 0) {
+        window.Frontend.showNotification('No operations selected for execution', 'warning');
+        return;
+    }
+    
     window.Frontend.isExecutionInProgress = true;
     window.Logs.incrementOperationsCount();
     
-    console.log(`🚀 Executing ${window.Frontend.pendingOperations.length} pending operations`);
-    window.Logs.addToDebugLog('System', `Starting execution of ${window.Frontend.pendingOperations.length} operations`, 'info');
+    console.log(`🚀 Executing ${selectedOperations.length} pending operations`);
+    window.Logs.addToDebugLog('System', `Starting execution of ${selectedOperations.length} operations`, 'info');
     
-    // For now, simulate execution
-    setTimeout(() => {
-        console.log('✅ All operations completed successfully');
-        window.Logs.addToDebugLog('System', 'All operations completed successfully', 'success');
-        window.Frontend.showNotification('All operations completed successfully', 'success');
+    // Execute operations sequentially
+    executeOperationsSequentially(selectedOperations);
+}
+
+// Get selected operations from the UI
+function getSelectedOperations() {
+    const selectedOps = [];
+    const checkboxes = document.querySelectorAll('#pendingOperationsList input[type="checkbox"]:checked');
+    
+    checkboxes.forEach(checkbox => {
+        const operationIndex = parseInt(checkbox.dataset.operationIndex);
+        const commandIndex = parseInt(checkbox.dataset.commandIndex);
         
-        // Clear completed operations
-        window.Frontend.pendingOperations = [];
-        window.Frontend.updatePendingOperationsDisplay();
+        if (!isNaN(operationIndex) && operationIndex < window.Frontend.pendingOperations.length) {
+            const operation = window.Frontend.pendingOperations[operationIndex];
+            if (!isNaN(commandIndex)) {
+                // This is a specific command within an operation
+                const commands = window.Frontend.generateIndividualCommandOperations(operation);
+                if (commandIndex < commands.length) {
+                    selectedOps.push({
+                        ...operation,
+                        specificCommand: commands[commandIndex],
+                        operationIndex,
+                        commandIndex
+                    });
+                }
+            } else {
+                // This is an entire operation
+                selectedOps.push({
+                    ...operation,
+                    operationIndex
+                });
+            }
+        }
+    });
+    
+    return selectedOps;
+}
+
+// Execute operations sequentially
+function executeOperationsSequentially(operations) {
+    let currentIndex = 0;
+    const errors = [];
+    let completedCount = 0;
+    
+    const executeNext = () => {
+        if (currentIndex >= operations.length) {
+            // All operations completed
+            window.Frontend.isExecutionInProgress = false;
+            
+            if (errors.length > 0) {
+                window.Frontend.showNotification(`Completed with ${errors.length} errors. Check command log for details.`, 'warning');
+            } else {
+                window.Frontend.showNotification(`Successfully executed ${completedCount} operations`, 'success');
+            }
+            
+            // Remove completed operations and update display
+            removeCompletedOperations();
+            
+            // Refresh data and logs
+            refreshAfterExecution();
+            return;
+        }
         
-        // Refresh only affected columns instead of all data
-        window.Frontend.refreshAffectedColumns(completedOperations);
+        const operation = operations[currentIndex];
+        console.log(`🔄 Executing operation ${currentIndex + 1}/${operations.length}: ${operation.hostname}`);
+        window.Logs.addToDebugLog('System', `Executing operation for ${operation.hostname}`, 'info');
         
-        window.Frontend.isExecutionInProgress = false;
-    }, 2000);
+        // Execute the operation
+        executeOperation(operation, (success, error) => {
+            if (success) {
+                completedCount++;
+                console.log(`✅ Operation completed for ${operation.hostname}`);
+                window.Logs.addToDebugLog('System', `Operation completed for ${operation.hostname}`, 'success');
+            } else {
+                errors.push(`${operation.hostname}: ${error}`);
+                console.error(`❌ Operation failed for ${operation.hostname}: ${error}`);
+                window.Logs.addToDebugLog('System', `Operation failed for ${operation.hostname}: ${error}`, 'error');
+            }
+            
+            currentIndex++;
+            executeNext();
+        });
+    };
+    
+    executeNext();
+}
+
+// Execute a single operation
+function executeOperation(operation, callback) {
+    if (operation.type === 'runpod-launch') {
+        // Execute RunPod launch
+        executeRunPodLaunch(operation, callback);
+    } else {
+        // Execute OpenStack migration
+        executeOpenStackMigration(operation, callback);
+    }
+}
+
+// Execute RunPod launch operation
+function executeRunPodLaunch(operation, callback) {
+    const requestData = {
+        hostname: operation.hostname,
+        vm_name: operation.vm_name,
+        flavor_name: operation.flavor_name,
+        image_name: operation.image_name,
+        key_name: operation.key_name
+    };
+    
+    window.Utils.fetchWithTimeout('/api/execute-runpod-launch', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+    }, 30000)
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            callback(false, data.error);
+        } else {
+            callback(true);
+        }
+    })
+    .catch(error => {
+        callback(false, error.message);
+    });
+}
+
+// Execute OpenStack migration operation
+function executeOpenStackMigration(operation, callback) {
+    const requestData = {
+        host: operation.hostname,
+        source_aggregate: operation.sourceAggregate,
+        target_aggregate: operation.targetAggregate
+    };
+    
+    window.Utils.fetchWithTimeout('/api/execute-migration', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+    }, 30000)
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            callback(false, data.error);
+        } else {
+            callback(true);
+        }
+    })
+    .catch(error => {
+        callback(false, error.message);
+    });
+}
+
+// Remove completed operations
+function removeCompletedOperations() {
+    const selectedOps = getSelectedOperations();
+    
+    // Remove operations in reverse order to maintain indices
+    const operationIndices = [...new Set(selectedOps.map(op => op.operationIndex))].sort((a, b) => b - a);
+    
+    operationIndices.forEach(index => {
+        if (index >= 0 && index < window.Frontend.pendingOperations.length) {
+            window.Frontend.pendingOperations.splice(index, 1);
+        }
+    });
+    
+    window.Frontend.updatePendingOperationsDisplay();
+}
+
+// Refresh data after execution
+function refreshAfterExecution() {
+    // Refresh command log
+    window.Logs.loadCommandLog();
+    
+    // Refresh results summary
+    window.Logs.loadResultsSummary();
+    
+    // Refresh current GPU data
+    const selectedType = document.getElementById('gpuTypeSelect').value;
+    if (selectedType) {
+        window.OpenStack.loadAggregateData(selectedType);
+    }
 }
 
 // Make functions available globally that need to be called from HTML or other modules

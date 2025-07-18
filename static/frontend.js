@@ -994,9 +994,15 @@ function renderOnDemandVariantColumns(ondemandData) {
         const mainRow = document.querySelector('.row.mt-3');
         const spotColumnElement = document.querySelector('#spotColumn').closest('.col-md-2, .col-md-3, .col-md-4');
         
-        // Remove existing ondemand columns
-        const existingOndemandColumns = mainRow.querySelectorAll('[id*="ondemand"][id*="Column"]:not(#ondemandColumnFallback)');
-        existingOndemandColumns.forEach(col => col.remove());
+        // Remove existing variant columns (more specific selector)
+        const existingVariantColumns = mainRow.querySelectorAll('.col-md-2, .col-md-3, .col-md-4').forEach(col => {
+            const columnDiv = col.querySelector('.aggregate-column');
+            if (columnDiv && columnDiv.id && columnDiv.id.includes('Column') && 
+                columnDiv.id !== 'runpodColumn' && columnDiv.id !== 'spotColumn' && 
+                columnDiv.id !== 'ondemandColumn') {
+                col.remove();
+            }
+        });
         
         // Add each variant column before the spot column
         ondemandData.variants.forEach((variant, index) => {
