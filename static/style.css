@@ -26,6 +26,28 @@ body {
     border-style: solid;
 }
 
+/* Enhanced styling for card-body drop zones */
+.card-body.drop-zone {
+    min-height: 300px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.card-body.drop-zone.drag-over {
+    background-color: #f8d7da;
+    border: 2px dashed #dc3545;
+}
+
+.card-body.drop-zone[data-type="runpod"].drag-over {
+    background-color: #e7d4f0;
+    border: 2px dashed #6f42c1;
+}
+
+.card-body.drop-zone[data-type="spot"].drag-over {
+    background-color: #fff3cd;
+    border: 2px dashed #ffc107;
+}
+
 .drop-zone.drag-over::after {
     content: "Drop here";
     position: absolute;
