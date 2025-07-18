@@ -833,6 +833,7 @@ function updatePendingOperationsDisplay() {
                     <div class="command-header">
                         <input type="checkbox" class="form-check-input command-operation-checkbox me-2" 
                                id="${commandId}" ${checkedAttr} ${disabledAttr}
+                               data-operation-index="${index}" data-command-index="${cmdIndex}"
                                onchange="updateCommitButtonState()">
                         <label class="form-check-label command-title" for="${commandId}">
                             ${statusIcon}

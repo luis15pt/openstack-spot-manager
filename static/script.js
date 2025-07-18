@@ -447,9 +447,23 @@ function getSelectedOperations() {
     const selectedOps = [];
     const checkboxes = document.querySelectorAll('#pendingOperationsList input[type="checkbox"]:checked');
     
-    checkboxes.forEach(checkbox => {
+    console.log('🔍 getSelectedOperations debug:', {
+        totalCheckboxes: document.querySelectorAll('#pendingOperationsList input[type="checkbox"]').length,
+        checkedCheckboxes: checkboxes.length,
+        pendingOperationsCount: window.Frontend.pendingOperations.length
+    });
+    
+    checkboxes.forEach((checkbox, idx) => {
         const operationIndex = parseInt(checkbox.dataset.operationIndex);
         const commandIndex = parseInt(checkbox.dataset.commandIndex);
+        
+        console.log(`🔍 Checkbox ${idx}:`, {
+            id: checkbox.id,
+            operationIndex,
+            commandIndex,
+            hasOperationIndex: !isNaN(operationIndex),
+            hasCommandIndex: !isNaN(commandIndex)
+        });
         
         if (!isNaN(operationIndex) && operationIndex < window.Frontend.pendingOperations.length) {
             const operation = window.Frontend.pendingOperations[operationIndex];
@@ -474,6 +488,7 @@ function getSelectedOperations() {
         }
     });
     
+    console.log('🔍 Selected operations:', selectedOps);
     return selectedOps;
 }
 
@@ -482,6 +497,16 @@ function executeOperationsSequentially(operations) {
     let currentIndex = 0;
     const errors = [];
     let completedCount = 0;
+    
+    console.log('🔍 executeOperationsSequentially called with:', {
+        operationsCount: operations.length,
+        operations: operations.map(op => ({
+            hostname: op.hostname,
+            type: op.type,
+            sourceAggregate: op.sourceAggregate,
+            targetAggregate: op.targetAggregate
+        }))
+    });
     
     const executeNext = () => {
         if (currentIndex >= operations.length) {
@@ -575,6 +600,11 @@ function executeOpenStackMigration(operation, callback) {
         target_aggregate: operation.targetAggregate
     };
     
+    console.log('🔍 executeOpenStackMigration called:', {
+        operation: operation.hostname,
+        requestData
+    });
+    
     window.Utils.fetchWithTimeout('/api/execute-migration', {
         method: 'POST',
         headers: {
@@ -582,8 +612,12 @@ function executeOpenStackMigration(operation, callback) {
         },
         body: JSON.stringify(requestData)
     }, 30000)
-    .then(response => response.json())
+    .then(response => {
+        console.log('🔍 Migration API response:', response.status, response.statusText);
+        return response.json();
+    })
     .then(data => {
+        console.log('🔍 Migration API data:', data);
         if (data.error) {
             callback(false, data.error);
         } else {
@@ -591,6 +625,7 @@ function executeOpenStackMigration(operation, callback) {
         }
     })
     .catch(error => {
+        console.error('🔍 Migration API error:', error);
         callback(false, error.message);
     });
 }
