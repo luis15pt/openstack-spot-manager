@@ -168,6 +168,30 @@
                                     <!-- On-demand variant columns will be dynamically inserted here -->
                                 </div>
                                 
+                                <!-- Fallback On-Demand Column (for compatibility) -->
+                                <div class="col-md-3" id="ondemandColumnFallback" style="display: none;">
+                                    <div class="aggregate-column" id="ondemandColumn">
+                                        <div class="card">
+                                            <div class="card-header bg-primary text-white">
+                                                <h4 class="mb-0">
+                                                    <i class="fas fa-server"></i> 
+                                                    On-Demand <span id="ondemandName"></span>
+                                                    <span class="badge bg-light text-dark ms-2" id="ondemandCount">0</span>
+                                                </h4>
+                                                <div class="mt-2">
+                                                    <small class="text-light">GPU Usage: <span id="ondemandGpuUsage">0/0</span> (<span id="ondemandGpuPercent">0%</span>)</small>
+                                                    <div class="progress mt-1" style="height: 6px;">
+                                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="ondemandGpuProgressBar"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="card-body drop-zone" id="ondemandHosts" data-type="ondemand">
+                                                <!-- On-demand hosts will be dynamically inserted here -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <!-- Spot Column -->
                                 <div class="col-md-3">
                                     <div class="aggregate-column" id="spotColumn">

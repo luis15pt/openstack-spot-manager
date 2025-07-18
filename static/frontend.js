@@ -967,6 +967,12 @@ function renderOnDemandVariantColumns(ondemandData) {
     
     if (ondemandData.variants && ondemandData.variants.length > 1) {
         // Multiple variants - create separate columns
+        // Hide fallback column
+        const fallbackColumn = document.getElementById('ondemandColumnFallback');
+        if (fallbackColumn) {
+            fallbackColumn.style.display = 'none';
+        }
+        
         ondemandData.variants.forEach((variant, index) => {
             const variantHosts = ondemandData.hosts.filter(host => host.variant === variant.aggregate);
             const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
@@ -1002,34 +1008,27 @@ function renderOnDemandVariantColumns(ondemandData) {
             `;
         });
     } else {
-        // Single variant or no variants - use original single column
-        const variantName = ondemandData.variants && ondemandData.variants.length > 0 ? 
-            ondemandData.variants[0].variant : ondemandData.name;
-        
-        columnsHtml = `
-            <div class="col-md-3">
-                <div class="aggregate-column" id="ondemandColumn">
-                    <div class="card">
-                        <div class="card-header bg-primary text-white">
-                            <h4 class="mb-0">
-                                <i class="fas fa-server"></i> 
-                                ${variantName}
-                                <span class="badge bg-light text-dark ms-2">${ondemandData.hosts.length}</span>
-                            </h4>
-                            <div class="mt-2">
-                                <small class="text-light">GPU Usage: <span id="ondemandGpuUsage">0/0</span> (<span id="ondemandGpuPercent">0%</span>)</small>
-                                <div class="progress mt-1" style="height: 6px;">
-                                    <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="ondemandGpuProgressBar"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card-body drop-zone" id="ondemandHosts" data-type="ondemand" data-variant="${ondemandData.variants?.[0]?.aggregate || ''}">
-                            <!-- On-demand hosts will be dynamically inserted here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+        // Single variant or no variants - use fallback column
+        const fallbackColumn = document.getElementById('ondemandColumnFallback');
+        if (fallbackColumn) {
+            fallbackColumn.style.display = 'block';
+            
+            // Update the fallback column with data
+            const nameElement = document.getElementById('ondemandName');
+            const countElement = document.getElementById('ondemandCount');
+            const variantName = ondemandData.variants && ondemandData.variants.length > 0 ? 
+                ondemandData.variants[0].variant : ondemandData.name;
+            
+            if (nameElement) nameElement.textContent = variantName;
+            if (countElement) countElement.textContent = ondemandData.hosts.length;
+            
+            // Set variant data attribute
+            const hostsContainer = document.getElementById('ondemandHosts');
+            if (hostsContainer && ondemandData.variants && ondemandData.variants.length > 0) {
+                hostsContainer.setAttribute('data-variant', ondemandData.variants[0].aggregate);
+            }
+        }
+        columnsHtml = ''; // No dynamic columns needed
     }
     
     container.innerHTML = columnsHtml;
