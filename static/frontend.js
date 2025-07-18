@@ -636,6 +636,7 @@ function addToPendingOperations(hostname, sourceType, targetType) {
     }
     
     updatePendingOperationsDisplay();
+    showNotification(`Added ${hostname} to pending operations (${sourceType} → ${targetType})`, 'info');
 }
 
 function updatePendingOperationsDisplay() {
