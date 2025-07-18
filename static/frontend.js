@@ -1,8 +1,6 @@
-// Frontend UI operations for OpenStack Spot Manager
-// Handles DOM manipulation, user interactions, and UI updates
-
-// Global state
-let aggregateData = null;
+// Frontend UI operations for OpenStack Spot Manager - extracted from original working code
+// Global state - matching original exactly
+let aggregateData = {};
 let pendingOperations = [];
 let availableGpuTypes = [];
 let selectedHosts = new Set();
@@ -66,17 +64,14 @@ function showNotification(message, type = 'info') {
     bsToast.show();
 }
 
-// Render aggregate data in the UI
+// ORIGINAL renderAggregateData function - exactly as it was working
 function renderAggregateData(data) {
-    console.log('🎨 Rendering aggregate data:', data);
-    window.Logs.addToDebugLog('Frontend', 'Rendering aggregate data', 'info');
+    // Clear existing content
+    document.getElementById('ondemandHosts').innerHTML = '';
+    document.getElementById('runpodHosts').innerHTML = '';
+    document.getElementById('spotHosts').innerHTML = '';
     
-    // Clear existing host data
-    document.getElementById('runpodHosts').innerHTML = '<div class="drop-zone" data-type="runpod"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
-    document.getElementById('ondemandHosts').innerHTML = '<div class="drop-zone" data-type="ondemand"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
-    document.getElementById('spotHosts').innerHTML = '<div class="drop-zone" data-type="spot"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
-    
-    // Update aggregate names in headers (original approach)
+    // Update column headers with aggregate names and counts
     document.getElementById('ondemandName').textContent = data.ondemand.name || 'N/A';
     document.getElementById('runpodName').textContent = data.runpod.name || 'N/A';
     document.getElementById('spotName').textContent = data.spot.name || 'N/A';
@@ -85,6 +80,53 @@ function renderAggregateData(data) {
     if (data.ondemand.variants && data.ondemand.variants.length > 1) {
         const variantNames = data.ondemand.variants.map(v => v.variant).join(', ');
         document.getElementById('ondemandName').title = `Includes variants: ${variantNames}`;
+    }
+    
+    document.getElementById('ondemandCount').textContent = data.ondemand.hosts ? data.ondemand.hosts.length : 0;
+    document.getElementById('runpodCount').textContent = data.runpod.hosts ? data.runpod.hosts.length : 0;
+    document.getElementById('spotCount').textContent = data.spot.hosts ? data.spot.hosts.length : 0;
+    
+    // Update per-column GPU statistics
+    if (data.ondemand.gpu_summary) {
+        const ondemandPercent = Math.round((data.ondemand.gpu_summary.gpu_used / data.ondemand.gpu_summary.gpu_capacity) * 100) || 0;
+        document.getElementById('ondemandGpuUsage').textContent = data.ondemand.gpu_summary.gpu_usage_ratio;
+        document.getElementById('ondemandGpuPercent').textContent = ondemandPercent + '%';
+        document.getElementById('ondemandGpuProgressBar').style.width = ondemandPercent + '%';
+    }
+    if (data.spot.gpu_summary) {
+        const spotPercent = Math.round((data.spot.gpu_summary.gpu_used / data.spot.gpu_summary.gpu_capacity) * 100) || 0;
+        document.getElementById('spotGpuUsage').textContent = data.spot.gpu_summary.gpu_usage_ratio;
+        document.getElementById('spotGpuPercent').textContent = spotPercent + '%';
+        document.getElementById('spotGpuProgressBar').style.width = spotPercent + '%';
+    }
+    
+    // Update Runpod VM statistics
+    if (data.runpod.hosts) {
+        const totalVms = data.runpod.hosts.reduce((total, host) => total + (host.vm_count || 0), 0);
+        document.getElementById('runpodVmUsage').textContent = totalVms + ' VMs';
+    }
+    
+    // Update overall summary banner
+    if (data.gpu_overview) {
+        document.getElementById('totalGpuUsage').textContent = data.gpu_overview.gpu_usage_ratio + ' GPUs';
+        document.getElementById('gpuUsagePercentage').textContent = data.gpu_overview.gpu_usage_percentage + '%';
+        document.getElementById('gpuProgressBar').style.width = data.gpu_overview.gpu_usage_percentage + '%';
+        document.getElementById('gpuProgressText').textContent = data.gpu_overview.gpu_usage_percentage + '%';
+        
+        // Update progress bar color based on usage
+        const progressBar = document.getElementById('gpuProgressBar');
+        const percentage = parseInt(data.gpu_overview.gpu_usage_percentage);
+        if (percentage > 80) {
+            progressBar.className = 'progress-bar bg-danger';
+        } else if (percentage > 60) {
+            progressBar.className = 'progress-bar bg-warning';
+        } else {
+            progressBar.className = 'progress-bar bg-success';
+        }
+        
+        // Update available/in-use host counts
+        document.getElementById('availableHostsCount').textContent = data.gpu_overview.hosts_available || 0;
+        document.getElementById('inUseHostsCount').textContent = data.gpu_overview.hosts_in_use || 0;
     }
     
     // Render hosts for each aggregate
@@ -100,23 +142,13 @@ function renderAggregateData(data) {
         renderHosts('spotHosts', data.spot.hosts, 'spot', data.spot.name);
     }
     
-    // Update counters
-    updateAggregateCounters();
-    
-    // Setup drag and drop (call from main script)
-    if (window.setupDragAndDrop) {
+    // Setup drag and drop if function exists
+    if (typeof window.setupDragAndDrop === 'function') {
         window.setupDragAndDrop();
     }
-    
-    // Update control buttons (call from main script)
-    if (window.updateControlButtons) {
-        window.updateControlButtons();
-    }
-    
-    window.Logs.addToDebugLog('Frontend', 'Aggregate data rendered successfully', 'success');
 }
 
-// Render on-demand variants with grouping
+// ORIGINAL renderOnDemandVariants function
 function renderOnDemandVariants(containerId, hosts, variants) {
     const container = document.getElementById(containerId);
     
@@ -136,7 +168,7 @@ function renderOnDemandVariants(containerId, hosts, variants) {
     });
     
     // Render grouped hosts
-    let html = '<div class="drop-zone" data-type="ondemand"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
+    let html = '';
     
     variants.forEach(variant => {
         const variantHosts = hostsByVariant[variant] || [];
@@ -168,39 +200,20 @@ function renderOnDemandVariants(containerId, hosts, variants) {
     container.innerHTML = html;
 }
 
-// Render hosts in a container
-function renderHosts(containerId, hosts, type, aggregateName = null, variants = null) {
+// ORIGINAL renderHosts function
+function renderHosts(containerId, hosts, type, aggregateName = null) {
     const container = document.getElementById(containerId);
     
     if (!hosts || hosts.length === 0) {
-        container.innerHTML = '<div class="drop-zone" data-type="' + type + '"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
+        container.innerHTML = '<p class="text-muted text-center">No hosts in this aggregate</p>';
         return;
     }
     
-    // Filter out hosts with invalid/undefined names and log them
-    const validHosts = hosts.filter(host => {
-        if (!host || !host.name) {
-            console.warn('⚠️ Found host with undefined name:', host);
-            window.Logs.addToDebugLog('Frontend', `Invalid host object found: ${JSON.stringify(host)}`, 'warning');
-            return false;
-        }
-        return true;
-    });
+    // Sort hosts by name
+    hosts.sort((a, b) => a.name.localeCompare(b.name));
     
-    if (validHosts.length !== hosts.length) {
-        console.warn(`⚠️ Filtered out ${hosts.length - validHosts.length} invalid hosts from ${type} aggregate`);
-        window.Logs.addToDebugLog('Frontend', `Filtered ${hosts.length - validHosts.length} invalid hosts from ${type}`, 'warning');
-    }
-    
-    // Sort valid hosts by name
-    validHosts.sort((a, b) => a.name.localeCompare(b.name));
-    
-    // Create drop zone
-    let html = '<div class="drop-zone" data-type="' + type + '"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
-    
-    // Add valid hosts
-    html += '<div class="row">';
-    validHosts.forEach(host => {
+    let html = '<div class="row">';
+    hosts.forEach(host => {
         html += `<div class="col-md-6 col-lg-4 mb-3">${createHostCard(host, type, aggregateName)}</div>`;
     });
     html += '</div>';
@@ -208,363 +221,63 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
     container.innerHTML = html;
 }
 
-// Create a host card
+// ORIGINAL createHostCard function - exactly as it was working
 function createHostCard(host, type, aggregateName = null) {
-    // Safety check for valid host object
-    if (!host || !host.name) {
-        console.error('❌ Cannot create card for invalid host:', host);
-        return '<div class="col-md-6 col-lg-4 mb-3"><div class="alert alert-warning">Invalid host data</div></div>';
-    }
+    const hasVms = host.has_vms;
+    const vmBadgeClass = hasVms ? 'vm-badge active' : 'vm-badge zero';
+    const warningIcon = hasVms ? '<i class="fas fa-exclamation-triangle warning-icon"></i>' : '';
+    const cardClass = hasVms ? 'machine-card has-vms' : 'machine-card';
     
-    const isSelected = selectedHosts.has(host.name);
-    const vmCount = host.vm_count || 0;
-    const hasVms = host.has_vms || false;
-    
-    // Determine if host is in use
-    const inUse = hasVms || host.status === 'in-use';
-    
-    // Get GPU usage information
-    const gpuUsage = host.gpu_usage || { used: 0, total: 0 };
-    const gpuPercentage = gpuUsage.total > 0 ? Math.round((gpuUsage.used / gpuUsage.total) * 100) : 0;
-    
-    // Determine card styling
-    const cardClass = inUse ? 'host-card in-use' : 'host-card';
-    const selectedClass = isSelected ? 'selected' : '';
-    
-    // Get status styling
-    const statusClass = window.Utils.getStatusClass(host.status || 'UNKNOWN');
-    const statusIcon = window.Utils.getStatusIcon(host.status || 'UNKNOWN');
-    
-    // Pending operation indicator
-    const pendingOp = pendingOperations.find(op => op.hostname === host.name);
-    const pendingIndicator = pendingOp ? `
-        <div class="pending-indicator">
-            <i class="fas fa-clock text-warning"></i>
-            <small class="text-warning">Pending</small>
-        </div>` : '';
+    // Create tenant badge
+    const tenant = host.tenant || 'Unknown';
+    const ownerGroup = host.owner_group || 'Investors';
+    const tenantBadgeClass = ownerGroup === 'Nexgen Cloud' ? 'tenant-badge nexgen' : 'tenant-badge investors';
+    const tenantIcon = ownerGroup === 'Nexgen Cloud' ? 'fas fa-cloud' : 'fas fa-users';
     
     return `
-        <div class="card ${cardClass} ${selectedClass}" 
+        <div class="${cardClass}" 
+             draggable="true" 
              data-host="${host.name}" 
-             data-type="${type}" 
-             draggable="true"
+             data-type="${type}"
+             data-aggregate="${host.variant || aggregateName || ''}"
+             data-has-vms="${hasVms}"
+             data-owner-group="${ownerGroup}"
              onclick="handleHostClick(event)">
-            ${pendingIndicator}
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="card-title mb-0">${host.name}</h6>
-                    <span class="badge bg-${statusClass}">
-                        <i class="${statusIcon}"></i>
-                    </span>
+            <div class="machine-card-header">
+                <i class="fas fa-grip-vertical drag-handle"></i>
+                <div class="machine-name">${host.name}</div>
+                ${warningIcon}
+            </div>
+            <div class="machine-status">
+                <div class="vm-info ${host.vm_count > 0 ? 'clickable-vm-count' : ''}" 
+                     ${host.vm_count > 0 ? `onclick="showVmDetails('${host.name}')"` : ''}>
+                    <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
+                    ${type === 'runpod' ? 
+                        `<span class="${vmBadgeClass}">${host.vm_count}</span>
+                         <span class="vm-label">VMs</span>` :
+                        `<span class="gpu-info">${host.gpu_used}/${host.gpu_capacity}</span>
+                         <span class="gpu-label">GPUs</span>`
+                    }
                 </div>
-                
-                <div class="gpu-info mb-2">
-                    <div class="d-flex justify-content-between">
-                        <small class="text-muted">GPU Usage:</small>
-                        <small class="text-muted">${gpuUsage.used}/${gpuUsage.total} (${gpuPercentage}%)</small>
+                <div class="tenant-info">
+                    <div class="${tenantBadgeClass}">
+                        <i class="${tenantIcon}"></i>
+                        <span class="tenant-name">${tenant}</span>
                     </div>
-                    <div class="progress" style="height: 4px;">
-                        <div class="progress-bar ${gpuPercentage > 80 ? 'bg-danger' : gpuPercentage > 60 ? 'bg-warning' : 'bg-success'}" 
-                             style="width: ${gpuPercentage}%"></div>
-                    </div>
-                </div>
-                
-                ${hasVms ? `
-                    <div class="vm-info">
-                        <small class="text-muted">
-                            <i class="fas fa-desktop me-1"></i>
-                            ${vmCount} VM${vmCount !== 1 ? 's' : ''}
-                            <button class="btn btn-sm btn-outline-info ms-2" 
-                                    onclick="event.stopPropagation(); showVmDetails('${host.name}')">
-                                View
-                            </button>
-                        </small>
-                    </div>
-                ` : ''}
-                
-                <div class="host-actions mt-2">
-                    <button class="btn btn-sm btn-primary me-1" 
-                            onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.name}', '${type}', 'ondemand')">
-                        <i class="fas fa-arrow-left"></i>
-                    </button>
-                    <button class="btn btn-sm btn-purple me-1" 
-                            onclick="event.stopPropagation(); window.Hyperstack.scheduleRunpodLaunch('${host.name}')">
-                        <i class="fas fa-rocket"></i>
-                    </button>
-                    <button class="btn btn-sm btn-warning" 
-                            onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.name}', '${type}', 'spot')">
-                        <i class="fas fa-arrow-right"></i>
-                    </button>
                 </div>
             </div>
+            <div class="machine-actions">
+                <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.name}', '${type}', 'ondemand')">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <button class="btn btn-sm btn-purple" onclick="event.stopPropagation(); window.Hyperstack.scheduleRunpodLaunch('${host.name}')">
+                    <i class="fas fa-rocket"></i>
+                </button>
+                <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.name}', '${type}', 'spot')">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
         </div>`;
-}
-
-// Update aggregate counters using API data (original approach)
-function updateAggregateCountersFromApi(data) {
-    // Update individual aggregate counters
-    document.getElementById('runpodCount').textContent = data.runpod.hosts ? data.runpod.hosts.length : 0;
-    document.getElementById('ondemandCount').textContent = data.ondemand.hosts ? data.ondemand.hosts.length : 0;
-    document.getElementById('spotCount').textContent = data.spot.hosts ? data.spot.hosts.length : 0;
-    
-    // Update per-column GPU statistics using API data
-    if (data.ondemand.gpu_summary) {
-        const ondemandPercent = Math.round((data.ondemand.gpu_summary.gpu_used / data.ondemand.gpu_summary.gpu_capacity) * 100) || 0;
-        document.getElementById('ondemandGpuUsage').textContent = data.ondemand.gpu_summary.gpu_usage_ratio;
-        document.getElementById('ondemandGpuPercent').textContent = ondemandPercent + '%';
-        document.getElementById('ondemandGpuProgressBar').style.width = ondemandPercent + '%';
-    }
-    if (data.spot.gpu_summary) {
-        const spotPercent = Math.round((data.spot.gpu_summary.gpu_used / data.spot.gpu_summary.gpu_capacity) * 100) || 0;
-        document.getElementById('spotGpuUsage').textContent = data.spot.gpu_summary.gpu_usage_ratio;
-        document.getElementById('spotGpuPercent').textContent = spotPercent + '%';
-        document.getElementById('spotGpuProgressBar').style.width = spotPercent + '%';
-    }
-    
-    // Update Runpod VM statistics
-    if (data.runpod.hosts) {
-        const totalVms = data.runpod.hosts.reduce((total, host) => total + (host.vm_count || 0), 0);
-        document.getElementById('runpodVmUsage').textContent = totalVms + ' VMs';
-    }
-    
-    // Update overall summary banner using API data
-    if (data.gpu_overview) {
-        document.getElementById('totalGpuUsage').textContent = data.gpu_overview.gpu_usage_ratio + ' GPUs';
-        document.getElementById('gpuUsagePercentage').textContent = data.gpu_overview.gpu_usage_percentage + '%';
-        document.getElementById('gpuProgressBar').style.width = data.gpu_overview.gpu_usage_percentage + '%';
-        document.getElementById('gpuProgressText').textContent = data.gpu_overview.gpu_usage_percentage + '%';
-        
-        // Update progress bar color based on usage
-        const progressBar = document.getElementById('gpuProgressBar');
-        const percentage = parseInt(data.gpu_overview.gpu_usage_percentage);
-        if (percentage > 80) {
-            progressBar.className = 'progress-bar bg-danger';
-        } else if (percentage > 60) {
-            progressBar.className = 'progress-bar bg-warning';
-        } else {
-            progressBar.className = 'progress-bar bg-success';
-        }
-        
-        // Update available/in-use host counts
-        document.getElementById('availableHostsCount').textContent = data.gpu_overview.hosts_available || 0;
-        document.getElementById('inUseHostsCount').textContent = data.gpu_overview.hosts_in_use || 0;
-    }
-}
-
-// Calculate GPU usage for a set of hosts
-function calculateGpuUsage(hosts) {
-    if (!hosts || hosts.length === 0) {
-        return { used: 0, total: 0, percentage: 0 };
-    }
-    
-    const usage = hosts.reduce((total, host) => {
-        const hostUsage = host.gpu_usage || { used: 0, total: 0 };
-        return {
-            used: total.used + hostUsage.used,
-            total: total.total + hostUsage.total
-        };
-    }, { used: 0, total: 0 });
-    
-    const percentage = usage.total > 0 ? Math.round((usage.used / usage.total) * 100) : 0;
-    
-    return { ...usage, percentage };
-}
-
-// Helper function to get aggregate from card
-function getAggregateFromCard(card) {
-    const aggregateHeader = card.closest('.card').querySelector('.card-header');
-    if (aggregateHeader) {
-        const aggregateSpan = aggregateHeader.querySelector('span');
-        if (aggregateSpan) {
-            return aggregateSpan.textContent.trim();
-        }
-    }
-    return null;
-}
-
-// Helper function to get target aggregate
-function getTargetAggregate(targetType) {
-    if (targetType === 'ondemand' && aggregateData?.ondemand?.name) {
-        return aggregateData.ondemand.name;
-    } else if (targetType === 'runpod' && aggregateData?.runpod?.name) {
-        return aggregateData.runpod.name;
-    } else if (targetType === 'spot' && aggregateData?.spot?.name) {
-        return aggregateData.spot.name;
-    }
-    return null;
-}
-
-// Add operation to pending operations
-function addToPendingOperations(hostname, sourceType, targetType, options = {}) {
-    console.log(`📝 Adding to pending operations: ${hostname} from ${sourceType} to ${targetType}`);
-    window.Logs.addToDebugLog('Frontend', `Adding pending operation: ${hostname} from ${sourceType} to ${targetType}`, 'info', hostname);
-    
-    // Handle regular migrations
-    if (targetType !== 'runpod-launch') {
-        // Existing migration logic...
-        const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
-        if (!sourceCard) {
-            console.error(`Host card not found for ${hostname}`);
-            return;
-        }
-        
-        const sourceAggregate = getAggregateFromCard(sourceCard);
-        const targetAggregate = getTargetAggregate(targetType);
-        
-        if (!sourceAggregate || !targetAggregate) {
-            console.error(`Could not determine aggregates for ${hostname}`);
-            return;
-        }
-        
-        // Check if already pending
-        const existing = pendingOperations.find(op => op.hostname === hostname);
-        if (existing) {
-            console.log(`Operation already pending for ${hostname}`);
-            return;
-        }
-        
-        // Add to pending operations
-        pendingOperations.push({
-            hostname: hostname,
-            sourceType: sourceType,
-            targetType: targetType,
-            sourceAggregate: sourceAggregate,
-            targetAggregate: targetAggregate,
-            type: 'migration',
-            timestamp: new Date().toISOString()
-        });
-        
-        updatePendingOperationsDisplay();
-        updateCardPendingIndicators();
-        
-        showNotification(`Added ${hostname} migration to pending operations`, 'info');
-        return;
-    }
-    
-    // Handle runpod-launch operations
-    console.log(`🚀 Adding RunPod launch operation for ${hostname}`);
-    window.Logs.addToDebugLog('Frontend', `Adding RunPod launch operation for ${hostname}`, 'info', hostname);
-    
-    // Check if already pending
-    const existing = pendingOperations.find(op => op.hostname === hostname && op.type === 'runpod-launch');
-    if (existing) {
-        console.log(`RunPod launch already pending for ${hostname}`);
-        showNotification(`RunPod launch already pending for ${hostname}`, 'warning');
-        return;
-    }
-    
-    // Add runpod-launch operation
-    pendingOperations.push({
-        hostname: hostname,
-        sourceType: sourceType,
-        targetType: targetType,
-        type: 'runpod-launch',
-        vm_name: options.vm_name || hostname,
-        manual: options.manual || false,
-        timestamp: new Date().toISOString()
-    });
-    
-    updatePendingOperationsDisplay();
-    updateCardPendingIndicators();
-    
-    showNotification(`Added VM launch for ${hostname} to pending operations`, 'info');
-}
-
-// Update pending operations display
-function updatePendingOperationsDisplay() {
-    const container = document.getElementById('pendingOperationsList');
-    const countBadge = document.getElementById('pendingCount');
-    const tabBadge = document.getElementById('pendingTabCount');
-    
-    if (!container) return;
-    
-    // Update count badges
-    countBadge.textContent = pendingOperations.length;
-    tabBadge.textContent = pendingOperations.length;
-    
-    if (pendingOperations.length === 0) {
-        container.innerHTML = `
-            <div class="text-center text-muted">
-                <i class="fas fa-clock fa-3x mb-3"></i>
-                <p>No pending operations. Select hosts and add operations to see them here.</p>
-            </div>`;
-        return;
-    }
-    
-    // Render pending operations
-    const operationsHtml = pendingOperations.map((op, index) => {
-        const isRunpodLaunch = op.type === 'runpod-launch';
-        const icon = isRunpodLaunch ? 'fas fa-rocket' : 'fas fa-exchange-alt';
-        const title = isRunpodLaunch ? 
-            `🚀 Launch VM '${op.vm_name}' on ${op.hostname}` : 
-            `🔄 Move ${op.hostname} from ${op.sourceAggregate} to ${op.targetAggregate}`;
-        
-        return `
-            <div class="pending-operation card mb-3" id="pending-op-${index}">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <div>
-                        <i class="${icon} me-2"></i>
-                        <strong>${title}</strong>
-                    </div>
-                    <div>
-                        <button class="btn btn-sm btn-outline-danger" onclick="removePendingOperation(${index})">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <small class="text-muted">Added: ${window.Utils.formatDate(op.timestamp)}</small>
-                </div>
-            </div>`;
-    }).join('');
-    
-    container.innerHTML = operationsHtml;
-}
-
-// Update host card pending indicators
-function updateCardPendingIndicators() {
-    // Remove all existing pending indicators
-    document.querySelectorAll('.pending-indicator').forEach(indicator => {
-        indicator.remove();
-    });
-    
-    // Add pending indicators for current operations
-    pendingOperations.forEach(op => {
-        const card = document.querySelector(`[data-host="${op.hostname}"]`);
-        if (card) {
-            const indicator = document.createElement('div');
-            indicator.className = 'pending-indicator';
-            indicator.innerHTML = `
-                <i class="fas fa-clock text-warning"></i>
-                <small class="text-warning">Pending</small>`;
-            card.appendChild(indicator);
-        }
-    });
-}
-
-// Update host after VM launch
-function updateHostAfterVMLaunch(hostname) {
-    const hostCard = document.querySelector(`[data-host="${hostname}"]`);
-    if (hostCard) {
-        hostCard.classList.add('in-use');
-        
-        // Update any VM count displays
-        const vmInfo = hostCard.querySelector('.vm-info');
-        if (vmInfo) {
-            vmInfo.innerHTML = `
-                <small class="text-muted">
-                    <i class="fas fa-desktop me-1"></i>
-                    1 VM
-                    <button class="btn btn-sm btn-outline-info ms-2" 
-                            onclick="event.stopPropagation(); showVmDetails('${hostname}')">
-                        View
-                    </button>
-                </small>`;
-        }
-    }
-    
-    // Update aggregate counters using API data
-    updateAggregateCountersFromApi(data);
 }
 
 // Update GPU type selector to show cached indicators
@@ -576,13 +289,11 @@ function updateGpuTypeSelector(cachedTypes = []) {
     
     options.forEach(option => {
         if (option.value && cachedTypes.includes(option.value)) {
-            // Add indicator for actually cached types
             if (!option.textContent.includes('⚡')) {
                 option.textContent = option.textContent + ' ⚡';
                 option.title = 'Cached - will load instantly';
             }
         } else if (option.value && option.textContent.includes('⚡')) {
-            // Remove indicator if not cached
             option.textContent = option.textContent.replace(' ⚡', '');
             option.title = '';
         }
@@ -591,22 +302,17 @@ function updateGpuTypeSelector(cachedTypes = []) {
 
 // Show migration preview modal
 function showMigrationModal(data, hasVms = false) {
-    console.log('📋 Showing migration modal:', data);
-    window.Logs.addToDebugLog('Frontend', 'Showing migration preview modal', 'info');
-    
     const modal = new bootstrap.Modal(document.getElementById('migrationModal'));
     const warningDiv = document.getElementById('migrationWarning');
     const commandPreview = document.getElementById('commandPreview');
     const confirmBtn = document.getElementById('confirmMigrationBtn');
     
-    // Show/hide warning based on VM presence
     if (hasVms) {
         warningDiv.classList.remove('d-none');
     } else {
         warningDiv.classList.add('d-none');
     }
     
-    // Display commands that will be executed
     if (data.commands && data.commands.length > 0) {
         const commandsHtml = data.commands.map((cmd, index) => `
             <div class="command-item mb-2">
@@ -617,54 +323,79 @@ function showMigrationModal(data, hasVms = false) {
                 <div class="mt-1">
                     <code class="text-muted">${cmd.command || cmd.description || 'Command details'}</code>
                 </div>
-                ${cmd.description ? `<small class="text-muted">${cmd.description}</small>` : ''}
             </div>
         `).join('');
-        
         commandPreview.innerHTML = commandsHtml;
     } else {
-        commandPreview.innerHTML = '<p class="text-muted">No specific commands available for preview.</p>';
+        commandPreview.innerHTML = '<p class="text-muted">No commands available for preview.</p>';
     }
     
-    // Set up confirm button click handler
     confirmBtn.onclick = function() {
-        console.log('✅ Migration confirmed by user');
-        window.Logs.addToDebugLog('Frontend', 'Migration confirmed by user', 'info');
-        
-        // Add migration to pending operations
-        if (data.hostname && data.sourceType && data.targetType) {
-            addToPendingOperations(data.hostname, data.sourceType, data.targetType);
-            showNotification(`Added ${data.hostname} migration to pending operations`, 'success');
-        } else {
-            console.error('❌ Invalid migration data:', data);
-            showNotification('Error: Invalid migration data', 'danger');
-        }
-        
+        addToPendingOperations(data.hostname, data.sourceType, data.targetType);
+        showNotification(`Added ${data.hostname} migration to pending operations`, 'success');
         modal.hide();
     };
     
     modal.show();
 }
 
-// Export Frontend functions
+// Add to pending operations - simplified version
+function addToPendingOperations(hostname, sourceType, targetType) {
+    pendingOperations.push({
+        hostname: hostname,
+        sourceType: sourceType,
+        targetType: targetType,
+        timestamp: new Date().toISOString()
+    });
+    
+    updatePendingOperationsDisplay();
+    showNotification(`Added ${hostname} to pending operations`, 'info');
+}
+
+// Update pending operations display
+function updatePendingOperationsDisplay() {
+    const container = document.getElementById('pendingOperationsList');
+    const countBadge = document.getElementById('pendingCount');
+    const tabBadge = document.getElementById('pendingTabCount');
+    
+    if (countBadge) countBadge.textContent = pendingOperations.length;
+    if (tabBadge) tabBadge.textContent = pendingOperations.length;
+    
+    if (!container) return;
+    
+    if (pendingOperations.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">No pending operations</p>';
+        return;
+    }
+    
+    const operationsHtml = pendingOperations.map((op, index) => `
+        <div class="pending-operation card mb-3">
+            <div class="card-body">
+                <h6>Move ${op.hostname} from ${op.sourceType} to ${op.targetType}</h6>
+                <small class="text-muted">Added: ${new Date(op.timestamp).toLocaleString()}</small>
+                <button class="btn btn-sm btn-danger float-end" onclick="removePendingOperation(${index})">Remove</button>
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = operationsHtml;
+}
+
+// Export all functions for modular access
 window.Frontend = {
-    // State - use getters/setters for proper state management
+    // State
     get aggregateData() { return aggregateData; },
     set aggregateData(value) { aggregateData = value; },
-    
     get pendingOperations() { return pendingOperations; },
     set pendingOperations(value) { pendingOperations = value; },
-    
     get availableGpuTypes() { return availableGpuTypes; },
     set availableGpuTypes(value) { availableGpuTypes = value; },
-    
     get selectedHosts() { return selectedHosts; },
     set selectedHosts(value) { selectedHosts = value; },
-    
     get isExecutionInProgress() { return isExecutionInProgress; },
     set isExecutionInProgress(value) { isExecutionInProgress = value; },
     
-    // UI functions
+    // Functions
     showLoading,
     updateLoadingProgress,
     showMainContent,
@@ -674,16 +405,8 @@ window.Frontend = {
     renderOnDemandVariants,
     renderHosts,
     createHostCard,
-    updateAggregateCounters: updateAggregateCountersFromApi,
-    calculateGpuUsage,
-    addToPendingOperations,
-    updatePendingOperationsDisplay,
-    updateCardPendingIndicators,
-    updateHostAfterVMLaunch,
     updateGpuTypeSelector,
     showMigrationModal,
-    
-    // Helper functions
-    getAggregateFromCard,
-    getTargetAggregate
+    addToPendingOperations,
+    updatePendingOperationsDisplay
 };
