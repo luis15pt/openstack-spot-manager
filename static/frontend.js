@@ -955,15 +955,32 @@ function scheduleRunpodLaunch(hostname) {
 // Make functions globally available for HTML onclick handlers
 // Render On-Demand variants as separate columns
 function renderOnDemandVariantColumns(ondemandData) {
-    const container = document.getElementById('ondemandColumns');
-    if (!container) return;
-    
     console.log('🔍 renderOnDemandVariantColumns:', {
         variants: ondemandData.variants,
         totalHosts: ondemandData.hosts.length
     });
     
-    let columnsHtml = '';
+    // Calculate total columns: RunPod + OnDemand variants + Spot
+    const totalVariants = ondemandData.variants ? ondemandData.variants.length : 1;
+    const totalColumns = 1 + totalVariants + 1; // RunPod + variants + Spot
+    const colWidth = Math.floor(12 / totalColumns); // Bootstrap grid is 12 columns
+    
+    console.log('🔍 Column calculation:', {
+        totalVariants,
+        totalColumns,
+        colWidth
+    });
+    
+    // Update RunPod and Spot column widths
+    const runpodColumn = document.querySelector('#runpodColumn').closest('.col-md-2');
+    const spotColumn = document.querySelector('#spotColumn').closest('.col-md-2');
+    
+    if (runpodColumn) {
+        runpodColumn.className = runpodColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
+    }
+    if (spotColumn) {
+        spotColumn.className = spotColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
+    }
     
     if (ondemandData.variants && ondemandData.variants.length > 1) {
         // Multiple variants - create separate columns
@@ -973,6 +990,15 @@ function renderOnDemandVariantColumns(ondemandData) {
             fallbackColumn.style.display = 'none';
         }
         
+        // Insert columns directly into the row, not into a separate container
+        const mainRow = document.querySelector('.row.mt-3');
+        const spotColumnElement = document.querySelector('#spotColumn').closest('.col-md-2, .col-md-3, .col-md-4');
+        
+        // Remove existing ondemand columns
+        const existingOndemandColumns = mainRow.querySelectorAll('[id*="ondemand"][id*="Column"]:not(#ondemandColumnFallback)');
+        existingOndemandColumns.forEach(col => col.remove());
+        
+        // Add each variant column before the spot column
         ondemandData.variants.forEach((variant, index) => {
             const variantHosts = ondemandData.hosts.filter(host => host.variant === variant.aggregate);
             const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
@@ -982,8 +1008,8 @@ function renderOnDemandVariantColumns(ondemandData) {
                 hostCount: variantHosts.length
             });
             
-            columnsHtml += `
-                <div class="flex-fill me-3">
+            const columnHtml = `
+                <div class="col-md-${colWidth}">
                     <div class="aggregate-column" id="${variantId}Column">
                         <div class="card">
                             <div class="card-header bg-primary text-white">
@@ -1006,12 +1032,27 @@ function renderOnDemandVariantColumns(ondemandData) {
                     </div>
                 </div>
             `;
+            
+            spotColumnElement.insertAdjacentHTML('beforebegin', columnHtml);
         });
+        
+        // Render hosts for each variant column
+        ondemandData.variants.forEach(variant => {
+            const variantHosts = ondemandData.hosts.filter(host => host.variant === variant.aggregate);
+            const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
+            const container = document.getElementById(`${variantId}Hosts`);
+            
+            if (container) {
+                renderHosts(container.id, variantHosts, 'ondemand', variant.aggregate);
+            }
+        });
+        
     } else {
-        // Single variant or no variants - use fallback column
+        // Single variant - use fallback column
         const fallbackColumn = document.getElementById('ondemandColumnFallback');
         if (fallbackColumn) {
             fallbackColumn.style.display = 'block';
+            fallbackColumn.className = fallbackColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
             
             // Update the fallback column with data
             const nameElement = document.getElementById('ondemandName');
@@ -1027,28 +1068,12 @@ function renderOnDemandVariantColumns(ondemandData) {
             if (hostsContainer && ondemandData.variants && ondemandData.variants.length > 0) {
                 hostsContainer.setAttribute('data-variant', ondemandData.variants[0].aggregate);
             }
-        }
-        columnsHtml = ''; // No dynamic columns needed
-    }
-    
-    container.innerHTML = columnsHtml;
-    
-    // Now render hosts for each variant column
-    if (ondemandData.variants && ondemandData.variants.length > 1) {
-        ondemandData.variants.forEach(variant => {
-            const variantHosts = ondemandData.hosts.filter(host => host.variant === variant.aggregate);
-            const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
-            const container = document.getElementById(`${variantId}Hosts`);
             
+            // Render hosts
+            const container = document.getElementById('ondemandHosts');
             if (container) {
-                renderHosts(container.id, variantHosts, 'ondemand', variant.aggregate);
+                renderHosts(container.id, ondemandData.hosts, 'ondemand', ondemandData.name);
             }
-        });
-    } else {
-        // Single variant
-        const container = document.getElementById('ondemandHosts');
-        if (container) {
-            renderHosts(container.id, ondemandData.hosts, 'ondemand', ondemandData.name);
         }
     }
 }
