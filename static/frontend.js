@@ -570,9 +570,18 @@ function handleDrop(e) {
     const hostname = e.dataTransfer.getData('text/plain');
     const sourceType = e.dataTransfer.getData('source-type');
     const targetType = e.currentTarget.dataset.type;
+    const targetVariant = e.currentTarget.dataset.variant; // Get specific variant if available
+    
+    console.log('🔍 handleDrop:', {
+        hostname,
+        sourceType,
+        targetType,
+        targetVariant,
+        dropZone: e.currentTarget
+    });
     
     if (sourceType !== targetType) {
-        addToPendingOperations(hostname, sourceType, targetType);
+        addToPendingOperations(hostname, sourceType, targetType, targetVariant);
     }
 }
 
@@ -659,7 +668,7 @@ function updateGpuTypeSelector(cachedTypes = []) {
     });
 }
 
-function addToPendingOperations(hostname, sourceType, targetType) {
+function addToPendingOperations(hostname, sourceType, targetType, targetVariant = null) {
     // Get the aggregate name from the card data
     const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
     const sourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
@@ -684,32 +693,35 @@ function addToPendingOperations(hostname, sourceType, targetType) {
                 targetAggregate = aggregateData.runpod.name;
             }
         } else if (targetType === 'ondemand') {
-            // Moving to on-demand - determine which variant to use
-            if (aggregateData.ondemand.variants && aggregateData.ondemand.variants.length > 0) {
-                // If host is coming from an ondemand variant, use the same variant
+            // Moving to on-demand - use the specific variant from drop zone
+            if (targetVariant) {
+                // User dropped into a specific variant drop zone
+                targetAggregate = targetVariant;
+                
+                // Check if host NVLink capability matches the target variant
+                const hostCard = document.querySelector(`[data-host="${hostname}"]`);
+                const hasNVLink = hostCard && hostCard.dataset.nvlinks === 'true';
+                const targetVariantInfo = aggregateData.ondemand.variants?.find(v => v.aggregate === targetVariant);
+                const targetIsNVLink = targetVariantInfo?.variant.toLowerCase().includes('nvlink');
+                
+                // Show warning if NVLink mismatch
+                if (hasNVLink && !targetIsNVLink) {
+                    const proceed = confirm(`⚠️ Warning: Host ${hostname} has NVLink capability but you're moving it to a non-NVLink variant (${targetVariantInfo?.variant}). Do you want to proceed?`);
+                    if (!proceed) return;
+                } else if (!hasNVLink && targetIsNVLink) {
+                    const proceed = confirm(`⚠️ Warning: Host ${hostname} does not have NVLink capability but you're moving it to an NVLink variant (${targetVariantInfo?.variant}). Do you want to proceed?`);
+                    if (!proceed) return;
+                }
+            } else if (aggregateData.ondemand.variants && aggregateData.ondemand.variants.length > 0) {
+                // No specific variant specified, use smart logic
                 const sourceVariant = aggregateData.ondemand.variants.find(variant => 
                     variant.aggregate === sourceAggregate
                 );
                 if (sourceVariant) {
                     targetAggregate = sourceVariant.aggregate;
                 } else {
-                    // Host coming from spot/runpod - determine which ondemand variant to use
-                    // Check if host has NVLink to determine A100-n3 vs A100-n3-NVLink
-                    const hostCard = document.querySelector(`[data-host="${hostname}"]`);
-                    const hasNVLink = hostCard && hostCard.dataset.nvlinks === 'true';
-                    
-                    // Find the appropriate variant based on NVLink capability
-                    const preferredVariant = aggregateData.ondemand.variants.find(variant => {
-                        const isNVLinkVariant = variant.variant.toLowerCase().includes('nvlink');
-                        return hasNVLink ? isNVLinkVariant : !isNVLinkVariant;
-                    });
-                    
-                    if (preferredVariant) {
-                        targetAggregate = preferredVariant.aggregate;
-                    } else {
-                        // Fallback to first available variant
-                        targetAggregate = aggregateData.ondemand.variants[0].aggregate;
-                    }
+                    // Fallback to first available variant
+                    targetAggregate = aggregateData.ondemand.variants[0].aggregate;
                 }
             } else {
                 // Fallback to single ondemand aggregate
