@@ -445,8 +445,6 @@ function executeAllPendingOperations() {
 }
 
 // Make functions available globally that need to be called from HTML or other modules
-window.handleHostClick = handleHostClick;
-window.toggleGroup = toggleGroup;
 window.showVmDetails = showVmDetails;
 window.removePendingOperation = removePendingOperation;
 window.updateControlButtons = updateControlButtons;

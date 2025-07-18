@@ -492,6 +492,49 @@ function handleDrop(e) {
     }
 }
 
+// Handle host card clicks - needed for selection
+function handleHostClick(e) {
+    if (e.target.closest('button')) {
+        return; // Don't handle clicks on buttons
+    }
+    
+    const card = e.currentTarget;
+    const hostname = card.dataset.host;
+    
+    if (card.classList.contains('selected')) {
+        card.classList.remove('selected');
+        selectedHosts.delete(hostname);
+    } else {
+        card.classList.add('selected');
+        selectedHosts.add(hostname);
+    }
+    
+    // Update control buttons if function exists
+    if (typeof window.updateControlButtons === 'function') {
+        window.updateControlButtons();
+    }
+}
+
+// Toggle group visibility - needed for collapsible menus
+function toggleGroup(groupId) {
+    const group = document.getElementById(groupId);
+    const chevron = document.getElementById(groupId + '-icon');
+    
+    if (group && chevron) {
+        if (group.classList.contains('collapsed') || group.style.display === 'none') {
+            group.classList.remove('collapsed');
+            group.style.display = 'block';
+            chevron.classList.remove('fa-chevron-down');
+            chevron.classList.add('fa-chevron-up');
+        } else {
+            group.classList.add('collapsed');
+            group.style.display = 'none';
+            chevron.classList.remove('fa-chevron-up');
+            chevron.classList.add('fa-chevron-down');
+        }
+    }
+}
+
 // Basic loading/notification functions for modular compatibility
 function showLoading(show, message = 'Loading...', step = 'Initializing...', progress = 0) {
     const loadingIndicator = document.getElementById('loadingIndicator');
@@ -545,6 +588,19 @@ function addToPendingOperations(hostname, sourceType, targetType) {
     });
     console.log(`Added ${hostname} to pending operations: ${sourceType} → ${targetType}`);
 }
+
+// Placeholder for scheduleRunpodLaunch function (referenced in host cards)
+function scheduleRunpodLaunch(hostname) {
+    console.log(`Schedule RunPod launch for ${hostname}`);
+    if (window.Hyperstack && window.Hyperstack.scheduleRunpodLaunch) {
+        window.Hyperstack.scheduleRunpodLaunch(hostname);
+    }
+}
+
+// Make functions globally available for HTML onclick handlers
+window.toggleGroup = toggleGroup;
+window.handleHostClick = handleHostClick;
+window.scheduleRunpodLaunch = scheduleRunpodLaunch;
 
 // Export for modular access - only the minimum needed
 window.Frontend = {
