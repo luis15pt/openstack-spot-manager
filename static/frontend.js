@@ -279,17 +279,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
         `;
     }
     
-    // Add drop zone at the end (except for runpod which has entire column as drop zone)
-    if (type !== 'runpod') {
-        sectionsHtml += `
-            <div class="drop-zone" data-type="${type}">
-                <div class="drop-zone-content">
-                    <i class="fas fa-download"></i>
-                    <p>Drop hosts here to move to ${type}</p>
-                </div>
-            </div>
-        `;
-    }
+    // No need to add drop zones anymore - entire columns are now drop zones
     
     container.innerHTML = sectionsHtml;
 }

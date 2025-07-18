@@ -38,6 +38,11 @@ body {
     border: 2px dashed #dc3545;
 }
 
+.card-body.drop-zone[data-type="ondemand"].drag-over {
+    background-color: #d1ecf1;
+    border: 2px dashed #17a2b8;
+}
+
 .card-body.drop-zone[data-type="runpod"].drag-over {
     background-color: #e7d4f0;
     border: 2px dashed #6f42c1;
