@@ -283,29 +283,29 @@ function showVmDetails(hostname) {
                     <div class="vm-card card mb-3">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start">
-                                <h6 class="card-title">${vm.name}</h6>
-                                <span class="badge bg-${window.Utils.getStatusClass(vm.status)}">${vm.status}</span>
+                                <h6 class="card-title">${vm.Name}</h6>
+                                <span class="badge bg-${window.Utils.getStatusClass(vm.Status)}">${vm.Status}</span>
                             </div>
                             <div class="vm-details">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <small class="text-muted">
-                                            <strong>ID:</strong> ${vm.id}<br>
-                                            <strong>Flavor:</strong> ${vm.flavor}<br>
-                                            <strong>Image:</strong> ${vm.image || 'N/A'}
+                                            <strong>ID:</strong> ${vm.ID}<br>
+                                            <strong>Flavor:</strong> ${vm.Flavor}<br>
+                                            <strong>Image:</strong> ${vm.Image || 'N/A'}
                                         </small>
                                     </div>
                                     <div class="col-md-6">
                                         <small class="text-muted">
-                                            <strong>Created:</strong> ${window.Utils.formatDate(vm.created)}<br>
-                                            <strong>Updated:</strong> ${window.Utils.formatDate(vm.updated)}
+                                            <strong>Created:</strong> ${window.Utils.formatDate(vm.Created)}<br>
+                                            <strong>Updated:</strong> ${window.Utils.formatDate(vm.Updated)}
                                         </small>
                                     </div>
                                 </div>
-                                ${vm.addresses ? `
+                                ${vm.Project ? `
                                     <div class="mt-2">
                                         <small class="text-muted">
-                                            <strong>Addresses:</strong> ${vm.addresses}
+                                            <strong>Project:</strong> ${vm.Project}
                                         </small>
                                     </div>
                                 ` : ''}
