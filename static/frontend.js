@@ -576,13 +576,142 @@ function updateGpuTypeSelector(cachedTypes = []) {
 }
 
 function addToPendingOperations(hostname, sourceType, targetType) {
-    pendingOperations.push({
-        hostname: hostname,
-        sourceType: sourceType,
-        targetType: targetType,
-        timestamp: new Date().toISOString()
+    // Get the aggregate name from the card data
+    const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
+    const sourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
+    
+    // For target aggregate, determine based on new data structure
+    let targetAggregate = '';
+    if (aggregateData.ondemand && aggregateData.ondemand.variants && aggregateData.spot) {
+        if (targetType === 'spot') {
+            // Moving to spot - always use the single spot aggregate
+            targetAggregate = aggregateData.spot.name;
+        } else if (targetType === 'runpod') {
+            // Moving to runpod
+            if (aggregateData.runpod) {
+                targetAggregate = aggregateData.runpod.name;
+            }
+        } else {
+            // Moving to on-demand - find the original variant for this host
+            const sourceVariant = aggregateData.ondemand.variants.find(variant => 
+                variant.aggregate === sourceAggregate
+            );
+            if (sourceVariant) {
+                targetAggregate = sourceVariant.aggregate;
+            }
+        }
+    } else {
+        // Fallback for old data structure
+        if (targetType === 'spot' && aggregateData.spot) {
+            targetAggregate = aggregateData.spot.name;
+        } else if (targetType === 'ondemand' && aggregateData.ondemand) {
+            targetAggregate = aggregateData.ondemand.name;
+        } else if (targetType === 'runpod' && aggregateData.runpod) {
+            targetAggregate = aggregateData.runpod.name;
+        }
+    }
+    
+    // Check if operation already exists
+    const existingIndex = pendingOperations.findIndex(op => op.hostname === hostname);
+    if (existingIndex !== -1) {
+        // Update existing operation
+        pendingOperations[existingIndex] = {
+            hostname,
+            sourceType,
+            targetType,
+            sourceAggregate,
+            targetAggregate,
+            timestamp: new Date().toISOString()
+        };
+    } else {
+        // Add new operation
+        pendingOperations.push({
+            hostname,
+            sourceType,
+            targetType,
+            sourceAggregate,
+            targetAggregate,
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    updatePendingOperationsDisplay();
+}
+
+function updatePendingOperationsDisplay() {
+    const list = document.getElementById('pendingOperationsList');
+    const count = document.getElementById('pendingCount');
+    const tabCount = document.getElementById('pendingTabCount');
+    
+    // Update counts
+    if (count) {
+        count.textContent = pendingOperations.length;
+        count.classList.add('updated');
+        setTimeout(() => count.classList.remove('updated'), 500);
+    }
+    if (tabCount) {
+        tabCount.textContent = pendingOperations.length;
+    }
+    
+    // Update visual indicators on cards
+    updateCardPendingIndicators();
+    
+    if (!list) return;
+    
+    if (pendingOperations.length === 0) {
+        list.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-clock fa-3x mb-3"></i>
+                <p>No pending operations. Select hosts and add operations to see them here.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Create a simplified pending operations display
+    const operationsHtml = pendingOperations.map((op, index) => {
+        const operationTitle = `🔄 Move ${op.hostname} from ${op.sourceAggregate || op.sourceType} to ${op.targetAggregate || op.targetType}`;
+        
+        return `
+            <div class="pending-operation-item border rounded p-3 mb-2" data-index="${index}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1">${operationTitle}</h6>
+                        <small class="text-muted">Added: ${new Date(op.timestamp).toLocaleString()}</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removePendingOperation(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    list.innerHTML = operationsHtml;
+}
+
+function updateCardPendingIndicators() {
+    // Remove all pending indicators
+    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
+        card.classList.remove('pending-operation');
     });
-    console.log(`Added ${hostname} to pending operations: ${sourceType} → ${targetType}`);
+    
+    // Add pending indicators to cards with pending operations
+    pendingOperations.forEach(op => {
+        const card = document.querySelector(`[data-host="${op.hostname}"]`);
+        if (card) {
+            card.classList.add('pending-operation');
+        }
+    });
+}
+
+function removePendingOperation(index) {
+    if (index >= 0 && index < pendingOperations.length) {
+        const operation = pendingOperations[index];
+        pendingOperations.splice(index, 1);
+        updatePendingOperationsDisplay();
+        showNotification(`Removed ${operation.hostname} from pending operations`, 'info');
+    }
 }
 
 // Placeholder for scheduleRunpodLaunch function (referenced in host cards)
@@ -597,6 +726,7 @@ function scheduleRunpodLaunch(hostname) {
 window.toggleGroup = toggleGroup;
 window.handleHostClick = handleHostClick;
 window.scheduleRunpodLaunch = scheduleRunpodLaunch;
+window.removePendingOperation = removePendingOperation;
 
 // Export for modular access - only the minimum needed
 window.Frontend = {
@@ -620,5 +750,7 @@ window.Frontend = {
     hideMainContent,
     showNotification,
     updateGpuTypeSelector,
-    addToPendingOperations
+    addToPendingOperations,
+    updatePendingOperationsDisplay,
+    updateCardPendingIndicators
 };
