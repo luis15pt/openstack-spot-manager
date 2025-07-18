@@ -93,9 +93,9 @@ function renderAggregateData(data) {
     // Store data for other functions
     aggregateData = data;
     
-    // Render hosts for each column
+    // Render On-Demand variants as separate columns
     if (data.ondemand.hosts) {
-        renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand', data.ondemand.name, data.ondemand.variants);
+        renderOnDemandVariantColumns(data.ondemand);
     }
     if (data.runpod.hosts) {
         renderHosts('runpodHosts', data.runpod.hosts, 'runpod', data.runpod.name);
@@ -953,6 +953,107 @@ function scheduleRunpodLaunch(hostname) {
 }
 
 // Make functions globally available for HTML onclick handlers
+// Render On-Demand variants as separate columns
+function renderOnDemandVariantColumns(ondemandData) {
+    const container = document.getElementById('ondemandColumns');
+    if (!container) return;
+    
+    console.log('🔍 renderOnDemandVariantColumns:', {
+        variants: ondemandData.variants,
+        totalHosts: ondemandData.hosts.length
+    });
+    
+    let columnsHtml = '';
+    
+    if (ondemandData.variants && ondemandData.variants.length > 1) {
+        // Multiple variants - create separate columns
+        ondemandData.variants.forEach((variant, index) => {
+            const variantHosts = ondemandData.hosts.filter(host => host.variant === variant.aggregate);
+            const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
+            
+            console.log(`🔍 Variant ${variant.variant}:`, {
+                aggregate: variant.aggregate,
+                hostCount: variantHosts.length
+            });
+            
+            columnsHtml += `
+                <div class="col-md-3">
+                    <div class="aggregate-column" id="${variantId}Column">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h4 class="mb-0">
+                                    <i class="fas fa-server"></i> 
+                                    ${variant.variant}
+                                    <span class="badge bg-light text-dark ms-2">${variantHosts.length}</span>
+                                </h4>
+                                <div class="mt-2">
+                                    <small class="text-light">GPU Usage: <span id="${variantId}GpuUsage">0/0</span> (<span id="${variantId}GpuPercent">0%</span>)</small>
+                                    <div class="progress mt-1" style="height: 6px;">
+                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="${variantId}GpuProgressBar"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body drop-zone" id="${variantId}Hosts" data-type="ondemand" data-variant="${variant.aggregate}">
+                                <!-- ${variant.variant} hosts will be dynamically inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    } else {
+        // Single variant or no variants - use original single column
+        const variantName = ondemandData.variants && ondemandData.variants.length > 0 ? 
+            ondemandData.variants[0].variant : ondemandData.name;
+        
+        columnsHtml = `
+            <div class="col-md-3">
+                <div class="aggregate-column" id="ondemandColumn">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0">
+                                <i class="fas fa-server"></i> 
+                                ${variantName}
+                                <span class="badge bg-light text-dark ms-2">${ondemandData.hosts.length}</span>
+                            </h4>
+                            <div class="mt-2">
+                                <small class="text-light">GPU Usage: <span id="ondemandGpuUsage">0/0</span> (<span id="ondemandGpuPercent">0%</span>)</small>
+                                <div class="progress mt-1" style="height: 6px;">
+                                    <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="ondemandGpuProgressBar"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body drop-zone" id="ondemandHosts" data-type="ondemand" data-variant="${ondemandData.variants?.[0]?.aggregate || ''}">
+                            <!-- On-demand hosts will be dynamically inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = columnsHtml;
+    
+    // Now render hosts for each variant column
+    if (ondemandData.variants && ondemandData.variants.length > 1) {
+        ondemandData.variants.forEach(variant => {
+            const variantHosts = ondemandData.hosts.filter(host => host.variant === variant.aggregate);
+            const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
+            const container = document.getElementById(`${variantId}Hosts`);
+            
+            if (container) {
+                renderHosts(container.id, variantHosts, 'ondemand', variant.aggregate);
+            }
+        });
+    } else {
+        // Single variant
+        const container = document.getElementById('ondemandHosts');
+        if (container) {
+            renderHosts(container.id, ondemandData.hosts, 'ondemand', ondemandData.name);
+        }
+    }
+}
+
 // Generate individual command operations for pending operations
 function generateIndividualCommandOperations(operation) {
     const commands = [];
