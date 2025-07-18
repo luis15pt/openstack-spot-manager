@@ -742,7 +742,11 @@ function addToPendingOperations(hostname, sourceType, targetType, targetVariant 
     console.log('🔍 Target aggregate determined:', {
         targetAggregate,
         targetType,
-        variants: aggregateData.ondemand?.variants
+        variants: aggregateData.ondemand?.variants,
+        variantDetails: aggregateData.ondemand?.variants?.map(v => ({
+            variant: v.variant,
+            aggregate: v.aggregate
+        }))
     });
     
     // Check if operation already exists
