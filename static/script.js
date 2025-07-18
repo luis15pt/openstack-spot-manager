@@ -249,23 +249,8 @@ function refreshData() {
     }
 }
 
-// Toggle group visibility
-function toggleGroup(groupId) {
-    const group = document.getElementById(groupId);
-    const chevron = document.getElementById(groupId + '-chevron');
-    
-    if (group && chevron) {
-        if (group.classList.contains('collapse')) {
-            group.classList.remove('collapse');
-            chevron.classList.remove('fa-chevron-down');
-            chevron.classList.add('fa-chevron-up');
-        } else {
-            group.classList.add('collapse');
-            chevron.classList.remove('fa-chevron-up');
-            chevron.classList.add('fa-chevron-down');
-        }
-    }
-}
+// Toggle group visibility - removed duplicate function
+// Using the correct toggleGroup function from frontend.js instead
 
 // Show VM details modal
 function showVmDetails(hostname) {
