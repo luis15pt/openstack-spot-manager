@@ -1,70 +1,15 @@
-// Frontend UI operations for OpenStack Spot Manager - extracted from original working code
-// Global state - matching original exactly
+// Frontend UI operations for OpenStack Spot Manager
+// EXACT ORIGINAL FUNCTIONS - only variable names changed for modular access
+
+// Global state variables - exact match to original
+let currentGpuType = '';
+let selectedHosts = new Set();
 let aggregateData = {};
 let pendingOperations = [];
 let availableGpuTypes = [];
-let selectedHosts = new Set();
 let isExecutionInProgress = false;
 
-// Show/hide loading indicator
-function showLoading(show, message = 'Loading...', step = 'Initializing...', progress = 0) {
-    const loadingIndicator = document.getElementById('loadingIndicator');
-    const mainContent = document.getElementById('mainContent');
-    const loadingMessage = document.getElementById('loadingMessage');
-    const loadingStep = document.getElementById('loadingStep');
-    const loadingProgress = document.getElementById('loadingProgress');
-    
-    if (show) {
-        loadingIndicator.classList.remove('d-none');
-        mainContent.classList.add('d-none');
-        loadingMessage.textContent = message;
-        loadingStep.textContent = step;
-        loadingProgress.style.width = `${progress}%`;
-    } else {
-        loadingIndicator.classList.add('d-none');
-        mainContent.classList.remove('d-none');
-    }
-}
-
-// Update loading progress
-function updateLoadingProgress(step, progress) {
-    const loadingStep = document.getElementById('loadingStep');
-    const loadingProgress = document.getElementById('loadingProgress');
-    
-    if (loadingStep) loadingStep.textContent = step;
-    if (loadingProgress) loadingProgress.style.width = `${progress}%`;
-}
-
-// Show/hide main content
-function showMainContent() {
-    document.getElementById('mainContent').classList.remove('d-none');
-}
-
-function hideMainContent() {
-    document.getElementById('mainContent').classList.add('d-none');
-}
-
-// Show notification toast
-function showNotification(message, type = 'info') {
-    const toastElement = document.getElementById('notificationToast');
-    const toastBody = document.getElementById('toastBody');
-    const toastIcon = toastElement.querySelector('.toast-header i');
-    
-    // Set the message
-    toastBody.textContent = message;
-    
-    // Set the icon and style based on type
-    toastIcon.className = type === 'success' ? 'fas fa-check-circle me-2 text-success' :
-                         type === 'danger' ? 'fas fa-exclamation-circle me-2 text-danger' :
-                         type === 'warning' ? 'fas fa-exclamation-triangle me-2 text-warning' :
-                         'fas fa-info-circle me-2 text-info';
-    
-    // Show the toast
-    const bsToast = new bootstrap.Toast(toastElement);
-    bsToast.show();
-}
-
-// ORIGINAL renderAggregateData function - exactly as it was working
+// EXACT ORIGINAL renderAggregateData function
 function renderAggregateData(data) {
     // Clear existing content
     document.getElementById('ondemandHosts').innerHTML = '';
@@ -115,113 +60,316 @@ function renderAggregateData(data) {
         
         // Update progress bar color based on usage
         const progressBar = document.getElementById('gpuProgressBar');
-        const percentage = parseInt(data.gpu_overview.gpu_usage_percentage);
-        if (percentage > 80) {
-            progressBar.className = 'progress-bar bg-danger';
-        } else if (percentage > 60) {
-            progressBar.className = 'progress-bar bg-warning';
+        const percentage = data.gpu_overview.gpu_usage_percentage;
+        progressBar.className = 'progress-bar';
+        if (percentage < 50) {
+            progressBar.classList.add('bg-success');
+        } else if (percentage < 80) {
+            progressBar.classList.add('bg-warning');
         } else {
-            progressBar.className = 'progress-bar bg-success';
+            progressBar.classList.add('bg-danger');
         }
-        
-        // Update available/in-use host counts
-        document.getElementById('availableHostsCount').textContent = data.gpu_overview.hosts_available || 0;
-        document.getElementById('inUseHostsCount').textContent = data.gpu_overview.hosts_in_use || 0;
     }
     
-    // Render hosts for each aggregate
-    if (data.runpod.hosts && data.runpod.hosts.length > 0) {
+    // Calculate and update overall host statistics
+    let totalAvailableHosts = 0;
+    let totalInUseHosts = 0;
+    
+    [data.ondemand.hosts, data.runpod.hosts, data.spot.hosts].forEach(hostArray => {
+        if (hostArray) {
+            hostArray.forEach(host => {
+                if (host.has_vms) {
+                    totalInUseHosts++;
+                } else {
+                    totalAvailableHosts++;
+                }
+            });
+        }
+    });
+    
+    document.getElementById('availableHostsCount').textContent = totalAvailableHosts;
+    document.getElementById('inUseHostsCount').textContent = totalInUseHosts;
+    
+    // Store data for other functions
+    aggregateData = data;
+    
+    // Render hosts for each column
+    if (data.ondemand.hosts) {
+        renderHosts('ondemandHosts', data.ondemand.hosts, 'ondemand', data.ondemand.name, data.ondemand.variants);
+    }
+    if (data.runpod.hosts) {
         renderHosts('runpodHosts', data.runpod.hosts, 'runpod', data.runpod.name);
     }
-    
-    if (data.ondemand.hosts && data.ondemand.hosts.length > 0) {
-        renderOnDemandVariants('ondemandHosts', data.ondemand.hosts, data.ondemand.variants);
-    }
-    
-    if (data.spot.hosts && data.spot.hosts.length > 0) {
+    if (data.spot.hosts) {
         renderHosts('spotHosts', data.spot.hosts, 'spot', data.spot.name);
     }
     
-    // Setup drag and drop if function exists
-    if (typeof window.setupDragAndDrop === 'function') {
-        window.setupDragAndDrop();
-    }
+    // Setup drag and drop
+    setupDragAndDrop();
 }
 
-// ORIGINAL renderOnDemandVariants function
-function renderOnDemandVariants(containerId, hosts, variants) {
+// EXACT ORIGINAL renderHosts function
+function renderHosts(containerId, hosts, type, aggregateName = null, variants = null) {
     const container = document.getElementById(containerId);
     
-    if (!variants || variants.length === 0) {
-        renderHosts(containerId, hosts, 'ondemand');
+    if (hosts.length === 0) {
+        container.innerHTML = `
+            <div class="drop-zone" data-type="${type}">
+                <div class="empty-state">
+                    <i class="fas fa-server"></i>
+                    <p>No hosts in this aggregate</p>
+                </div>
+            </div>
+        `;
         return;
     }
     
-    // Group hosts by variant
-    const hostsByVariant = {};
-    hosts.forEach(host => {
-        const variant = host.variant || 'default';
-        if (!hostsByVariant[variant]) {
-            hostsByVariant[variant] = [];
+    // If this is on-demand with multiple variants, render by variant
+    if (type === 'ondemand' && variants && variants.length > 1) {
+        renderOnDemandVariants(container, hosts, variants);
+        return;
+    }
+    
+    // Separate hosts into groups
+    const availableHosts = hosts.filter(host => !host.has_vms);
+    const inUseHosts = hosts.filter(host => host.has_vms);
+    
+    // Create sections
+    let sectionsHtml = '';
+    
+    // Available hosts section (shown first - most likely to be moved)
+    if (availableHosts.length > 0) {
+        // Group available hosts by owner
+        const nexgenHosts = availableHosts.filter(host => host.owner_group === 'Nexgen Cloud');
+        const investorHosts = availableHosts.filter(host => host.owner_group === 'Investors');
+        
+        const availableId = `available-${type}`;
+        let availableSubGroups = '';
+        
+        // Nexgen Cloud devices sub-group
+        if (nexgenHosts.length > 0) {
+            const nexgenCards = nexgenHosts.map(host => createHostCard(host, type, aggregateName)).join('');
+            const nexgenSubGroupId = `available-nexgen-${type}`;
+            
+            availableSubGroups += `
+                <div class="host-subgroup nexgen-group">
+                    <div class="host-subgroup-header clickable" onclick="toggleGroup('${nexgenSubGroupId}')">
+                        <i class="fas fa-cloud text-info"></i>
+                        <span class="subgroup-title">Nexgen Cloud (${nexgenHosts.length})</span>
+                        <i class="fas fa-chevron-down toggle-icon" id="${nexgenSubGroupId}-icon"></i>
+                    </div>
+                    <div class="host-subgroup-content" id="${nexgenSubGroupId}">
+                        ${nexgenCards}
+                    </div>
+                </div>
+            `;
         }
-        hostsByVariant[variant].push(host);
-    });
+        
+        // Investor devices sub-group
+        if (investorHosts.length > 0) {
+            const investorCards = investorHosts.map(host => createHostCard(host, type, aggregateName)).join('');
+            const investorSubGroupId = `available-investors-${type}`;
+            
+            availableSubGroups += `
+                <div class="host-subgroup investors-group">
+                    <div class="host-subgroup-header clickable" onclick="toggleGroup('${investorSubGroupId}')">
+                        <i class="fas fa-users text-warning"></i>
+                        <span class="subgroup-title">Investor Devices (${investorHosts.length})</span>
+                        <i class="fas fa-chevron-down toggle-icon" id="${investorSubGroupId}-icon"></i>
+                    </div>
+                    <div class="host-subgroup-content" id="${investorSubGroupId}">
+                        ${investorCards}
+                    </div>
+                </div>
+            `;
+        }
+        
+        sectionsHtml += `
+            <div class="host-group">
+                <div class="host-group-header clickable" onclick="toggleGroup('${availableId}')">
+                    <i class="fas fa-circle-check text-success"></i>
+                    <h6 class="mb-0">Available (${availableHosts.length})</h6>
+                    <small class="text-muted">No VMs - Ready to move</small>
+                    <i class="fas fa-chevron-down toggle-icon" id="${availableId}-icon"></i>
+                </div>
+                <div class="host-group-content" id="${availableId}">
+                    ${availableSubGroups}
+                </div>
+            </div>
+        `;
+    }
     
-    // Render grouped hosts
-    let html = '';
+    // In-use hosts section
+    if (inUseHosts.length > 0) {
+        const inUseId = `inuse-${type}`;
+        let inUseSubGroups = '';
+        
+        if (type === 'runpod') {
+            // For Runpod, group by VM count
+            const hostsByVmCount = {};
+            inUseHosts.forEach(host => {
+                const vmCount = host.vm_count;
+                if (!hostsByVmCount[vmCount]) {
+                    hostsByVmCount[vmCount] = [];
+                }
+                hostsByVmCount[vmCount].push(host);
+            });
+            
+            Object.keys(hostsByVmCount).sort((a, b) => b - a).forEach(vmCount => {
+                const hostsInGroup = hostsByVmCount[vmCount];
+                const subGroupId = `inuse-${type}-${vmCount}vms`;
+                const cards = hostsInGroup.map(host => createHostCard(host, type, aggregateName)).join('');
+                
+                inUseSubGroups += `
+                    <div class="host-subgroup vm-group">
+                        <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
+                            <i class="fas fa-desktop text-danger"></i>
+                            <span class="subgroup-title">${vmCount} VM${vmCount != 1 ? 's' : ''} (${hostsInGroup.length})</span>
+                            <i class="fas fa-chevron-down toggle-icon" id="${subGroupId}-icon"></i>
+                        </div>
+                        <div class="host-subgroup-content" id="${subGroupId}">
+                            ${cards}
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            // For spot/ondemand, group by GPU usage
+            const hostsByGpuUsage = {};
+            inUseHosts.forEach(host => {
+                const gpuUsage = host.gpu_used || 0;
+                if (!hostsByGpuUsage[gpuUsage]) {
+                    hostsByGpuUsage[gpuUsage] = [];
+                }
+                hostsByGpuUsage[gpuUsage].push(host);
+            });
+            
+            Object.keys(hostsByGpuUsage).sort((a, b) => b - a).forEach(gpuUsage => {
+                const hostsInGroup = hostsByGpuUsage[gpuUsage];
+                const subGroupId = `inuse-${type}-${gpuUsage}gpus`;
+                const cards = hostsInGroup.map(host => createHostCard(host, type, aggregateName)).join('');
+                
+                inUseSubGroups += `
+                    <div class="host-subgroup gpu-group">
+                        <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
+                            <i class="fas fa-microchip text-danger"></i>
+                            <span class="subgroup-title">${gpuUsage} GPU${gpuUsage != 1 ? 's' : ''} (${hostsInGroup.length})</span>
+                            <i class="fas fa-chevron-down toggle-icon" id="${subGroupId}-icon"></i>
+                        </div>
+                        <div class="host-subgroup-content" id="${subGroupId}">
+                            ${cards}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        sectionsHtml += `
+            <div class="host-group">
+                <div class="host-group-header clickable" onclick="toggleGroup('${inUseId}')">
+                    <i class="fas fa-exclamation-triangle text-warning"></i>
+                    <h6 class="mb-0">In Use (${inUseHosts.length})</h6>
+                    <small class="text-muted">Has VMs - Move carefully</small>
+                    <i class="fas fa-chevron-down toggle-icon" id="${inUseId}-icon"></i>
+                </div>
+                <div class="host-group-content" id="${inUseId}">
+                    ${inUseSubGroups}
+                </div>
+            </div>
+        `;
+    }
     
-    variants.forEach(variant => {
-        const variantHosts = hostsByVariant[variant] || [];
+    // Add drop zone at the end
+    sectionsHtml += `
+        <div class="drop-zone" data-type="${type}">
+            <div class="drop-zone-content">
+                <i class="fas fa-download"></i>
+                <p>Drop hosts here to move to ${type}</p>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = sectionsHtml;
+}
+
+// EXACT ORIGINAL renderOnDemandVariants function
+function renderOnDemandVariants(container, hosts, variants) {
+    let variantsHtml = '';
+    
+    // Create a section for each variant with collapsible structure
+    variants.forEach((variant, index) => {
+        const variantHosts = hosts.filter(host => host.variant === variant);
         if (variantHosts.length === 0) return;
         
-        const isCollapsed = variant !== 'default';
-        const groupId = `ondemand-${variant}`;
+        const variantId = `variant-${variant.replace(/\s+/g, '-')}`;
+        const isCollapsed = index > 0; // Collapse all except first variant
         
-        html += `
-            <div class="host-group mb-3">
-                <div class="group-header d-flex justify-content-between align-items-center py-2 px-3 bg-light border rounded" 
-                     style="cursor: pointer;" onclick="toggleGroup('${groupId}')">
-                    <strong class="text-primary">
-                        <i class="fas fa-server me-2"></i>${variant}
-                    </strong>
-                    <div>
-                        <span class="badge bg-primary me-2">${variantHosts.length}</span>
-                        <i class="fas fa-chevron-${isCollapsed ? 'down' : 'up'}" id="${groupId}-chevron"></i>
+        // Separate available and in-use hosts for this variant
+        const availableHosts = variantHosts.filter(host => !host.has_vms);
+        const inUseHosts = variantHosts.filter(host => host.has_vms);
+        
+        let variantContent = '';
+        
+        // Available hosts for this variant
+        if (availableHosts.length > 0) {
+            const availableCards = availableHosts.map(host => createHostCard(host, 'ondemand', variant)).join('');
+            variantContent += `
+                <div class="variant-section">
+                    <div class="variant-section-header">
+                        <i class="fas fa-circle-check text-success"></i>
+                        <span class="section-title">Available (${availableHosts.length})</span>
+                    </div>
+                    <div class="variant-section-content">
+                        ${availableCards}
                     </div>
                 </div>
-                <div class="group-content ${isCollapsed ? 'collapse' : ''}" id="${groupId}">
-                    <div class="row">
-                        ${variantHosts.map(host => `<div class="col-md-6 col-lg-4 mb-3">${createHostCard(host, 'ondemand')}</div>`).join('')}
+            `;
+        }
+        
+        // In-use hosts for this variant
+        if (inUseHosts.length > 0) {
+            const inUseCards = inUseHosts.map(host => createHostCard(host, 'ondemand', variant)).join('');
+            variantContent += `
+                <div class="variant-section">
+                    <div class="variant-section-header">
+                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                        <span class="section-title">In Use (${inUseHosts.length})</span>
+                    </div>
+                    <div class="variant-section-content">
+                        ${inUseCards}
                     </div>
                 </div>
-            </div>`;
+            `;
+        }
+        
+        variantsHtml += `
+            <div class="variant-group">
+                <div class="variant-header clickable" onclick="toggleGroup('${variantId}')">
+                    <i class="fas fa-tag text-primary"></i>
+                    <h6 class="mb-0">${variant} (${variantHosts.length})</h6>
+                    <i class="fas fa-chevron-${isCollapsed ? 'down' : 'up'} toggle-icon" id="${variantId}-icon"></i>
+                </div>
+                <div class="variant-content ${isCollapsed ? 'collapsed' : ''}" id="${variantId}">
+                    ${variantContent}
+                </div>
+            </div>
+        `;
     });
     
-    container.innerHTML = html;
+    // Add drop zone at the end
+    variantsHtml += `
+        <div class="drop-zone" data-type="ondemand">
+            <div class="drop-zone-content">
+                <i class="fas fa-download"></i>
+                <p>Drop hosts here to move to on-demand</p>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = variantsHtml;
 }
 
-// ORIGINAL renderHosts function
-function renderHosts(containerId, hosts, type, aggregateName = null) {
-    const container = document.getElementById(containerId);
-    
-    if (!hosts || hosts.length === 0) {
-        container.innerHTML = '<p class="text-muted text-center">No hosts in this aggregate</p>';
-        return;
-    }
-    
-    // Sort hosts by name
-    hosts.sort((a, b) => a.name.localeCompare(b.name));
-    
-    let html = '<div class="row">';
-    hosts.forEach(host => {
-        html += `<div class="col-md-6 col-lg-4 mb-3">${createHostCard(host, type, aggregateName)}</div>`;
-    });
-    html += '</div>';
-    
-    container.innerHTML = html;
-}
-
-// ORIGINAL createHostCard function - exactly as it was working
+// EXACT ORIGINAL createHostCard function
 function createHostCard(host, type, aggregateName = null) {
     const hasVms = host.has_vms;
     const vmBadgeClass = hasVms ? 'vm-badge active' : 'vm-badge zero';
@@ -241,8 +389,7 @@ function createHostCard(host, type, aggregateName = null) {
              data-type="${type}"
              data-aggregate="${host.variant || aggregateName || ''}"
              data-has-vms="${hasVms}"
-             data-owner-group="${ownerGroup}"
-             onclick="handleHostClick(event)">
+             data-owner-group="${ownerGroup}">
             <div class="machine-card-header">
                 <i class="fas fa-grip-vertical drag-handle"></i>
                 <div class="machine-name">${host.name}</div>
@@ -254,92 +401,141 @@ function createHostCard(host, type, aggregateName = null) {
                     <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
                     ${type === 'runpod' ? 
                         `<span class="${vmBadgeClass}">${host.vm_count}</span>
-                         <span class="vm-label">VMs</span>` :
-                        `<span class="gpu-info">${host.gpu_used}/${host.gpu_capacity}</span>
+                         <span class="vm-label">${host.vm_count > 0 ? 'VMs' : 'No VMs'}</span>` :
+                        `<span class="gpu-badge ${host.gpu_used > 0 ? 'active' : 'zero'}">${host.gpu_usage_ratio || '0/8'}</span>
                          <span class="gpu-label">GPUs</span>`
                     }
                 </div>
                 <div class="tenant-info">
-                    <div class="${tenantBadgeClass}">
+                    <span class="${tenantBadgeClass}" title="${tenant}">
                         <i class="${tenantIcon}"></i>
-                        <span class="tenant-name">${tenant}</span>
-                    </div>
+                        ${ownerGroup}
+                    </span>
                 </div>
+                <div class="nvlinks-info">
+                    <span class="nvlinks-badge ${host.nvlinks ? 'enabled' : 'disabled'}" title="NVLinks ${host.nvlinks ? 'Enabled' : 'Disabled'}">
+                        <i class="fas fa-link"></i>
+                        NVLinks: ${host.nvlinks ? 'Yes' : 'No'}
+                    </span>
+                </div>
+                ${host.variant ? `
+                <div class="variant-info">
+                    <span class="variant-badge" title="Aggregate: ${host.variant}">
+                        <i class="fas fa-tag"></i>
+                        ${host.variant}
+                    </span>
+                </div>` : ''}
+                ${type === 'runpod' && !hasVms ? `
+                <div class="launch-runpod-info">
+                    <button class="btn btn-sm btn-outline-primary launch-runpod-btn" 
+                            onclick="scheduleRunpodLaunch('${host.name}')" 
+                            title="Schedule VM launch on this host">
+                        <i class="fas fa-rocket"></i> Launch into Runpod
+                    </button>
+                </div>` : ''}
             </div>
-            <div class="machine-actions">
-                <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.name}', '${type}', 'ondemand')">
-                    <i class="fas fa-arrow-left"></i>
-                </button>
-                <button class="btn btn-sm btn-purple" onclick="event.stopPropagation(); window.Hyperstack.scheduleRunpodLaunch('${host.name}')">
-                    <i class="fas fa-rocket"></i>
-                </button>
-                <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); window.OpenStack.previewMigration('${host.name}', '${type}', 'spot')">
-                    <i class="fas fa-arrow-right"></i>
-                </button>
-            </div>
-        </div>`;
+        </div>
+    `;
 }
 
-// Update GPU type selector to show cached indicators
+// EXACT ORIGINAL setupDragAndDrop function
+function setupDragAndDrop() {
+    // Add event listeners to both machine cards and host cards
+    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
+        card.addEventListener('dragstart', handleDragStart);
+        card.addEventListener('dragend', handleDragEnd);
+        card.addEventListener('click', handleHostClick);
+    });
+    
+    // Add event listeners to drop zones
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+        zone.addEventListener('dragover', handleDragOver);
+        zone.addEventListener('drop', handleDrop);
+        zone.addEventListener('dragenter', handleDragEnter);
+        zone.addEventListener('dragleave', handleDragLeave);
+    });
+}
+
+function handleDragStart(e) {
+    this.classList.add('dragging');
+    e.dataTransfer.setData('text/plain', this.dataset.host);
+    e.dataTransfer.setData('source-type', this.dataset.type);
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+}
+
+function handleDragEnter(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    
+    const hostname = e.dataTransfer.getData('text/plain');
+    const sourceType = e.dataTransfer.getData('source-type');
+    const targetType = e.currentTarget.dataset.type;
+    
+    if (sourceType !== targetType) {
+        addToPendingOperations(hostname, sourceType, targetType);
+    }
+}
+
+// Basic loading/notification functions for modular compatibility
+function showLoading(show, message = 'Loading...', step = 'Initializing...', progress = 0) {
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (show) {
+        loadingIndicator.classList.remove('d-none');
+        mainContent.classList.add('d-none');
+    } else {
+        loadingIndicator.classList.add('d-none');
+        mainContent.classList.remove('d-none');
+    }
+}
+
+function updateLoadingProgress(step, progress) {
+    // Basic implementation
+}
+
+function showMainContent() {
+    document.getElementById('mainContent').classList.remove('d-none');
+}
+
+function hideMainContent() {
+    document.getElementById('mainContent').classList.add('d-none');
+}
+
+function showNotification(message, type = 'info') {
+    console.log(`${type.toUpperCase()}: ${message}`);
+}
+
 function updateGpuTypeSelector(cachedTypes = []) {
     const select = document.getElementById('gpuTypeSelect');
     if (!select) return;
     
     const options = select.querySelectorAll('option');
-    
     options.forEach(option => {
         if (option.value && cachedTypes.includes(option.value)) {
             if (!option.textContent.includes('⚡')) {
                 option.textContent = option.textContent + ' ⚡';
-                option.title = 'Cached - will load instantly';
             }
-        } else if (option.value && option.textContent.includes('⚡')) {
-            option.textContent = option.textContent.replace(' ⚡', '');
-            option.title = '';
         }
     });
 }
 
-// Show migration preview modal
-function showMigrationModal(data, hasVms = false) {
-    const modal = new bootstrap.Modal(document.getElementById('migrationModal'));
-    const warningDiv = document.getElementById('migrationWarning');
-    const commandPreview = document.getElementById('commandPreview');
-    const confirmBtn = document.getElementById('confirmMigrationBtn');
-    
-    if (hasVms) {
-        warningDiv.classList.remove('d-none');
-    } else {
-        warningDiv.classList.add('d-none');
-    }
-    
-    if (data.commands && data.commands.length > 0) {
-        const commandsHtml = data.commands.map((cmd, index) => `
-            <div class="command-item mb-2">
-                <div class="d-flex justify-content-between align-items-center">
-                    <strong>${index + 1}. ${cmd.title || `Command ${index + 1}`}</strong>
-                    <span class="badge bg-secondary">${cmd.estimated_duration || '~30s'}</span>
-                </div>
-                <div class="mt-1">
-                    <code class="text-muted">${cmd.command || cmd.description || 'Command details'}</code>
-                </div>
-            </div>
-        `).join('');
-        commandPreview.innerHTML = commandsHtml;
-    } else {
-        commandPreview.innerHTML = '<p class="text-muted">No commands available for preview.</p>';
-    }
-    
-    confirmBtn.onclick = function() {
-        addToPendingOperations(data.hostname, data.sourceType, data.targetType);
-        showNotification(`Added ${data.hostname} migration to pending operations`, 'success');
-        modal.hide();
-    };
-    
-    modal.show();
-}
-
-// Add to pending operations - simplified version
 function addToPendingOperations(hostname, sourceType, targetType) {
     pendingOperations.push({
         hostname: hostname,
@@ -347,41 +543,10 @@ function addToPendingOperations(hostname, sourceType, targetType) {
         targetType: targetType,
         timestamp: new Date().toISOString()
     });
-    
-    updatePendingOperationsDisplay();
-    showNotification(`Added ${hostname} to pending operations`, 'info');
+    console.log(`Added ${hostname} to pending operations: ${sourceType} → ${targetType}`);
 }
 
-// Update pending operations display
-function updatePendingOperationsDisplay() {
-    const container = document.getElementById('pendingOperationsList');
-    const countBadge = document.getElementById('pendingCount');
-    const tabBadge = document.getElementById('pendingTabCount');
-    
-    if (countBadge) countBadge.textContent = pendingOperations.length;
-    if (tabBadge) tabBadge.textContent = pendingOperations.length;
-    
-    if (!container) return;
-    
-    if (pendingOperations.length === 0) {
-        container.innerHTML = '<p class="text-muted text-center">No pending operations</p>';
-        return;
-    }
-    
-    const operationsHtml = pendingOperations.map((op, index) => `
-        <div class="pending-operation card mb-3">
-            <div class="card-body">
-                <h6>Move ${op.hostname} from ${op.sourceType} to ${op.targetType}</h6>
-                <small class="text-muted">Added: ${new Date(op.timestamp).toLocaleString()}</small>
-                <button class="btn btn-sm btn-danger float-end" onclick="removePendingOperation(${index})">Remove</button>
-            </div>
-        </div>
-    `).join('');
-    
-    container.innerHTML = operationsHtml;
-}
-
-// Export all functions for modular access
+// Export for modular access - only the minimum needed
 window.Frontend = {
     // State
     get aggregateData() { return aggregateData; },
@@ -396,17 +561,12 @@ window.Frontend = {
     set isExecutionInProgress(value) { isExecutionInProgress = value; },
     
     // Functions
+    renderAggregateData,
     showLoading,
     updateLoadingProgress,
     showMainContent,
     hideMainContent,
     showNotification,
-    renderAggregateData,
-    renderOnDemandVariants,
-    renderHosts,
-    createHostCard,
     updateGpuTypeSelector,
-    showMigrationModal,
-    addToPendingOperations,
-    updatePendingOperationsDisplay
+    addToPendingOperations
 };
