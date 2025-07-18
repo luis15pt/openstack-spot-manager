@@ -270,9 +270,9 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                     <i class="fas fa-exclamation-triangle text-warning"></i>
                     <h6 class="mb-0">In Use (${inUseHosts.length})</h6>
                     <small class="text-muted">Has VMs - Move carefully</small>
-                    <i class="fas fa-chevron-down toggle-icon" id="${inUseId}-icon"></i>
+                    <i class="fas fa-chevron-right toggle-icon" id="${inUseId}-icon"></i>
                 </div>
-                <div class="host-group-content" id="${inUseId}">
+                <div class="host-group-content collapsed" id="${inUseId}">
                     ${inUseSubGroups}
                 </div>
             </div>
@@ -347,7 +347,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                 <div class="variant-header clickable" onclick="toggleGroup('${variantId}')">
                     <i class="fas fa-tag text-primary"></i>
                     <h6 class="mb-0">${variant} (${variantHosts.length})</h6>
-                    <i class="fas fa-chevron-${isCollapsed ? 'down' : 'up'} toggle-icon" id="${variantId}-icon"></i>
+                    <i class="fas fa-chevron-${isCollapsed ? 'right' : 'down'} toggle-icon" id="${variantId}-icon"></i>
                 </div>
                 <div class="variant-content ${isCollapsed ? 'collapsed' : ''}" id="${variantId}">
                     ${variantContent}
@@ -515,23 +515,19 @@ function handleHostClick(e) {
     }
 }
 
-// Toggle group visibility - needed for collapsible menus
+// Toggle group visibility - EXACT ORIGINAL logic
 function toggleGroup(groupId) {
-    const group = document.getElementById(groupId);
-    const chevron = document.getElementById(groupId + '-icon');
+    const content = document.getElementById(groupId);
+    const icon = document.getElementById(`${groupId}-icon`);
     
-    if (group && chevron) {
-        if (group.classList.contains('collapsed') || group.style.display === 'none') {
-            group.classList.remove('collapsed');
-            group.style.display = 'block';
-            chevron.classList.remove('fa-chevron-down');
-            chevron.classList.add('fa-chevron-up');
-        } else {
-            group.classList.add('collapsed');
-            group.style.display = 'none';
-            chevron.classList.remove('fa-chevron-up');
-            chevron.classList.add('fa-chevron-down');
-        }
+    if (content.classList.contains('collapsed')) {
+        content.classList.remove('collapsed');
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-down');
+    } else {
+        content.classList.add('collapsed');
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-right');
     }
 }
 
