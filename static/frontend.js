@@ -76,10 +76,16 @@ function renderAggregateData(data) {
     document.getElementById('ondemandHosts').innerHTML = '<div class="drop-zone" data-type="ondemand"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
     document.getElementById('spotHosts').innerHTML = '<div class="drop-zone" data-type="spot"><p class="text-muted text-center">Drop hosts here or select and move</p></div>';
     
-    // Update aggregate names in headers
-    document.getElementById('runpodName').textContent = data.runpod.name ? `(${data.runpod.name})` : '';
-    document.getElementById('ondemandName').textContent = data.ondemand.name ? `(${data.ondemand.name})` : '';
-    document.getElementById('spotName').textContent = data.spot.name ? `(${data.spot.name})` : '';
+    // Update aggregate names in headers (original approach)
+    document.getElementById('ondemandName').textContent = data.ondemand.name || 'N/A';
+    document.getElementById('runpodName').textContent = data.runpod.name || 'N/A';
+    document.getElementById('spotName').textContent = data.spot.name || 'N/A';
+    
+    // Show variant information if multiple variants exist
+    if (data.ondemand.variants && data.ondemand.variants.length > 1) {
+        const variantNames = data.ondemand.variants.map(v => v.variant).join(', ');
+        document.getElementById('ondemandName').title = `Includes variants: ${variantNames}`;
+    }
     
     // Render hosts for each aggregate
     if (data.runpod.hosts && data.runpod.hosts.length > 0) {
@@ -211,8 +217,8 @@ function createHostCard(host, type, aggregateName = null) {
     }
     
     const isSelected = selectedHosts.has(host.name);
-    const vmCount = host.vms ? host.vms.length : 0;
-    const hasVms = vmCount > 0;
+    const vmCount = host.vm_count || 0;
+    const hasVms = host.has_vms || false;
     
     // Determine if host is in use
     const inUse = hasVms || host.status === 'in-use';
@@ -294,56 +300,55 @@ function createHostCard(host, type, aggregateName = null) {
         </div>`;
 }
 
-// Update aggregate counters
-function updateAggregateCounters() {
-    if (!aggregateData) return;
-    
+// Update aggregate counters using API data (original approach)
+function updateAggregateCountersFromApi(data) {
     // Update individual aggregate counters
-    document.getElementById('runpodCount').textContent = aggregateData.runpod.hosts?.length || 0;
-    document.getElementById('ondemandCount').textContent = aggregateData.ondemand.hosts?.length || 0;
-    document.getElementById('spotCount').textContent = aggregateData.spot.hosts?.length || 0;
+    document.getElementById('runpodCount').textContent = data.runpod.hosts ? data.runpod.hosts.length : 0;
+    document.getElementById('ondemandCount').textContent = data.ondemand.hosts ? data.ondemand.hosts.length : 0;
+    document.getElementById('spotCount').textContent = data.spot.hosts ? data.spot.hosts.length : 0;
     
-    // Calculate VM usage for runpod
-    const runpodVms = aggregateData.runpod.hosts?.reduce((total, host) => total + (host.vms?.length || 0), 0) || 0;
-    document.getElementById('runpodVmUsage').textContent = `${runpodVms} VMs`;
+    // Update per-column GPU statistics using API data
+    if (data.ondemand.gpu_summary) {
+        const ondemandPercent = Math.round((data.ondemand.gpu_summary.gpu_used / data.ondemand.gpu_summary.gpu_capacity) * 100) || 0;
+        document.getElementById('ondemandGpuUsage').textContent = data.ondemand.gpu_summary.gpu_usage_ratio;
+        document.getElementById('ondemandGpuPercent').textContent = ondemandPercent + '%';
+        document.getElementById('ondemandGpuProgressBar').style.width = ondemandPercent + '%';
+    }
+    if (data.spot.gpu_summary) {
+        const spotPercent = Math.round((data.spot.gpu_summary.gpu_used / data.spot.gpu_summary.gpu_capacity) * 100) || 0;
+        document.getElementById('spotGpuUsage').textContent = data.spot.gpu_summary.gpu_usage_ratio;
+        document.getElementById('spotGpuPercent').textContent = spotPercent + '%';
+        document.getElementById('spotGpuProgressBar').style.width = spotPercent + '%';
+    }
     
-    // Calculate GPU usage for ondemand and spot
-    const ondemandGpuUsage = calculateGpuUsage(aggregateData.ondemand.hosts);
-    const spotGpuUsage = calculateGpuUsage(aggregateData.spot.hosts);
-    const totalGpuUsage = {
-        used: ondemandGpuUsage.used + spotGpuUsage.used,
-        total: ondemandGpuUsage.total + spotGpuUsage.total
-    };
+    // Update Runpod VM statistics
+    if (data.runpod.hosts) {
+        const totalVms = data.runpod.hosts.reduce((total, host) => total + (host.vm_count || 0), 0);
+        document.getElementById('runpodVmUsage').textContent = totalVms + ' VMs';
+    }
     
-    // Update ondemand GPU usage
-    document.getElementById('ondemandGpuUsage').textContent = `${ondemandGpuUsage.used}/${ondemandGpuUsage.total}`;
-    document.getElementById('ondemandGpuPercent').textContent = `${ondemandGpuUsage.percentage}%`;
-    document.getElementById('ondemandGpuProgressBar').style.width = `${ondemandGpuUsage.percentage}%`;
-    
-    // Update spot GPU usage
-    document.getElementById('spotGpuUsage').textContent = `${spotGpuUsage.used}/${spotGpuUsage.total}`;
-    document.getElementById('spotGpuPercent').textContent = `${spotGpuUsage.percentage}%`;
-    document.getElementById('spotGpuProgressBar').style.width = `${spotGpuUsage.percentage}%`;
-    
-    // Update total GPU usage
-    const totalPercentage = totalGpuUsage.total > 0 ? Math.round((totalGpuUsage.used / totalGpuUsage.total) * 100) : 0;
-    document.getElementById('totalGpuUsage').textContent = `${totalGpuUsage.used}/${totalGpuUsage.total} GPUs`;
-    document.getElementById('gpuUsagePercentage').textContent = `${totalPercentage}%`;
-    document.getElementById('gpuProgressBar').style.width = `${totalPercentage}%`;
-    document.getElementById('gpuProgressText').textContent = `${totalPercentage}%`;
-    
-    // Update available/in-use host counts
-    const allHosts = [
-        ...(aggregateData.runpod.hosts || []),
-        ...(aggregateData.ondemand.hosts || []),
-        ...(aggregateData.spot.hosts || [])
-    ];
-    
-    const availableHosts = allHosts.filter(host => !host.vms || host.vms.length === 0);
-    const inUseHosts = allHosts.filter(host => host.vms && host.vms.length > 0);
-    
-    document.getElementById('availableHostsCount').textContent = availableHosts.length;
-    document.getElementById('inUseHostsCount').textContent = inUseHosts.length;
+    // Update overall summary banner using API data
+    if (data.gpu_overview) {
+        document.getElementById('totalGpuUsage').textContent = data.gpu_overview.gpu_usage_ratio + ' GPUs';
+        document.getElementById('gpuUsagePercentage').textContent = data.gpu_overview.gpu_usage_percentage + '%';
+        document.getElementById('gpuProgressBar').style.width = data.gpu_overview.gpu_usage_percentage + '%';
+        document.getElementById('gpuProgressText').textContent = data.gpu_overview.gpu_usage_percentage + '%';
+        
+        // Update progress bar color based on usage
+        const progressBar = document.getElementById('gpuProgressBar');
+        const percentage = parseInt(data.gpu_overview.gpu_usage_percentage);
+        if (percentage > 80) {
+            progressBar.className = 'progress-bar bg-danger';
+        } else if (percentage > 60) {
+            progressBar.className = 'progress-bar bg-warning';
+        } else {
+            progressBar.className = 'progress-bar bg-success';
+        }
+        
+        // Update available/in-use host counts
+        document.getElementById('availableHostsCount').textContent = data.gpu_overview.hosts_available || 0;
+        document.getElementById('inUseHostsCount').textContent = data.gpu_overview.hosts_in_use || 0;
+    }
 }
 
 // Calculate GPU usage for a set of hosts
@@ -558,8 +563,8 @@ function updateHostAfterVMLaunch(hostname) {
         }
     }
     
-    // Update aggregate counters
-    updateAggregateCounters();
+    // Update aggregate counters using API data
+    updateAggregateCountersFromApi(data);
 }
 
 // Update GPU type selector to show cached indicators
@@ -669,7 +674,7 @@ window.Frontend = {
     renderOnDemandVariants,
     renderHosts,
     createHostCard,
-    updateAggregateCounters,
+    updateAggregateCounters: updateAggregateCountersFromApi,
     calculateGpuUsage,
     addToPendingOperations,
     updatePendingOperationsDisplay,
