@@ -126,6 +126,11 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
     
     // If this is on-demand with multiple variants, render by variant
     if (type === 'ondemand' && variants && variants.length > 1) {
+        console.log('🔍 Detected multiple variants for ondemand:', {
+            variantCount: variants.length,
+            hostCount: hosts.length,
+            variants: variants
+        });
         renderOnDemandVariants(container, hosts, variants);
         return;
     }
@@ -286,79 +291,166 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
 
 // EXACT ORIGINAL renderOnDemandVariants function
 function renderOnDemandVariants(container, hosts, variants) {
+    console.log('🔍 renderOnDemandVariants called with:', {
+        container: container.id,
+        hosts: hosts.length,
+        variants: variants
+    });
+    
     let variantsHtml = '';
     
     // Create a section for each variant with collapsible structure
     variants.forEach((variant, index) => {
-        const variantHosts = hosts.filter(host => host.variant === variant);
-        if (variantHosts.length === 0) return;
+        const variantHosts = hosts.filter(host => host.variant === variant.aggregate);
+        console.log(`🔍 Variant ${variant.variant}:`, {
+            aggregate: variant.aggregate,
+            filteredHosts: variantHosts.length,
+            sampleHost: hosts[0] ? {
+                name: hosts[0].name,
+                variant: hosts[0].variant,
+                has_vms: hosts[0].has_vms
+            } : 'No hosts'
+        });
+        const variantId = `variant-${variant.aggregate.replace(/[^a-zA-Z0-9]/g, '-')}`;
         
-        const variantId = `variant-${variant.replace(/\s+/g, '-')}`;
-        const isCollapsed = index > 0; // Collapse all except first variant
+        if (variantHosts.length === 0) {
+            variantsHtml += `
+                <div class="host-group">
+                    <div class="host-group-header clickable" onclick="toggleGroup('${variantId}')">
+                        <i class="fas fa-microchip text-primary"></i>
+                        <h6>${variant.variant} <span class="badge bg-secondary ms-2">0</span></h6>
+                        <small class="text-muted">No hosts available</small>
+                        <i class="fas fa-chevron-down toggle-icon" id="${variantId}-icon"></i>
+                    </div>
+                    <div class="host-group-content collapsed" id="${variantId}">
+                        <div class="drop-zone" data-type="ondemand" data-variant="${variant.aggregate}">
+                            <div class="empty-state">
+                                <i class="fas fa-server"></i>
+                                <p>No hosts in this variant</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
         
-        // Separate available and in-use hosts for this variant
+        // Separate hosts into groups
         const availableHosts = variantHosts.filter(host => !host.has_vms);
         const inUseHosts = variantHosts.filter(host => host.has_vms);
         
-        let variantContent = '';
+        let sectionsHtml = '';
         
-        // Available hosts for this variant
+        // Available hosts section
         if (availableHosts.length > 0) {
-            const availableCards = availableHosts.map(host => createHostCard(host, 'ondemand', variant)).join('');
-            variantContent += `
-                <div class="variant-section">
-                    <div class="variant-section-header">
-                        <i class="fas fa-circle-check text-success"></i>
-                        <span class="section-title">Available (${availableHosts.length})</span>
+            // Group available hosts by owner
+            const nexgenHosts = availableHosts.filter(host => host.owner_group === 'Nexgen Cloud');
+            const investorHosts = availableHosts.filter(host => host.owner_group === 'Investors');
+            
+            const availableId = `available-${variant.aggregate}`;
+            let availableSubGroups = '';
+            
+            // Nexgen Cloud devices sub-group
+            if (nexgenHosts.length > 0) {
+                const nexgenCards = nexgenHosts.map(host => createHostCard(host, 'ondemand', variant.aggregate)).join('');
+                const nexgenSubGroupId = `available-nexgen-${variant.aggregate}`;
+                
+                availableSubGroups += `
+                    <div class="host-subgroup nexgen-group">
+                        <div class="host-subgroup-header clickable" onclick="toggleGroup('${nexgenSubGroupId}')">
+                            <i class="fas fa-cloud text-info"></i>
+                            <span class="subgroup-title">Nexgen Cloud (${nexgenHosts.length})</span>
+                            <i class="fas fa-chevron-down toggle-icon" id="${nexgenSubGroupId}-icon"></i>
+                        </div>
+                        <div class="host-subgroup-content" id="${nexgenSubGroupId}">
+                            ${nexgenCards}
+                        </div>
                     </div>
-                    <div class="variant-section-content">
-                        ${availableCards}
+                `;
+            }
+            
+            // Investors devices sub-group
+            if (investorHosts.length > 0) {
+                const investorCards = investorHosts.map(host => createHostCard(host, 'ondemand', variant.aggregate)).join('');
+                const investorSubGroupId = `available-investor-${variant.aggregate}`;
+                
+                availableSubGroups += `
+                    <div class="host-subgroup investors-group">
+                        <div class="host-subgroup-header clickable" onclick="toggleGroup('${investorSubGroupId}')">
+                            <i class="fas fa-users text-warning"></i>
+                            <span class="subgroup-title">Investors (${investorHosts.length})</span>
+                            <i class="fas fa-chevron-down toggle-icon" id="${investorSubGroupId}-icon"></i>
+                        </div>
+                        <div class="host-subgroup-content" id="${investorSubGroupId}">
+                            ${investorCards}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            sectionsHtml += `
+                <div class="host-group">
+                    <div class="host-group-header clickable" onclick="toggleGroup('${availableId}')">
+                        <i class="fas fa-check-circle text-success"></i>
+                        <h6>Available (${availableHosts.length})</h6>
+                        <small class="text-muted">Ready for deployment</small>
+                        <i class="fas fa-chevron-down toggle-icon" id="${availableId}-icon"></i>
+                    </div>
+                    <div class="host-group-content" id="${availableId}">
+                        <div class="subgroups-container">
+                            ${availableSubGroups}
+                        </div>
                     </div>
                 </div>
             `;
         }
         
-        // In-use hosts for this variant
+        // In-use hosts section
         if (inUseHosts.length > 0) {
-            const inUseCards = inUseHosts.map(host => createHostCard(host, 'ondemand', variant)).join('');
-            variantContent += `
-                <div class="variant-section">
-                    <div class="variant-section-header">
+            const inUseCards = inUseHosts.map(host => createHostCard(host, 'ondemand', variant.aggregate)).join('');
+            const inUseId = `inuse-${variant.aggregate}`;
+            
+            sectionsHtml += `
+                <div class="host-group">
+                    <div class="host-group-header clickable" onclick="toggleGroup('${inUseId}')">
                         <i class="fas fa-exclamation-triangle text-warning"></i>
-                        <span class="section-title">In Use (${inUseHosts.length})</span>
+                        <h6>In Use (${inUseHosts.length})</h6>
+                        <small class="text-muted">Have running VMs</small>
+                        <i class="fas fa-chevron-down toggle-icon" id="${inUseId}-icon"></i>
                     </div>
-                    <div class="variant-section-content">
+                    <div class="host-group-content" id="${inUseId}">
                         ${inUseCards}
                     </div>
                 </div>
             `;
         }
         
+        // Create collapsible variant section
         variantsHtml += `
-            <div class="variant-group">
-                <div class="variant-header clickable" onclick="toggleGroup('${variantId}')">
-                    <i class="fas fa-tag text-primary"></i>
-                    <h6 class="mb-0">${variant} (${variantHosts.length})</h6>
-                    <i class="fas fa-chevron-${isCollapsed ? 'right' : 'down'} toggle-icon" id="${variantId}-icon"></i>
+            <div class="host-group">
+                <div class="host-group-header clickable" onclick="toggleGroup('${variantId}')">
+                    <i class="fas fa-microchip text-primary"></i>
+                    <h6>${variant.variant} <span class="badge bg-secondary ms-2">${variantHosts.length}</span></h6>
+                    <small class="text-muted">Available: ${availableHosts.length} | In Use: ${inUseHosts.length}</small>
+                    <i class="fas fa-chevron-down toggle-icon" id="${variantId}-icon"></i>
                 </div>
-                <div class="variant-content ${isCollapsed ? 'collapsed' : ''}" id="${variantId}">
-                    ${variantContent}
+                <div class="host-group-content" id="${variantId}">
+                    <div class="drop-zone" data-type="ondemand" data-variant="${variant.aggregate}">
+                        <div class="subgroups-container">
+                            ${sectionsHtml}
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
     });
     
-    // Add drop zone at the end
-    variantsHtml += `
+    // Wrap all variants in a main drop zone for the column
+    container.innerHTML = `
         <div class="drop-zone" data-type="ondemand">
-            <div class="drop-zone-content">
-                <i class="fas fa-download"></i>
-                <p>Drop hosts here to move to on-demand</p>
-            </div>
+            ${variantsHtml}
         </div>
     `;
-    
-    container.innerHTML = variantsHtml;
 }
 
 // EXACT ORIGINAL createHostCard function
