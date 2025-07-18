@@ -983,7 +983,7 @@ function renderOnDemandVariantColumns(ondemandData) {
             });
             
             columnsHtml += `
-                <div class="col-md-3">
+                <div class="flex-fill me-3">
                     <div class="aggregate-column" id="${variantId}Column">
                         <div class="card">
                             <div class="card-header bg-primary text-white">
