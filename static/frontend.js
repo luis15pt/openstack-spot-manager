@@ -664,6 +664,14 @@ function addToPendingOperations(hostname, sourceType, targetType) {
     const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
     const sourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
     
+    console.log('🔍 addToPendingOperations:', {
+        hostname,
+        sourceType,
+        targetType,
+        sourceAggregate,
+        hasVariants: aggregateData.ondemand?.variants?.length || 0
+    });
+    
     // For target aggregate, determine based on new data structure
     let targetAggregate = '';
     if (aggregateData.ondemand && aggregateData.ondemand.variants && aggregateData.spot) {
@@ -675,13 +683,37 @@ function addToPendingOperations(hostname, sourceType, targetType) {
             if (aggregateData.runpod) {
                 targetAggregate = aggregateData.runpod.name;
             }
-        } else {
-            // Moving to on-demand - find the original variant for this host
-            const sourceVariant = aggregateData.ondemand.variants.find(variant => 
-                variant.aggregate === sourceAggregate
-            );
-            if (sourceVariant) {
-                targetAggregate = sourceVariant.aggregate;
+        } else if (targetType === 'ondemand') {
+            // Moving to on-demand - determine which variant to use
+            if (aggregateData.ondemand.variants && aggregateData.ondemand.variants.length > 0) {
+                // If host is coming from an ondemand variant, use the same variant
+                const sourceVariant = aggregateData.ondemand.variants.find(variant => 
+                    variant.aggregate === sourceAggregate
+                );
+                if (sourceVariant) {
+                    targetAggregate = sourceVariant.aggregate;
+                } else {
+                    // Host coming from spot/runpod - determine which ondemand variant to use
+                    // Check if host has NVLink to determine A100-n3 vs A100-n3-NVLink
+                    const hostCard = document.querySelector(`[data-host="${hostname}"]`);
+                    const hasNVLink = hostCard && hostCard.dataset.nvlinks === 'true';
+                    
+                    // Find the appropriate variant based on NVLink capability
+                    const preferredVariant = aggregateData.ondemand.variants.find(variant => {
+                        const isNVLinkVariant = variant.variant.toLowerCase().includes('nvlink');
+                        return hasNVLink ? isNVLinkVariant : !isNVLinkVariant;
+                    });
+                    
+                    if (preferredVariant) {
+                        targetAggregate = preferredVariant.aggregate;
+                    } else {
+                        // Fallback to first available variant
+                        targetAggregate = aggregateData.ondemand.variants[0].aggregate;
+                    }
+                }
+            } else {
+                // Fallback to single ondemand aggregate
+                targetAggregate = aggregateData.ondemand.name;
             }
         }
     } else {
@@ -694,6 +726,12 @@ function addToPendingOperations(hostname, sourceType, targetType) {
             targetAggregate = aggregateData.runpod.name;
         }
     }
+    
+    console.log('🔍 Target aggregate determined:', {
+        targetAggregate,
+        targetType,
+        variants: aggregateData.ondemand?.variants
+    });
     
     // Check if operation already exists
     const existingIndex = pendingOperations.findIndex(op => op.hostname === hostname);
