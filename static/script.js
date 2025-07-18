@@ -259,6 +259,13 @@ function showVmDetails(hostname) {
     
     window.OpenStack.getHostVmDetails(hostname)
         .then(data => {
+            console.log('🔍 VM Details API Response:', data);
+            console.log('🔍 VM Details VMs Array:', data.vms);
+            if (data.vms && data.vms.length > 0) {
+                console.log('🔍 First VM Object:', data.vms[0]);
+                console.log('🔍 VM Properties:', Object.keys(data.vms[0]));
+            }
+            
             const modal = new bootstrap.Modal(document.getElementById('vmDetailsModal'));
             const modalBody = document.getElementById('vmDetailsBody');
             const modalTitle = document.querySelector('#vmDetailsModal .modal-title');
@@ -279,42 +286,54 @@ function showVmDetails(hostname) {
                         No VMs found on this host.
                     </div>`;
             } else {
-                const vmsHtml = data.vms.map(vm => `
-                    <div class="vm-card card mb-3">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <h6 class="card-title">${vm.Name}</h6>
-                                <span class="badge bg-${window.Utils.getStatusClass(vm.Status)}">${vm.Status}</span>
-                            </div>
-                            <div class="vm-details">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <small class="text-muted">
-                                            <strong>ID:</strong> ${vm.ID}<br>
-                                            <strong>Flavor:</strong> ${vm.Flavor}<br>
-                                            <strong>Image:</strong> ${vm.Image || 'N/A'}
-                                        </small>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <small class="text-muted">
-                                            <strong>Created:</strong> ${window.Utils.formatDate(vm.Created)}<br>
-                                            <strong>Updated:</strong> ${window.Utils.formatDate(vm.Updated)}
-                                        </small>
+                const vmTableRows = data.vms.map(vm => {
+                    const statusClass = window.Utils.getStatusClass(vm.Status);
+                    const statusIcon = window.Utils.getStatusIcon(vm.Status);
+                    const created = window.Utils.formatDate(vm.Created);
+                    
+                    return `
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="fas ${statusIcon} me-2" style="color: ${window.Utils.getStatusColor(vm.Status)}"></i>
+                                    <div>
+                                        <strong>${vm.Name}</strong>
+                                        <br><small class="text-muted">${vm.ID}</small>
                                     </div>
                                 </div>
-                                ${vm.Project ? `
-                                    <div class="mt-2">
-                                        <small class="text-muted">
-                                            <strong>Project:</strong> ${vm.Project}
-                                        </small>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
+                            </td>
+                            <td>
+                                <span class="badge bg-${statusClass}">${vm.Status}</span>
+                            </td>
+                            <td><small>${vm.Flavor}</small></td>
+                            <td><small>${vm.Image || 'N/A'}</small></td>
+                            <td><small>${created}</small></td>
+                        </tr>
+                    `;
+                }).join('');
                 
-                modalBody.innerHTML = vmsHtml;
+                modalBody.innerHTML = `
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-0">Host: ${hostname}</h6>
+                        <small class="text-muted">Found ${data.vms.length} VM(s)</small>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>VM Name</th>
+                                    <th>Status</th>
+                                    <th>Flavor</th>
+                                    <th>Image</th>
+                                    <th>Created</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${vmTableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
             }
             
             modal.show();
