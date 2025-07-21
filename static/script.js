@@ -736,6 +736,9 @@ function executeRealCommand(operation, command) {
                             if (!window.commandContext) window.commandContext = {};
                             window.commandContext[`${hostname}_vm_id`] = result.vm_id;
                             console.log(`💾 Stored VM ID for ${hostname}: ${result.vm_id}`);
+                            
+                            // Update firewall command displays with actual VM ID
+                            updateCommandDisplayWithValue(hostname, 'firewall-update-attachments', '<NEW_VM_ID>', result.vm_id);
                         }
                         
                         const output = result && result.vm_id ? 
@@ -755,6 +758,9 @@ function executeRealCommand(operation, command) {
                         if (!window.commandContext) window.commandContext = {};
                         window.commandContext[`${hostname}_uuid`] = result;
                         console.log(`💾 Stored UUID for ${hostname}: ${result}`);
+                        
+                        // Update network attachment command display with actual UUID
+                        updateCommandDisplayWithValue(hostname, 'storage-attach-network', '<UUID_FROM_STEP_4>', result);
                         resolve({ output: `Server UUID: ${result}\n${hostname} found with ID: ${result}` });
                     })
                     .catch(error => reject(error));
@@ -857,6 +863,35 @@ function executeRealCommand(operation, command) {
 
 // Note: generateSimulatedOutput function removed - all commands now use real API calls
 
+// Update command display with actual values from previous steps
+function updateCommandDisplayWithValue(hostname, commandType, placeholder, actualValue) {
+    console.log(`🔄 Updating command display: ${commandType}, replacing "${placeholder}" with "${actualValue}"`);
+    
+    // Find all command elements for this hostname and command type
+    const commandElements = document.querySelectorAll(`[data-command-id*="${hostname}"]`);
+    
+    commandElements.forEach(element => {
+        const commandId = element.getAttribute('data-command-id');
+        if (commandId && commandId.includes(commandType)) {
+            // Find the command text element
+            const commandTextElement = element.querySelector('.command-text');
+            if (commandTextElement) {
+                const currentText = commandTextElement.textContent;
+                const updatedText = currentText.replace(placeholder, actualValue);
+                
+                if (currentText !== updatedText) {
+                    commandTextElement.textContent = updatedText;
+                    console.log(`✅ Updated command display for ${commandId}: "${placeholder}" → "${actualValue}"`);
+                    
+                    // Add visual indicator that the command was updated
+                    element.classList.add('command-updated');
+                    setTimeout(() => element.classList.remove('command-updated'), 2000);
+                }
+            }
+        }
+    });
+}
+
 function markCommandAsInProgress(commandElement) {
     commandElement.classList.add('in-progress-step');
     commandElement.classList.remove('completed-step');
@@ -956,6 +991,21 @@ function markCommandAsCompleted(commandElement, output = null) {
     const progressContainer = document.getElementById(`${commandId}-progress`);
     if (progressContainer) {
         progressContainer.style.display = 'none';
+    }
+    
+    // Show and populate actual output section
+    if (output) {
+        const actualOutputSection = document.getElementById(`${commandId}-actual-output`);
+        if (actualOutputSection) {
+            const outputContent = actualOutputSection.querySelector('.actual-output-content');
+            if (outputContent) {
+                // Add timestamp and format output nicely
+                const timestamp = new Date().toLocaleTimeString();
+                outputContent.textContent = `[${timestamp}] ${output}`;
+                actualOutputSection.style.display = 'block';
+                console.log(`📄 Added actual output to ${commandId}`);
+            }
+        }
     }
     
     // Update output section with actual output (legacy support)

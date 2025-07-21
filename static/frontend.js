@@ -951,6 +951,11 @@ function updatePendingOperationsDisplay() {
                             <div class="text-muted small mt-1 font-italic">${cmd.expected_output}</div>
                         </div>
                         
+                        <div class="command-actual-output mt-2" id="${commandId}-actual-output" style="display: none;">
+                            <strong class="text-primary">Actual Output:</strong>
+                            <div class="actual-output-content bg-dark text-light p-2 rounded small mt-1" style="font-family: monospace; white-space: pre-wrap;"></div>
+                        </div>
+                        
                         ${cmd.dependencies && cmd.dependencies.length > 0 ? `
                         <div class="command-dependencies mt-2">
                             <strong class="text-warning">Dependencies:</strong>
