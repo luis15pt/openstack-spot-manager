@@ -1292,16 +1292,16 @@ function generateIndividualCommandOperations(operation) {
   -H 'api_key: <HYPERSTACK_API_KEY>' \\
   -H 'Content-Type: application/json' \\
   -d '{
-    "name": "${operation.vm_name || operation.hostname}",
-    "environment_name": "CA1-RunPod",
+    "name": "<VM_NAME>",
+    "environment_name": "CA1-RunPod", 
     "image_name": "Ubuntu Server 22.04 LTS (Jammy Jellyfish)",
-    "flavor_name": "<gpu-flavor>",
+    "flavor_name": "<GPU_FLAVOR>",
     "assign_floating_ip": true,
-    "user_data": "#!/bin/bash\\necho \\"api_key=<RUNPOD_API_KEY>\\" > /tmp/runpod-config"
-  }'`,
+    "user_data": "<CLOUD_INIT_SCRIPT_WITH_RUNPOD_API_KEY>"
+  }' # VM: ${operation.vm_name || operation.hostname}`,
             verification_commands: [
-                `openstack server show ${operation.vm_name || operation.hostname} --all-projects`,
-                `openstack server list --host ${operation.hostname} --all-projects`
+                `openstack server show <VM_NAME> --all-projects`,
+                `openstack server list --host <HOSTNAME> --all-projects`
             ],
             timing: 'Immediate',
             command_type: 'api',
@@ -1351,7 +1351,7 @@ function generateIndividualCommandOperations(operation) {
                 parent_operation: 'runpod-launch',
                 title: 'Get server UUID for network operations',
                 description: 'Retrieves the OpenStack server UUID required for network attachment',
-                command: `openstack server list --all-projects --name "${operation.hostname}" -c ID -f value`,
+                command: `openstack server list --all-projects --name "<SERVER_NAME>" -c ID -f value # Server: ${operation.hostname}`,
                 timing: 'Immediate',
                 command_type: 'server',
                 purpose: 'Get the server UUID required for OpenStack network operations',
@@ -1423,9 +1423,9 @@ function generateIndividualCommandOperations(operation) {
   -d '{
     "virtual_machines": [
       "<EXISTING_VM_IDS>",
-      "${operation.vm_name || operation.hostname}"
+      "<NEW_VM_NAME>"
     ]
-  }'`,
+  }' # New VM: ${operation.vm_name || operation.hostname}`,
                 timing: 'Immediate',
                 command_type: 'security',
                 purpose: 'Apply security rules to new VM while preserving existing VM protections',
