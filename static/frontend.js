@@ -915,14 +915,14 @@ function updatePendingOperationsDisplay() {
                                 </label>
                                 
                                 <!-- Progress bar for timed operations -->
-                                ${cmd.type === 'wait-command' ? `
+                                ${cmd.type === 'wait-command' || cmd.type === 'storage-wait-command' || cmd.type === 'firewall-wait-command' ? `
                                 <div class="command-progress mt-1" id="${commandId}-progress" style="display: none;">
                                     <div class="progress" style="height: 6px;">
                                         <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
                                              role="progressbar" style="width: 0%" id="${commandId}-progress-bar">
                                         </div>
                                     </div>
-                                    <small class="text-muted" id="${commandId}-progress-text">Waiting 60 seconds...</small>
+                                    <small class="text-muted" id="${commandId}-progress-text">Waiting...</small>
                                 </div>` : ''}
                             </div>
                             
@@ -1259,10 +1259,9 @@ function generateIndividualCommandOperations(operation) {
     const commands = [];
     
     if (operation.type === 'runpod-launch') {
-        // Generate all 7 individual, selectable steps as they were in the working version
-        // Each command is a separate operation that can be individually committed
+        // Generate individual commands with explicit sleep operations as separate steps
         
-        // 1. Wait command
+        // 1. Wait command for aggregate
         commands.push({
             type: 'wait-command',
             hostname: operation.hostname,
@@ -1313,7 +1312,23 @@ function generateIndividualCommandOperations(operation) {
         });
         
         if (operation.hostname.startsWith('CA1-')) {
-            // 3. Storage Network - Find Network ID
+            // 3. Sleep 120 seconds before storage operations
+            commands.push({
+                type: 'storage-wait-command',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Sleep 120 seconds',
+                description: 'Wait for VM to fully boot and initialize before attaching storage network interface',
+                command: `sleep 120  # Wait for VM boot completion before network operations`,
+                timing: '120s delay',
+                command_type: 'timing',
+                purpose: 'Ensure VM is ready for network interface attachment to prevent OpenStack errors',
+                expected_output: 'Wait completed - VM ready for network operations',
+                dependencies: ['hyperstack-launch'],
+                timestamp: new Date().toISOString()
+            });
+            
+            // 4. Storage Network - Find Network ID
             commands.push({
                 type: 'storage-find-network',
                 hostname: operation.hostname,
@@ -1321,15 +1336,15 @@ function generateIndividualCommandOperations(operation) {
                 title: 'Find RunPod storage network ID',
                 description: 'Retrieves the network ID for RunPod-Storage-Canada-1 network to use for port creation',
                 command: `openstack network show "RunPod-Storage-Canada-1" -c id -f value`,
-                timing: '120s after VM launch',
+                timing: 'Immediate',
                 command_type: 'network',
                 purpose: 'Get the network UUID required for creating storage network port',
                 expected_output: 'Network UUID (e.g., 12345678-1234-1234-1234-123456789012)',
-                dependencies: ['hyperstack-launch'],
+                dependencies: ['storage-wait-command'],
                 timestamp: new Date().toISOString()
             });
             
-            // 4. Storage Network - Create Port
+            // 5. Storage Network - Create Port
             commands.push({
                 type: 'storage-create-port',
                 hostname: operation.hostname,
@@ -1337,7 +1352,7 @@ function generateIndividualCommandOperations(operation) {
                 title: 'Create storage network port',
                 description: 'Creates a dedicated port on the storage network for the VM',
                 command: `openstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port" -c id -f value`,
-                timing: 'After network ID found',
+                timing: 'Immediate',
                 command_type: 'network',
                 purpose: 'Create a dedicated network port for high-performance storage access',
                 expected_output: 'Port UUID for the storage network interface',
@@ -1345,7 +1360,7 @@ function generateIndividualCommandOperations(operation) {
                 timestamp: new Date().toISOString()
             });
             
-            // 5. Storage Network - Attach Port
+            // 6. Storage Network - Attach Port
             commands.push({
                 type: 'storage-attach-port',
                 hostname: operation.hostname,
@@ -1353,7 +1368,7 @@ function generateIndividualCommandOperations(operation) {
                 title: 'Attach storage port to VM',
                 description: 'Attaches the storage network port to the VM for high-performance storage access',
                 command: `openstack server add port ${operation.hostname} <PORT_ID>`,
-                timing: 'After port created',
+                timing: 'Immediate',
                 command_type: 'network',
                 purpose: 'Connect VM to high-performance storage network for data access',
                 expected_output: 'Port successfully attached to VM',
@@ -1361,7 +1376,23 @@ function generateIndividualCommandOperations(operation) {
                 timestamp: new Date().toISOString()
             });
             
-            // 6. Firewall - Get Current Attachments
+            // 7. Sleep 180 seconds before firewall operations
+            commands.push({
+                type: 'firewall-wait-command',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Sleep 180 seconds',
+                description: 'Wait for VM and storage network to be fully operational before firewall configuration',
+                command: `sleep 180  # Wait for complete VM initialization before firewall operations`,
+                timing: '180s delay',
+                command_type: 'timing',
+                purpose: 'Ensure VM is fully operational before applying firewall rules to prevent configuration errors',
+                expected_output: 'Wait completed - VM ready for firewall configuration',
+                dependencies: ['storage-attach-port'],
+                timestamp: new Date().toISOString()
+            });
+            
+            // 8. Firewall - Get Current Attachments
             commands.push({
                 type: 'firewall-get-attachments',
                 hostname: operation.hostname,
@@ -1371,15 +1402,15 @@ function generateIndividualCommandOperations(operation) {
                 command: `curl -X GET https://infrahub-api.nexgencloud.com/v1/core/firewalls/971 \\
   -H 'api_key: <HYPERSTACK_API_KEY>' \\
   -H 'Content-Type: application/json'`,
-                timing: '180s after VM launch',
+                timing: 'Immediate',
                 command_type: 'security',
                 purpose: 'Preserve existing VM attachments when updating firewall rules',
                 expected_output: 'JSON list of currently attached VM IDs',
-                dependencies: ['hyperstack-launch'],
+                dependencies: ['firewall-wait-command'],
                 timestamp: new Date().toISOString()
             });
             
-            // 7. Firewall - Update with All VMs
+            // 9. Firewall - Update with All VMs
             commands.push({
                 type: 'firewall-update-attachments',
                 hostname: operation.hostname,
@@ -1395,7 +1426,7 @@ function generateIndividualCommandOperations(operation) {
       "${operation.vm_name || operation.hostname}"
     ]
   }'`,
-                timing: 'After getting existing attachments',
+                timing: 'Immediate',
                 command_type: 'security',
                 purpose: 'Apply security rules to new VM while preserving existing VM protections',
                 expected_output: 'Firewall updated successfully with all VM attachments',

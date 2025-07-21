@@ -672,6 +672,10 @@ function executeRealCommand(operation, command) {
         
         if (commandTitle.includes('Wait for aggregate')) {
             commandType = 'wait-command';
+        } else if (commandTitle.includes('Sleep 120 seconds')) {
+            commandType = 'storage-wait-command';
+        } else if (commandTitle.includes('Sleep 180 seconds')) {
+            commandType = 'firewall-wait-command';
         } else if (commandTitle.includes('Deploy VM via Hyperstack')) {
             commandType = 'hyperstack-launch';
         } else if (commandTitle.includes('Find RunPod storage network')) {
@@ -697,6 +701,22 @@ function executeRealCommand(operation, command) {
                 setTimeout(() => {
                     resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 60 seconds elapsed\nAggregate membership propagated` });
                 }, 60000); // Real 60 second wait
+                break;
+                
+            case 'storage-wait-command':
+                // Real wait for storage operations
+                console.log(`⏰ Real wait: 120 seconds for VM boot completion`);
+                setTimeout(() => {
+                    resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 120 seconds elapsed\nVM ready for storage network operations` });
+                }, 120000); // Real 120 second wait
+                break;
+                
+            case 'firewall-wait-command':
+                // Real wait for firewall operations
+                console.log(`⏰ Real wait: 180 seconds for full VM initialization`);
+                setTimeout(() => {
+                    resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 180 seconds elapsed\nVM fully operational, ready for firewall configuration` });
+                }, 180000); // Real 180 second wait
                 break;
                 
             case 'hyperstack-launch':
@@ -884,11 +904,11 @@ function markCommandAsInProgress(commandElement) {
             let waitDuration = 60; // default
             const commandTitle = commandElement.querySelector('.command-title strong')?.textContent || '';
             
-            if (commandTitle.includes('120s') || commandTitle.toLowerCase().includes('storage')) {
+            if (commandTitle.includes('Sleep 120 seconds') || commandTitle.includes('120s')) {
                 waitDuration = 120;
-            } else if (commandTitle.includes('180s') || commandTitle.toLowerCase().includes('firewall')) {
+            } else if (commandTitle.includes('Sleep 180 seconds') || commandTitle.includes('180s')) {
                 waitDuration = 180;
-            } else if (commandTitle.includes('60s') || commandTitle.toLowerCase().includes('aggregate')) {
+            } else if (commandTitle.includes('Sleep 60 seconds') || commandTitle.includes('60s') || commandTitle.toLowerCase().includes('aggregate')) {
                 waitDuration = 60;
             }
             
