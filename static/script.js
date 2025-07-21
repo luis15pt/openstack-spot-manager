@@ -731,6 +731,13 @@ function executeRealCommand(operation, command) {
                 console.log(`🚀 Real Hyperstack VM deployment for ${hostname}`);
                 window.Hyperstack.executeRunpodLaunch(hostname)
                     .then(result => {
+                        // Store the VM ID for use in firewall operations
+                        if (result && result.vm_id) {
+                            if (!window.commandContext) window.commandContext = {};
+                            window.commandContext[`${hostname}_vm_id`] = result.vm_id;
+                            console.log(`💾 Stored VM ID for ${hostname}: ${result.vm_id}`);
+                        }
+                        
                         const output = result && result.vm_id ? 
                             `VM ${hostname} launched successfully\nVM ID: ${result.vm_id}\nFloating IP: ${result.floating_ip || 'Assigned'}\nStatus: ACTIVE` :
                             `VM ${hostname} launched successfully via Hyperstack API`;
@@ -810,16 +817,26 @@ function executeRealCommand(operation, command) {
             case 'firewall-update-attachments':
                 // Real Hyperstack firewall update via backend endpoint
                 console.log(`🛡️ Real firewall update with ${hostname}`);
+                
+                // Get the stored VM ID from Step 1
+                const vmId = window.commandContext && window.commandContext[`${hostname}_vm_id`];
+                if (!vmId) {
+                    reject(new Error(`VM ID not found for ${hostname}. VM deployment may have failed.`));
+                    return;
+                }
+                
+                console.log(`🔑 Using stored VM ID for ${hostname}: ${vmId}`);
+                
                 window.Utils.fetchWithTimeout('/api/hyperstack/firewall/update-attachments', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vm_name: hostname })
+                    body: JSON.stringify({ vm_id: vmId })  // Use VM ID instead of name
                 }, 30000)
                 .then(window.Utils.checkResponse)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        resolve({ output: `Firewall updated successfully\nVM ${hostname} added to firewall ${data.firewall_id}\nTotal VMs on firewall: ${data.total_vms}\nVM list: ${data.vm_list.join(', ')}` });
+                        resolve({ output: `Firewall updated successfully\nVM ${hostname} (ID: ${vmId}) added to firewall ${data.firewall_id}\nTotal VMs on firewall: ${data.total_vms}\nVM list: ${data.vm_list.join(', ')}` });
                     } else {
                         reject(new Error(data.error || 'Firewall update failed'));
                     }

@@ -1407,7 +1407,7 @@ function generateIndividualCommandOperations(operation) {
   -d '{
     "virtual_machines": [
       "<EXISTING_VM_IDS>",
-      "<NEW_VM_NAME>"
+      "<NEW_VM_ID>"
     ]
   }' # New VM: ${operation.vm_name || operation.hostname}`,
                 timing: 'Immediate',

@@ -1824,27 +1824,27 @@ def hyperstack_firewall_update_attachments():
     try:
         data = request.get_json()
         firewall_id = data.get('firewall_id', HYPERSTACK_FIREWALL_CA1_ID)
-        new_vm_name = data.get('vm_name')
+        new_vm_id = data.get('vm_id')
         
         if not firewall_id:
             return jsonify({'success': False, 'error': 'No firewall ID configured'})
         
-        if not new_vm_name:
-            return jsonify({'success': False, 'error': 'VM name is required'})
+        if not new_vm_id:
+            return jsonify({'success': False, 'error': 'VM ID is required'})
         
-        print(f"🔥 Adding VM {new_vm_name} to firewall {firewall_id}")
+        print(f"🔥 Adding VM ID {new_vm_id} to firewall {firewall_id}")
         
         # Get current attachments
         existing_vm_ids = get_firewall_current_attachments(firewall_id)
         print(f"📋 Current VMs on firewall: {existing_vm_ids}")
         
-        # Add new VM to the list
-        if new_vm_name not in existing_vm_ids:
-            updated_vm_ids = existing_vm_ids + [new_vm_name]
-            print(f"➕ Adding {new_vm_name} to firewall attachments")
+        # Add new VM ID to the list
+        if new_vm_id not in existing_vm_ids:
+            updated_vm_ids = existing_vm_ids + [new_vm_id]
+            print(f"➕ Adding VM ID {new_vm_id} to firewall attachments")
         else:
             updated_vm_ids = existing_vm_ids
-            print(f"ℹ️ VM {new_vm_name} already attached to firewall")
+            print(f"ℹ️ VM ID {new_vm_id} already attached to firewall")
         
         # Update firewall with all VMs (existing + new)
         headers = {
@@ -1864,11 +1864,11 @@ def hyperstack_firewall_update_attachments():
         )
         
         if response.status_code == 200:
-            print(f"✅ Successfully updated firewall {firewall_id} with VM {new_vm_name}")
+            print(f"✅ Successfully updated firewall {firewall_id} with VM ID {new_vm_id}")
             return jsonify({
                 'success': True,
                 'firewall_id': firewall_id,
-                'vm_name': new_vm_name,
+                'vm_id': new_vm_id,
                 'total_vms': len(updated_vm_ids),
                 'vm_list': updated_vm_ids
             })
