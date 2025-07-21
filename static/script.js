@@ -756,6 +756,10 @@ function executeRealCommand(operation, command) {
                 console.log(`🔍 Real server UUID lookup for ${hostname}`);
                 window.OpenStack.executeNetworkCommand(`openstack server list --all-projects --name "${hostname}" -c ID -f value`)
                     .then(result => {
+                        // Store the UUID for use in subsequent commands
+                        if (!window.commandContext) window.commandContext = {};
+                        window.commandContext[`${hostname}_uuid`] = result;
+                        console.log(`💾 Stored UUID for ${hostname}: ${result}`);
                         resolve({ output: `Server UUID: ${result}\n${hostname} found with ID: ${result}` });
                     })
                     .catch(error => reject(error));
@@ -764,11 +768,35 @@ function executeRealCommand(operation, command) {
             case 'storage-attach-network':
                 // Real OpenStack network attachment using SDK (server add network approach)
                 console.log(`🌐 Real network attachment to ${hostname}`);
-                window.OpenStack.executeNetworkCommand(`openstack server add network ${hostname} "RunPod-Storage-Canada-1"`)
-                    .then(result => {
-                        resolve({ output: `Network attached successfully to ${hostname}\nHigh-performance storage network connected` });
+                
+                // Get the stored UUID from previous command
+                const serverUuid = window.commandContext && window.commandContext[`${hostname}_uuid`];
+                if (!serverUuid) {
+                    reject(new Error(`Server UUID not found for ${hostname}. UUID lookup may have failed.`));
+                    return;
+                }
+                
+                console.log(`🔑 Using stored UUID for ${hostname}: ${serverUuid}`);
+                
+                // Use the actual backend endpoint that handles UUID lookup properly
+                window.Utils.fetchWithTimeout('/api/openstack/server/add-network', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        server_name: hostname,  // Backend will do UUID lookup again for safety
+                        network_name: "RunPod-Storage-Canada-1"
                     })
-                    .catch(error => reject(error));
+                }, 30000)
+                .then(window.Utils.checkResponse)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        resolve({ output: `Network attached successfully to ${hostname} (UUID: ${serverUuid})\nHigh-performance storage network connected` });
+                    } else {
+                        reject(new Error(data.error || 'Network attachment failed'));
+                    }
+                })
+                .catch(error => reject(error));
                 break;
                 
             case 'firewall-get-attachments':
