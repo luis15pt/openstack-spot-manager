@@ -689,10 +689,8 @@ function executeRealCommand(operation, command) {
             commandType = 'hyperstack-launch';
         } else if (commandTitle.includes('Find RunPod storage network')) {
             commandType = 'storage-find-network';
-        } else if (commandTitle.includes('Create storage network port')) {
-            commandType = 'storage-create-port';
-        } else if (commandTitle.includes('Attach storage port')) {
-            commandType = 'storage-attach-port';
+        } else if (commandTitle.includes('Attach storage network')) {
+            commandType = 'storage-attach-network';
         } else if (commandTitle.includes('Get current firewall')) {
             commandType = 'firewall-get-attachments';
         } else if (commandTitle.includes('Update firewall')) {
@@ -751,22 +749,12 @@ function executeRealCommand(operation, command) {
                     .catch(error => reject(error));
                 break;
                 
-            case 'storage-create-port':
-                // Real OpenStack port creation using SDK
-                console.log(`🌐 Real storage port creation for ${hostname}`);
-                window.OpenStack.executeNetworkCommand(`openstack port create --network "RunPod-Storage-Canada-1" --name "${hostname}-storage-port" -c id -f value`)
+            case 'storage-attach-network':
+                // Real OpenStack network attachment using SDK (server add network approach)
+                console.log(`🌐 Real network attachment to ${hostname}`);
+                window.OpenStack.executeNetworkCommand(`openstack server add network ${hostname} "RunPod-Storage-Canada-1"`)
                     .then(result => {
-                        resolve({ output: `Port UUID: ${result}\nStorage port created for ${hostname}` });
-                    })
-                    .catch(error => reject(error));
-                break;
-                
-            case 'storage-attach-port':
-                // Real OpenStack port attachment using SDK
-                console.log(`🌐 Real port attachment to ${hostname}`);
-                window.OpenStack.executeNetworkCommand(`openstack server add port ${hostname} ${hostname}-storage-port`)
-                    .then(result => {
-                        resolve({ output: `Port attached successfully to ${hostname}\nHigh-performance storage network connected` });
+                        resolve({ output: `Network attached successfully to ${hostname}\nHigh-performance storage network connected` });
                     })
                     .catch(error => reject(error));
                 break;

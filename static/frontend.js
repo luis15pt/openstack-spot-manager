@@ -1344,55 +1344,39 @@ function generateIndividualCommandOperations(operation) {
                 timestamp: new Date().toISOString()
             });
             
-            // 5. Storage Network - Create Port
+            // 5. Storage Network - Direct Attachment
             commands.push({
-                type: 'storage-create-port',
+                type: 'storage-attach-network',
                 hostname: operation.hostname,
                 parent_operation: 'runpod-launch',
-                title: 'Create storage network port',
-                description: 'Creates a dedicated port on the storage network for the VM',
-                command: `openstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port" -c id -f value`,
+                title: 'Attach storage network to VM',
+                description: 'Directly attaches the storage network to the VM using server UUID',
+                command: `openstack server add network ${operation.hostname} "RunPod-Storage-Canada-1"`,
                 timing: 'Immediate',
                 command_type: 'network',
-                purpose: 'Create a dedicated network port for high-performance storage access',
-                expected_output: 'Port UUID for the storage network interface',
+                purpose: 'Connect VM to high-performance storage network for data access',
+                expected_output: 'Network successfully attached to VM',
                 dependencies: ['storage-find-network'],
                 timestamp: new Date().toISOString()
             });
             
-            // 6. Storage Network - Attach Port
-            commands.push({
-                type: 'storage-attach-port',
-                hostname: operation.hostname,
-                parent_operation: 'runpod-launch',
-                title: 'Attach storage port to VM',
-                description: 'Attaches the storage network port to the VM for high-performance storage access',
-                command: `openstack server add port ${operation.hostname} <PORT_ID>`,
-                timing: 'Immediate',
-                command_type: 'network',
-                purpose: 'Connect VM to high-performance storage network for data access',
-                expected_output: 'Port successfully attached to VM',
-                dependencies: ['storage-create-port'],
-                timestamp: new Date().toISOString()
-            });
-            
-            // 7. Sleep 180 seconds before firewall operations
+            // 6. Sleep 180 seconds before firewall operations
             commands.push({
                 type: 'firewall-wait-command',
                 hostname: operation.hostname,
                 parent_operation: 'runpod-launch',
                 title: 'Sleep 180 seconds',
-                description: 'Wait for VM and storage network to be fully operational before firewall configuration',
-                command: `sleep 180  # Wait for complete VM initialization before firewall operations`,
-                timing: '180s delay',
-                command_type: 'timing',
-                purpose: 'Ensure VM is fully operational before applying firewall rules to prevent configuration errors',
-                expected_output: 'Wait completed - VM ready for firewall configuration',
-                dependencies: ['storage-attach-port'],
+                description: 'Wait before firewall attachment to ensure network configuration is complete',
+                command: `sleep 180  # Wait before firewall attachment`,
+                timing: 'Sleep',
+                command_type: 'wait',
+                purpose: 'Allow network configuration to stabilize before firewall attachment',
+                expected_output: 'Sleep completed successfully',
+                dependencies: ['storage-attach-network'],
                 timestamp: new Date().toISOString()
             });
             
-            // 8. Firewall - Get Current Attachments
+            // 7. Firewall - Get Current Attachments
             commands.push({
                 type: 'firewall-get-attachments',
                 hostname: operation.hostname,

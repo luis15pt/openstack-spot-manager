@@ -1703,41 +1703,53 @@ def openstack_port_create():
         print(f"❌ Error creating port: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/openstack/server/add-port', methods=['POST'])
-def openstack_server_add_port():
-    """Attach port to server using OpenStack SDK"""
+@app.route('/api/openstack/server/add-network', methods=['POST'])
+def openstack_server_add_network():
+    """Attach network to server using OpenStack SDK (server add network approach)"""
     try:
         data = request.get_json()
         server_name = data.get('server_name')
-        port_name = data.get('port_name')
+        network_name = data.get('network_name')
         
-        if not server_name or not port_name:
-            return jsonify({'success': False, 'error': 'Server name and port name are required'})
+        if not server_name or not network_name:
+            return jsonify({'success': False, 'error': 'Server name and network name are required'})
         
-        print(f"🌐 Attaching port {port_name} to server {server_name}")
+        print(f"🌐 Attaching network {network_name} to server {server_name}")
         
         conn = get_openstack_connection()
         if not conn:
             return jsonify({'success': False, 'error': 'OpenStack connection failed'})
         
-        # Find the server
-        server = conn.compute.find_server(server_name)
-        if not server:
+        # First get server list with all projects to find UUID - matching your example command
+        # openstack server list --all-projects --name {server_name}
+        servers = list(conn.compute.servers(all_projects=True, name=server_name))
+        
+        if not servers:
             return jsonify({'success': False, 'error': f'Server {server_name} not found'})
         
-        # Find the port
-        port = conn.network.find_port(port_name)
-        if not port:
-            return jsonify({'success': False, 'error': f'Port {port_name} not found'})
+        if len(servers) > 1:
+            print(f"⚠️ Multiple servers found with name {server_name}, using first one")
         
-        # Attach the port to the server
-        conn.compute.create_server_interface(server.id, port_id=port.id)
+        server = servers[0]
+        server_uuid = server.id
+        print(f"📋 Found server {server_name} with UUID: {server_uuid}")
         
-        print(f"✅ Attached port {port_name} to server {server_name}")
-        return jsonify({'success': True, 'message': f'Port {port_name} attached to server {server_name}'})
+        # Find the network
+        network = conn.network.find_network(network_name)
+        if not network:
+            return jsonify({'success': False, 'error': f'Network {network_name} not found'})
+        
+        print(f"📋 Found network {network_name} with UUID: {network.id}")
+        
+        # Attach the network to the server using server UUID
+        # This is equivalent to: openstack server add network {server_uuid} {network_name}
+        conn.compute.create_server_interface(server_uuid, net_id=network.id)
+        
+        print(f"✅ Attached network {network_name} to server {server_name} (UUID: {server_uuid})")
+        return jsonify({'success': True, 'message': f'Network {network_name} attached to server {server_name}'})
         
     except Exception as e:
-        print(f"❌ Error attaching port: {e}")
+        print(f"❌ Error attaching network: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':

@@ -421,36 +421,36 @@ function executeNetworkCommand(command) {
             })
             .catch(error => reject(error));
             
-        } else if (command.includes('server add port')) {
-            // Extract server and port from command: openstack server add port <server_name> <port_name>
+        } else if (command.includes('server add network')) {
+            // Extract server and network from command: openstack server add network <server_name> <network_name>
             const parts = command.split(' ');
             const addIndex = parts.indexOf('add');
-            const portKeywordIndex = parts.indexOf('port');
+            const networkKeywordIndex = parts.indexOf('network');
             
-            if (addIndex === -1 || portKeywordIndex === -1 || portKeywordIndex + 2 >= parts.length) {
-                reject(new Error('Could not parse server or port from command'));
+            if (addIndex === -1 || networkKeywordIndex === -1 || networkKeywordIndex + 2 >= parts.length) {
+                reject(new Error('Could not parse server or network from command'));
                 return;
             }
             
-            const serverName = parts[portKeywordIndex + 1];  // First argument after 'port'
-            const portName = parts[portKeywordIndex + 2];    // Second argument after 'port'
+            const serverName = parts[networkKeywordIndex + 1];  // First argument after 'network'
+            const networkName = parts[networkKeywordIndex + 2]; // Second argument after 'network'
             
-            // Call backend to attach port via SDK
-            window.Utils.fetchWithTimeout('/api/openstack/server/add-port', {
+            // Call backend to attach network via SDK
+            window.Utils.fetchWithTimeout('/api/openstack/server/add-network', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     server_name: serverName,
-                    port_name: portName
+                    network_name: networkName
                 })
             }, 30000)
             .then(window.Utils.checkResponse)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    resolve('Port attached successfully');
+                    resolve('Network attached successfully');
                 } else {
-                    reject(new Error(data.error || 'Port attachment failed'));
+                    reject(new Error(data.error || 'Network attachment failed'));
                 }
             })
             .catch(error => reject(error));
