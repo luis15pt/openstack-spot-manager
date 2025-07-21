@@ -1746,6 +1746,15 @@ def openstack_server_add_network():
         conn.compute.create_server_interface(server_uuid, net_id=network.id)
         
         print(f"✅ Attached network {network_name} to server {server_name} (UUID: {server_uuid})")
+        
+        # Log the command
+        log_command(f'openstack server add network {server_uuid} "{network_name}"', {
+            'success': True,
+            'stdout': f'Network {network_name} successfully attached to server {server_name} (UUID: {server_uuid})',
+            'stderr': '',
+            'returncode': 0
+        }, 'executed')
+        
         return jsonify({'success': True, 'message': f'Network {network_name} attached to server {server_name}'})
         
     except Exception as e:
@@ -1781,6 +1790,14 @@ def openstack_server_get_uuid():
         server_uuid = server.id
         print(f"✅ Found server {server_name} with UUID: {server_uuid}")
         
+        # Log the command
+        log_command(f'openstack server list --all-projects --name "{server_name}" -c ID -f value', {
+            'success': True,
+            'stdout': f'Server UUID: {server_uuid}',
+            'stderr': '',
+            'returncode': 0
+        }, 'executed')
+        
         return jsonify({
             'success': True, 
             'server_uuid': server_uuid,
@@ -1806,6 +1823,14 @@ def hyperstack_firewall_get_attachments():
         
         # Get current attachments using existing function
         existing_vm_ids = get_firewall_current_attachments(firewall_id)
+        
+        # Log the command
+        log_command(f'curl -X GET https://infrahub-api.nexgencloud.com/v1/core/firewalls/{firewall_id}', {
+            'success': True,
+            'stdout': f'Retrieved {len(existing_vm_ids)} VM attachments: {", ".join(map(str, existing_vm_ids))}',
+            'stderr': '',
+            'returncode': 0
+        }, 'executed')
         
         return jsonify({
             'success': True,
@@ -1865,6 +1890,15 @@ def hyperstack_firewall_update_attachments():
         
         if response.status_code == 200:
             print(f"✅ Successfully updated firewall {firewall_id} with VM ID {new_vm_id}")
+            
+            # Log the command
+            log_command(f'curl -X POST https://infrahub-api.nexgencloud.com/v1/core/firewalls/{firewall_id}/update-attachments', {
+                'success': True,
+                'stdout': f'Successfully updated firewall {firewall_id} with {len(updated_vm_ids)} VMs: {", ".join(map(str, updated_vm_ids))}',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
             return jsonify({
                 'success': True,
                 'firewall_id': firewall_id,

@@ -880,7 +880,7 @@ function updatePendingOperationsDisplay() {
             const commandClass = isCompleted ? 'command-operation completed-step' : 'command-operation';
             const statusIcon = isCompleted ? '<i class="fas fa-check-circle text-success me-1"></i>' : '';
             const disabledAttr = isCompleted ? 'disabled' : '';
-            const checkedAttr = isCompleted ? 'checked' : 'checked'; // Default to checked
+            const checkedAttr = isCompleted ? 'checked' : ''; // Only check completed commands by default
             
             // Determine status badge and icon
             let statusBadge, statusClass;
