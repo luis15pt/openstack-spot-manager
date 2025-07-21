@@ -618,8 +618,17 @@ function executeCommandsForOperation(operation, commands, callback) {
         
         // Check if this command is actually checked/selected for execution
         const checkbox = command.element.querySelector('.command-operation-checkbox');
+        
+        // DEBUG: Add detailed logging for sleep commands
+        console.log(`🔍 Debug command: "${command.title}"`);
+        console.log(`🔍 Command element:`, command.element);
+        console.log(`🔍 Checkbox found:`, checkbox);
+        console.log(`🔍 Checkbox checked:`, checkbox ? checkbox.checked : 'NO CHECKBOX');
+        console.log(`🔍 Command ID:`, command.id);
+        console.log(`🔍 Full command object:`, command);
+        
         if (!checkbox || !checkbox.checked) {
-            console.log(`⏭️ Skipping unchecked command: ${command.title}`);
+            console.log(`⏭️ Skipping unchecked command: ${command.title} - Checkbox: ${checkbox ? 'found but unchecked' : 'NOT FOUND'}`);
             window.Logs.addToDebugLog('Command Skipped', `Skipped (unchecked): ${command.title}`, 'info', operation.hostname);
             commandIndex++;
             executeNextCommand();
