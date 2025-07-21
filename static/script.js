@@ -742,29 +742,29 @@ function executeRealCommand(operation, command) {
                 break;
                 
             case 'storage-find-network':
-                // Real OpenStack network lookup
+                // Real OpenStack network lookup using SDK
                 console.log(`🌐 Real network lookup for RunPod-Storage-Canada-1`);
-                executeOpenStackCommand(`openstack network show "RunPod-Storage-Canada-1" -c id -f value`)
+                window.OpenStack.executeNetworkCommand(`openstack network show "RunPod-Storage-Canada-1" -c id -f value`)
                     .then(result => {
-                        resolve({ output: `Network UUID: ${result.trim()}\nRunPod-Storage-Canada-1 network found` });
+                        resolve({ output: `Network UUID: ${result}\nRunPod-Storage-Canada-1 network found` });
                     })
                     .catch(error => reject(error));
                 break;
                 
             case 'storage-create-port':
-                // Real OpenStack port creation
+                // Real OpenStack port creation using SDK
                 console.log(`🌐 Real storage port creation for ${hostname}`);
-                executeOpenStackCommand(`openstack port create --network "RunPod-Storage-Canada-1" --name "${hostname}-storage-port" -c id -f value`)
+                window.OpenStack.executeNetworkCommand(`openstack port create --network "RunPod-Storage-Canada-1" --name "${hostname}-storage-port" -c id -f value`)
                     .then(result => {
-                        resolve({ output: `Port UUID: ${result.trim()}\nStorage port created for ${hostname}` });
+                        resolve({ output: `Port UUID: ${result}\nStorage port created for ${hostname}` });
                     })
                     .catch(error => reject(error));
                 break;
                 
             case 'storage-attach-port':
-                // Real OpenStack port attachment
+                // Real OpenStack port attachment using SDK
                 console.log(`🌐 Real port attachment to ${hostname}`);
-                executeOpenStackCommand(`openstack server add port ${hostname} ${hostname}-storage-port`)
+                window.OpenStack.executeNetworkCommand(`openstack server add port ${hostname} ${hostname}-storage-port`)
                     .then(result => {
                         resolve({ output: `Port attached successfully to ${hostname}\nHigh-performance storage network connected` });
                     })
@@ -798,38 +798,7 @@ function executeRealCommand(operation, command) {
     });
 }
 
-// Execute real OpenStack commands
-function executeOpenStackCommand(command) {
-    return new Promise((resolve, reject) => {
-        // Make real OpenStack API call via backend
-        fetch('/api/execute-openstack-command', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: command })
-        })
-        .then(response => {
-            if (response.status === 404) {
-                // Backend endpoint not implemented yet - simulate success for now
-                console.log(`⚠️ Backend endpoint not available, simulating OpenStack command: ${command}`);
-                resolve(`Simulated: ${command}\n[OpenStack command would execute here]`);
-                return;
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data && data.success) {
-                resolve(data.output);
-            } else if (data && data.error) {
-                reject(new Error(data.error));
-            }
-            // If data is a string (from simulation), it's already resolved above
-        })
-        .catch(error => {
-            console.log(`⚠️ OpenStack command failed, simulating: ${command}`);
-            resolve(`Simulated: ${command}\n[OpenStack command would execute here]`);
-        });
-    });
-}
+// Note: executeOpenStackCommand function removed - now using OpenStack SDK via window.OpenStack.executeNetworkCommand
 
 // Execute real Hyperstack commands
 function executeHyperstackCommand(command) {

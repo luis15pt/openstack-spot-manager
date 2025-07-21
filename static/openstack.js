@@ -354,6 +354,113 @@ function generateMigrationCommands(operation) {
     return commands;
 }
 
+// Execute OpenStack network commands using SDK
+function executeNetworkCommand(command) {
+    return new Promise((resolve, reject) => {
+        console.log(`🌐 Executing OpenStack network command: ${command}`);
+        window.Logs.addToDebugLog('OpenStack', `Executing network command: ${command}`, 'info');
+        
+        // Parse command to determine operation
+        if (command.includes('network show')) {
+            // Extract network name from command
+            const networkMatch = command.match(/network show ["\']?([^"'\s]+)["\']?/);
+            const networkName = networkMatch ? networkMatch[1] : null;
+            
+            if (!networkName) {
+                reject(new Error('Could not parse network name from command'));
+                return;
+            }
+            
+            // Call backend to find network via SDK
+            window.Utils.fetchWithTimeout('/api/openstack/network/show', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ network_name: networkName })
+            }, 30000)
+            .then(window.Utils.checkResponse)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resolve(data.network_id);
+                } else {
+                    reject(new Error(data.error || 'Network lookup failed'));
+                }
+            })
+            .catch(error => reject(error));
+            
+        } else if (command.includes('port create')) {
+            // Extract port details from command
+            const networkMatch = command.match(/--network ["\']?([^"'\s]+)["\']?/);
+            const nameMatch = command.match(/--name ["\']?([^"'\s]+)["\']?/);
+            
+            const networkName = networkMatch ? networkMatch[1] : null;
+            const portName = nameMatch ? nameMatch[1] : null;
+            
+            if (!networkName || !portName) {
+                reject(new Error('Could not parse network name or port name from command'));
+                return;
+            }
+            
+            // Call backend to create port via SDK
+            window.Utils.fetchWithTimeout('/api/openstack/port/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    network_name: networkName,
+                    port_name: portName
+                })
+            }, 30000)
+            .then(window.Utils.checkResponse)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resolve(data.port_id);
+                } else {
+                    reject(new Error(data.error || 'Port creation failed'));
+                }
+            })
+            .catch(error => reject(error));
+            
+        } else if (command.includes('server add port')) {
+            // Extract server and port from command
+            const parts = command.split(' ');
+            const serverIndex = parts.indexOf('server') + 1;
+            const portIndex = parts.indexOf('port') + 1;
+            
+            if (serverIndex >= parts.length || portIndex >= parts.length) {
+                reject(new Error('Could not parse server or port from command'));
+                return;
+            }
+            
+            const serverName = parts[serverIndex + 1];
+            const portName = parts[portIndex + 1];
+            
+            // Call backend to attach port via SDK
+            window.Utils.fetchWithTimeout('/api/openstack/server/add-port', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    server_name: serverName,
+                    port_name: portName
+                })
+            }, 30000)
+            .then(window.Utils.checkResponse)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resolve('Port attached successfully');
+                } else {
+                    reject(new Error(data.error || 'Port attachment failed'));
+                }
+            })
+            .catch(error => reject(error));
+            
+        } else {
+            reject(new Error(`Unsupported OpenStack command: ${command}`));
+        }
+    });
+}
+
 // Export OpenStack functions
 window.OpenStack = {
     executeHostMigration,
@@ -361,5 +468,6 @@ window.OpenStack = {
     loadGpuTypes,
     previewMigration,
     getHostVmDetails,
-    generateMigrationCommands
+    generateMigrationCommands,
+    executeNetworkCommand
 };

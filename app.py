@@ -1639,6 +1639,107 @@ def attach_firewall_to_vm(vm_id, vm_name, delay_seconds=180):
     else:
         print(f"🌍 VM {vm_name} is not in Canada - firewall attachment will be skipped")
 
+# OpenStack SDK endpoints for network operations
+@app.route('/api/openstack/network/show', methods=['POST'])
+def openstack_network_show():
+    """Find network by name using OpenStack SDK"""
+    try:
+        data = request.get_json()
+        network_name = data.get('network_name')
+        
+        if not network_name:
+            return jsonify({'success': False, 'error': 'Network name is required'})
+        
+        print(f"🌐 Looking up network: {network_name}")
+        
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+        
+        # Find the network
+        network = conn.network.find_network(network_name)
+        if not network:
+            return jsonify({'success': False, 'error': f'Network {network_name} not found'})
+        
+        print(f"✅ Found network {network_name} with ID: {network.id}")
+        return jsonify({'success': True, 'network_id': network.id})
+        
+    except Exception as e:
+        print(f"❌ Error finding network: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/openstack/port/create', methods=['POST'])
+def openstack_port_create():
+    """Create port on network using OpenStack SDK"""
+    try:
+        data = request.get_json()
+        network_name = data.get('network_name')
+        port_name = data.get('port_name')
+        
+        if not network_name or not port_name:
+            return jsonify({'success': False, 'error': 'Network name and port name are required'})
+        
+        print(f"🌐 Creating port {port_name} on network {network_name}")
+        
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+        
+        # Find the network
+        network = conn.network.find_network(network_name)
+        if not network:
+            return jsonify({'success': False, 'error': f'Network {network_name} not found'})
+        
+        # Create the port
+        port = conn.network.create_port(
+            network_id=network.id,
+            name=port_name
+        )
+        
+        print(f"✅ Created port {port_name} with ID: {port.id}")
+        return jsonify({'success': True, 'port_id': port.id})
+        
+    except Exception as e:
+        print(f"❌ Error creating port: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/openstack/server/add-port', methods=['POST'])
+def openstack_server_add_port():
+    """Attach port to server using OpenStack SDK"""
+    try:
+        data = request.get_json()
+        server_name = data.get('server_name')
+        port_name = data.get('port_name')
+        
+        if not server_name or not port_name:
+            return jsonify({'success': False, 'error': 'Server name and port name are required'})
+        
+        print(f"🌐 Attaching port {port_name} to server {server_name}")
+        
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+        
+        # Find the server
+        server = conn.compute.find_server(server_name)
+        if not server:
+            return jsonify({'success': False, 'error': f'Server {server_name} not found'})
+        
+        # Find the port
+        port = conn.network.find_port(port_name)
+        if not port:
+            return jsonify({'success': False, 'error': f'Port {port_name} not found'})
+        
+        # Attach the port to the server
+        conn.compute.create_server_interface(server.id, port_id=port.id)
+        
+        print(f"✅ Attached port {port_name} to server {server_name}")
+        return jsonify({'success': True, 'message': f'Port {port_name} attached to server {server_name}'})
+        
+    except Exception as e:
+        print(f"❌ Error attaching port: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 OpenStack Spot Manager Starting...")
