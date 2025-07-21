@@ -5,6 +5,105 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* Command operation styles */
+.command-operation {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    padding: 12px;
+    background-color: #ffffff;
+    transition: all 0.2s ease;
+}
+
+.command-operation:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.command-operation.completed-step {
+    background-color: #f8f9fa;
+    border-color: #28a745;
+}
+
+.command-main-header {
+    align-items: center;
+    gap: 8px;
+}
+
+.command-collapse-btn {
+    padding: 4px 8px !important;
+    font-size: 12px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.command-collapse-btn:hover {
+    background-color: #e9ecef;
+    border-color: #6c757d;
+}
+
+.command-title-section {
+    min-width: 0; /* Allow text truncation */
+}
+
+.command-title {
+    font-weight: 500;
+    margin-bottom: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.command-status-badge {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.command-details {
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+    border-left: 3px solid #6c757d;
+}
+
+.command-details code {
+    font-size: 12px;
+    line-height: 1.4;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.command-progress .progress {
+    margin-bottom: 4px;
+}
+
+.command-progress-text {
+    font-size: 11px;
+    color: #6c757d;
+}
+
+/* Status indicator styles */
+.bg-pending { background-color: #6c757d !important; }
+.bg-in-progress { background-color: #fd7e14 !important; }
+.bg-completed { background-color: #28a745 !important; }
+.bg-timeout { background-color: #dc3545 !important; }
+
+/* Expand/Collapse button group styles */
+.commands-list .btn-group .btn {
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+.commands-list .btn-group .btn i {
+    font-size: 11px;
+}
+
 .aggregate-column {
     min-height: 500px;
 }

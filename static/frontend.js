@@ -882,22 +882,55 @@ function updatePendingOperationsDisplay() {
             const disabledAttr = isCompleted ? 'disabled' : '';
             const checkedAttr = isCompleted ? 'checked' : 'checked'; // Default to checked
             
+            // Determine status badge and icon
+            let statusBadge, statusClass;
+            if (isCompleted) {
+                statusBadge = 'Completed';
+                statusClass = 'bg-success';
+            } else {
+                statusBadge = cmd.timing || 'Pending';
+                statusClass = 'bg-secondary';
+            }
+            
             return `
-                <div class="${commandClass}">
-                    <div class="command-header">
-                        <input type="checkbox" class="form-check-input command-operation-checkbox me-2" 
-                               id="${commandId}" ${checkedAttr} ${disabledAttr}
-                               data-operation-index="${index}" data-command-index="${cmdIndex}"
-                               onchange="updateCommitButtonState()">
-                        <label class="form-check-label command-title" for="${commandId}">
-                            ${statusIcon}
-                            <i class="${window.Utils.getCommandIcon(cmd.command_type)}"></i>
-                            <strong>${cmd.title}</strong>
-                            <span class="badge ${isCompleted ? 'bg-success' : 'bg-secondary'} ms-2">${isCompleted ? 'Completed' : cmd.timing}</span>
-                        </label>
+                <div class="${commandClass}" data-command-id="${commandId}">
+                    <div class="command-header-container">
+                        <div class="command-main-header d-flex align-items-center">
+                            <input type="checkbox" class="form-check-input command-operation-checkbox me-2" 
+                                   id="${commandId}" ${checkedAttr} ${disabledAttr}
+                                   data-operation-index="${index}" data-command-index="${cmdIndex}"
+                                   onchange="updateCommitButtonState()">
+                            
+                            <button class="btn btn-sm btn-outline-secondary me-2 command-collapse-btn" 
+                                    onclick="toggleCommandDetails('${commandId}')"
+                                    title="Expand/Collapse command details">
+                                <i class="fas fa-chevron-down" id="${commandId}-chevron"></i>
+                            </button>
+                            
+                            <div class="command-title-section flex-grow-1">
+                                <label class="form-check-label command-title d-flex align-items-center" for="${commandId}">
+                                    ${statusIcon}
+                                    <i class="${window.Utils.getCommandIcon(cmd.command_type)} me-1"></i>
+                                    <strong>${cmd.title}</strong>
+                                </label>
+                                
+                                <!-- Progress bar for timed operations -->
+                                ${cmd.type === 'wait-command' ? `
+                                <div class="command-progress mt-1" id="${commandId}-progress" style="display: none;">
+                                    <div class="progress" style="height: 6px;">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
+                                             role="progressbar" style="width: 0%" id="${commandId}-progress-bar">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted" id="${commandId}-progress-text">Waiting 60 seconds...</small>
+                                </div>` : ''}
+                            </div>
+                            
+                            <span class="badge ${statusClass} ms-2 command-status-badge" id="${commandId}-status">${statusBadge}</span>
+                        </div>
                     </div>
                     
-                    <div class="command-details mt-2">
+                    <div class="command-details mt-2" style="display: none;">
                         <div class="command-purpose">
                             <strong class="text-primary">Purpose:</strong>
                             <div class="text-muted small mt-1">${cmd.purpose}</div>
@@ -954,10 +987,20 @@ function updatePendingOperationsDisplay() {
                 </div>
                 <div class="card-body collapse show" id="operation-body-${index}">
                     <div class="commands-list">
-                        <h6 class="text-primary mb-3">
-                            <i class="fas fa-list-ol me-1"></i>
-                            Commands to Execute (${commands.length} total)
-                        </h6>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="text-primary mb-0">
+                                <i class="fas fa-list-ol me-1"></i>
+                                Commands to Execute (${commands.length} total)
+                            </h6>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="expandAllCommands()" title="Expand all commands">
+                                    <i class="fas fa-expand-alt me-1"></i>Expand All
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="collapseAllCommands()" title="Collapse all commands">
+                                    <i class="fas fa-compress-alt me-1"></i>Collapse All
+                                </button>
+                            </div>
+                        </div>
                         ${commandsHtml}
                     </div>
                     
@@ -1433,6 +1476,61 @@ function toggleOperationCollapse(index) {
     }
 }
 
+// Toggle individual command details
+function toggleCommandDetails(commandId) {
+    const commandElement = document.querySelector(`[data-command-id="${commandId}"]`);
+    if (!commandElement) return;
+    
+    const detailsElement = commandElement.querySelector('.command-details');
+    const chevronIcon = document.getElementById(`${commandId}-chevron`);
+    
+    if (!detailsElement || !chevronIcon) return;
+    
+    if (detailsElement.style.display === 'none' || !detailsElement.style.display) {
+        // Show details
+        detailsElement.style.display = 'block';
+        chevronIcon.className = 'fas fa-chevron-up';
+        commandElement.querySelector('.command-collapse-btn').title = 'Collapse command details';
+    } else {
+        // Hide details  
+        detailsElement.style.display = 'none';
+        chevronIcon.className = 'fas fa-chevron-down';
+        commandElement.querySelector('.command-collapse-btn').title = 'Expand command details';
+    }
+}
+
+// Expand all command details
+function expandAllCommands() {
+    const commandElements = document.querySelectorAll('.command-operation');
+    commandElements.forEach(commandElement => {
+        const commandId = commandElement.getAttribute('data-command-id');
+        const detailsElement = commandElement.querySelector('.command-details');
+        const chevronIcon = document.getElementById(`${commandId}-chevron`);
+        
+        if (detailsElement && chevronIcon) {
+            detailsElement.style.display = 'block';
+            chevronIcon.className = 'fas fa-chevron-up';
+            commandElement.querySelector('.command-collapse-btn').title = 'Collapse command details';
+        }
+    });
+}
+
+// Collapse all command details
+function collapseAllCommands() {
+    const commandElements = document.querySelectorAll('.command-operation');
+    commandElements.forEach(commandElement => {
+        const commandId = commandElement.getAttribute('data-command-id');
+        const detailsElement = commandElement.querySelector('.command-details');
+        const chevronIcon = document.getElementById(`${commandId}-chevron`);
+        
+        if (detailsElement && chevronIcon) {
+            detailsElement.style.display = 'none';
+            chevronIcon.className = 'fas fa-chevron-down';
+            commandElement.querySelector('.command-collapse-btn').title = 'Expand command details';
+        }
+    });
+}
+
 window.toggleGroup = toggleGroup;
 window.handleHostClick = handleHostClick;
 // scheduleRunpodLaunch is now in window.Hyperstack namespace
@@ -1440,6 +1538,9 @@ window.removePendingOperation = removePendingOperation;
 window.generateIndividualCommandOperations = generateIndividualCommandOperations;
 window.updateCommitButtonState = updateCommitButtonState;
 window.toggleOperationCollapse = toggleOperationCollapse;
+window.toggleCommandDetails = toggleCommandDetails;
+window.expandAllCommands = expandAllCommands;
+window.collapseAllCommands = collapseAllCommands;
 window.refreshAffectedColumns = refreshAffectedColumns;
 
 // Export for modular access - only the minimum needed

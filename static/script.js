@@ -859,10 +859,12 @@ function markCommandAsInProgress(commandElement) {
     commandElement.classList.add('in-progress-step');
     commandElement.classList.remove('completed-step');
     
-    const badge = commandElement.querySelector('.badge');
-    if (badge) {
-        badge.className = 'badge bg-warning ms-2';
-        badge.textContent = 'In Progress';
+    // Update the status badge using the new command structure
+    const commandId = commandElement.getAttribute('data-command-id');
+    const statusBadge = document.getElementById(`${commandId}-status`);
+    if (statusBadge) {
+        statusBadge.className = 'badge bg-warning ms-2 command-status-badge';
+        statusBadge.textContent = 'In Progress';
     }
     
     const checkbox = commandElement.querySelector('.command-operation-checkbox');
@@ -870,17 +872,57 @@ function markCommandAsInProgress(commandElement) {
         checkbox.disabled = true;
     }
     
-    // Show output section
+    // Show progress bar if this is a wait command
+    const progressContainer = document.getElementById(`${commandId}-progress`);
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        const progressBar = document.getElementById(`${commandId}-progress-bar`);
+        const progressText = document.getElementById(`${commandId}-progress-text`);
+        
+        if (progressBar && progressText) {
+            // Determine wait duration based on command title
+            let waitDuration = 60; // default
+            const commandTitle = commandElement.querySelector('.command-title strong')?.textContent || '';
+            
+            if (commandTitle.includes('120s') || commandTitle.toLowerCase().includes('storage')) {
+                waitDuration = 120;
+            } else if (commandTitle.includes('180s') || commandTitle.toLowerCase().includes('firewall')) {
+                waitDuration = 180;
+            } else if (commandTitle.includes('60s') || commandTitle.toLowerCase().includes('aggregate')) {
+                waitDuration = 60;
+            }
+            
+            // Animate progress bar for wait command
+            let progress = 0;
+            const incrementPerSecond = 100 / waitDuration;
+            const interval = setInterval(() => {
+                progress += incrementPerSecond;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    progressText.textContent = 'Wait completed!';
+                } else {
+                    const remaining = Math.max(0, Math.ceil(waitDuration - (progress * waitDuration / 100)));
+                    progressText.textContent = `Waiting ${remaining} seconds...`;
+                }
+                progressBar.style.width = progress + '%';
+            }, 1000);
+        }
+    }
+    
+    // Show output section if it exists (legacy support)
     const outputSection = commandElement.querySelector('.command-output');
     if (outputSection) {
         outputSection.style.display = 'block';
         const outputContent = outputSection.querySelector('.command-output-content');
-        outputContent.innerHTML = `
-            <div class="output-placeholder text-warning">
-                <i class="fas fa-spinner fa-spin me-1"></i>
-                Command executing...
-            </div>
-        `;
+        if (outputContent) {
+            outputContent.innerHTML = `
+                <div class="output-placeholder text-warning">
+                    <i class="fas fa-spinner fa-spin me-1"></i>
+                    Command executing...
+                </div>
+            `;
+        }
     }
 }
 
@@ -888,12 +930,15 @@ function markCommandAsCompleted(commandElement, output = null) {
     commandElement.classList.remove('in-progress-step');
     commandElement.classList.add('completed-step');
     
-    const badge = commandElement.querySelector('.badge');
-    if (badge) {
-        badge.className = 'badge bg-success ms-2';
-        badge.textContent = 'Completed';
+    // Update the status badge using the new command structure
+    const commandId = commandElement.getAttribute('data-command-id');
+    const statusBadge = document.getElementById(`${commandId}-status`);
+    if (statusBadge) {
+        statusBadge.className = 'badge bg-success ms-2 command-status-badge';
+        statusBadge.textContent = 'Completed';
     }
     
+    // Add check icon to the title if it doesn't exist
     const titleElement = commandElement.querySelector('.command-title');
     if (titleElement && !titleElement.querySelector('.fa-check-circle')) {
         titleElement.insertAdjacentHTML('afterbegin', '<i class="fas fa-check-circle text-success me-1"></i>');
@@ -905,31 +950,39 @@ function markCommandAsCompleted(commandElement, output = null) {
         checkbox.disabled = true;
     }
     
-    // Update output section with actual output
+    // Hide progress bar if it was shown
+    const progressContainer = document.getElementById(`${commandId}-progress`);
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+    }
+    
+    // Update output section with actual output (legacy support)
     const outputSection = commandElement.querySelector('.command-output');
     if (outputSection) {
         const outputContent = outputSection.querySelector('.command-output-content');
         const timestamp = new Date().toLocaleTimeString();
         
-        if (output) {
-            outputContent.innerHTML = `
-                <div class="command-success-output">
-                    <div class="text-success small mb-1">
-                        <i class="fas fa-check-circle me-1"></i>
-                        Command completed at ${timestamp}
+        if (outputContent) {
+            if (output) {
+                outputContent.innerHTML = `
+                    <div class="command-success-output">
+                        <div class="text-success small mb-1">
+                            <i class="fas fa-check-circle me-1"></i>
+                            Command completed at ${timestamp}
+                        </div>
+                        <pre class="mb-0">${output}</pre>
                     </div>
-                    <pre class="mb-0">${output}</pre>
-                </div>
-            `;
-        } else {
-            outputContent.innerHTML = `
-                <div class="command-success-output">
-                    <div class="text-success small">
-                        <i class="fas fa-check-circle me-1"></i>
-                        Command completed successfully at ${timestamp}
+                `;
+            } else {
+                outputContent.innerHTML = `
+                    <div class="command-success-output">
+                        <div class="text-success small">
+                            <i class="fas fa-check-circle me-1"></i>
+                            Command completed successfully at ${timestamp}
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
         }
     }
 }

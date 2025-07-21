@@ -1396,14 +1396,61 @@ def attach_runpod_storage_network(vm_name, delay_seconds=120):
             # Create and attach the network interface
             print(f"🔌 Attaching RunPod-Storage-Canada-1 network to VM {vm_name}...")
             
-            # Create port on the network
-            port = conn.network.create_port(
-                network_id=network.id,
-                name=f"{vm_name}-storage-port"
-            )
+            # Check if port already exists and clean it up if needed
+            existing_ports = list(conn.network.ports(name=f"{vm_name}-storage-port"))
+            if existing_ports:
+                print(f"🔧 Found existing port for {vm_name}, cleaning up...")
+                for existing_port in existing_ports:
+                    try:
+                        # Try to detach from any existing interfaces first
+                        interfaces = list(conn.compute.server_interfaces(server.id))
+                        for interface in interfaces:
+                            if interface.port_id == existing_port.id:
+                                conn.compute.delete_server_interface(interface.id, server.id)
+                                print(f"🔌 Detached existing interface {interface.id}")
+                                time.sleep(5)  # Wait for detachment to complete
+                        
+                        # Delete the existing port
+                        conn.network.delete_port(existing_port.id)
+                        print(f"🗑️ Deleted existing port {existing_port.id}")
+                        time.sleep(5)  # Wait for deletion to complete
+                    except Exception as e:
+                        print(f"⚠️ Could not clean up existing port: {e}")
             
-            # Attach the port to the server
-            conn.compute.create_server_interface(server.id, port_id=port.id)
+            # Create port on the network with proper subnet
+            try:
+                # Get the subnet for the storage network
+                subnets = list(conn.network.subnets(network_id=network.id))
+                subnet_id = subnets[0].id if subnets else None
+                
+                port_args = {
+                    'network_id': network.id,
+                    'name': f"{vm_name}-storage-port"
+                }
+                
+                if subnet_id:
+                    port_args['fixed_ips'] = [{'subnet_id': subnet_id}]
+                
+                port = conn.network.create_port(**port_args)
+                print(f"✅ Created new storage port {port.id} for {vm_name}")
+                
+                # Wait for port to be active
+                time.sleep(10)
+                
+                # Attach the port to the server
+                conn.compute.create_server_interface(server.id, port_id=port.id)
+                print(f"✅ Successfully attached storage port to VM {vm_name}")
+                
+            except Exception as attach_error:
+                print(f"❌ Failed to attach storage port: {attach_error}")
+                # Try to clean up the port we just created
+                try:
+                    if 'port' in locals():
+                        conn.network.delete_port(port.id)
+                        print(f"🗑️ Cleaned up failed port {port.id}")
+                except:
+                    pass
+                raise attach_error
             
             print(f"✅ Successfully attached RunPod-Storage-Canada-1 network to VM {vm_name}")
             
