@@ -683,12 +683,10 @@ function executeRealCommand(operation, command) {
             commandType = 'wait-command';
         } else if (commandTitle.includes('Sleep 120 seconds')) {
             commandType = 'storage-wait-command';
-        } else if (commandTitle.includes('Sleep 180 seconds')) {
+        } else if (commandTitle.includes('Sleep 10 seconds')) {
             commandType = 'firewall-wait-command';
         } else if (commandTitle.includes('Deploy VM via Hyperstack')) {
             commandType = 'hyperstack-launch';
-        } else if (commandTitle.includes('Find RunPod storage network')) {
-            commandType = 'storage-find-network';
         } else if (commandTitle.includes('Get server UUID')) {
             commandType = 'server-get-uuid';
         } else if (commandTitle.includes('Attach storage network')) {
@@ -722,10 +720,10 @@ function executeRealCommand(operation, command) {
                 
             case 'firewall-wait-command':
                 // Real wait for firewall operations
-                console.log(`⏰ Real wait: 180 seconds for full VM initialization`);
+                console.log(`⏰ Real wait: 10 seconds for network stabilization`);
                 setTimeout(() => {
-                    resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 180 seconds elapsed\nVM fully operational, ready for firewall configuration` });
-                }, 180000); // Real 180 second wait
+                    resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 10 seconds elapsed\nNetwork configuration stable, ready for firewall configuration` });
+                }, 10000); // Real 10 second wait
                 break;
                 
             case 'hyperstack-launch':
@@ -737,16 +735,6 @@ function executeRealCommand(operation, command) {
                             `VM ${hostname} launched successfully\nVM ID: ${result.vm_id}\nFloating IP: ${result.floating_ip || 'Assigned'}\nStatus: ACTIVE` :
                             `VM ${hostname} launched successfully via Hyperstack API`;
                         resolve({ output });
-                    })
-                    .catch(error => reject(error));
-                break;
-                
-            case 'storage-find-network':
-                // Real OpenStack network lookup using SDK
-                console.log(`🌐 Real network lookup for RunPod-Storage-Canada-1`);
-                window.OpenStack.executeNetworkCommand(`openstack network show "RunPod-Storage-Canada-1" -c id -f value`)
-                    .then(result => {
-                        resolve({ output: `Network UUID: ${result}\nRunPod-Storage-Canada-1 network found` });
                     })
                     .catch(error => reject(error));
                 break;
@@ -883,8 +871,8 @@ function markCommandAsInProgress(commandElement) {
             
             if (commandTitle.includes('Sleep 120 seconds') || commandTitle.includes('120s')) {
                 waitDuration = 120;
-            } else if (commandTitle.includes('Sleep 180 seconds') || commandTitle.includes('180s')) {
-                waitDuration = 180;
+            } else if (commandTitle.includes('Sleep 10 seconds') || commandTitle.includes('10s')) {
+                waitDuration = 10;
             } else if (commandTitle.includes('Sleep 60 seconds') || commandTitle.includes('60s') || commandTitle.toLowerCase().includes('aggregate')) {
                 waitDuration = 60;
             }

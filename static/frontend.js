@@ -1328,23 +1328,7 @@ function generateIndividualCommandOperations(operation) {
                 timestamp: new Date().toISOString()
             });
             
-            // 4. Storage Network - Find Network ID
-            commands.push({
-                type: 'storage-find-network',
-                hostname: operation.hostname,
-                parent_operation: 'runpod-launch',
-                title: 'Find RunPod storage network ID',
-                description: 'Retrieves the network ID for RunPod-Storage-Canada-1 network to use for port creation',
-                command: `openstack network show "RunPod-Storage-Canada-1" -c id -f value`,
-                timing: 'Immediate',
-                command_type: 'network',
-                purpose: 'Get the network UUID required for creating storage network port',
-                expected_output: 'Network UUID (e.g., 12345678-1234-1234-1234-123456789012)',
-                dependencies: ['storage-wait-command'],
-                timestamp: new Date().toISOString()
-            });
-            
-            // 5. Get Server UUID
+            // 4. Get Server UUID
             commands.push({
                 type: 'server-get-uuid',
                 hostname: operation.hostname,
@@ -1356,11 +1340,11 @@ function generateIndividualCommandOperations(operation) {
                 command_type: 'server',
                 purpose: 'Get the server UUID required for OpenStack network operations',
                 expected_output: 'Server UUID (e.g., 832eccd6-d9fb-4c00-9b71-8ee69b19a14b)',
-                dependencies: ['storage-find-network'],
+                dependencies: ['storage-wait-command'],
                 timestamp: new Date().toISOString()
             });
             
-            // 6. Storage Network - Direct Attachment
+            // 5. Storage Network - Direct Attachment
             commands.push({
                 type: 'storage-attach-network',
                 hostname: operation.hostname,
@@ -1376,14 +1360,14 @@ function generateIndividualCommandOperations(operation) {
                 timestamp: new Date().toISOString()
             });
             
-            // 7. Sleep 180 seconds before firewall operations
+            // 6. Sleep 10 seconds before firewall operations
             commands.push({
                 type: 'firewall-wait-command',
                 hostname: operation.hostname,
                 parent_operation: 'runpod-launch',
-                title: 'Sleep 180 seconds',
+                title: 'Sleep 10 seconds',
                 description: 'Wait before firewall attachment to ensure network configuration is complete',
-                command: `sleep 180  # Wait before firewall attachment`,
+                command: `sleep 10  # Wait before firewall attachment`,
                 timing: 'Sleep',
                 command_type: 'wait',
                 purpose: 'Allow network configuration to stabilize before firewall attachment',
@@ -1392,7 +1376,7 @@ function generateIndividualCommandOperations(operation) {
                 timestamp: new Date().toISOString()
             });
             
-            // 8. Firewall - Get Current Attachments
+            // 7. Firewall - Get Current Attachments
             commands.push({
                 type: 'firewall-get-attachments',
                 hostname: operation.hostname,
@@ -1410,7 +1394,7 @@ function generateIndividualCommandOperations(operation) {
                 timestamp: new Date().toISOString()
             });
             
-            // 9. Firewall - Update with All VMs
+            // 8. Firewall - Update with All VMs
             commands.push({
                 type: 'firewall-update-attachments',
                 hostname: operation.hostname,
