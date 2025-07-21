@@ -689,6 +689,8 @@ function executeRealCommand(operation, command) {
             commandType = 'hyperstack-launch';
         } else if (commandTitle.includes('Find RunPod storage network')) {
             commandType = 'storage-find-network';
+        } else if (commandTitle.includes('Get server UUID')) {
+            commandType = 'server-get-uuid';
         } else if (commandTitle.includes('Attach storage network')) {
             commandType = 'storage-attach-network';
         } else if (commandTitle.includes('Get current firewall')) {
@@ -745,6 +747,16 @@ function executeRealCommand(operation, command) {
                 window.OpenStack.executeNetworkCommand(`openstack network show "RunPod-Storage-Canada-1" -c id -f value`)
                     .then(result => {
                         resolve({ output: `Network UUID: ${result}\nRunPod-Storage-Canada-1 network found` });
+                    })
+                    .catch(error => reject(error));
+                break;
+                
+            case 'server-get-uuid':
+                // Real OpenStack server UUID lookup using SDK
+                console.log(`🔍 Real server UUID lookup for ${hostname}`);
+                window.OpenStack.executeNetworkCommand(`openstack server list --all-projects --name "${hostname}" -c ID -f value`)
+                    .then(result => {
+                        resolve({ output: `Server UUID: ${result}\n${hostname} found with ID: ${result}` });
                     })
                     .catch(error => reject(error));
                 break;

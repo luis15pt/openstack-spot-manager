@@ -1344,23 +1344,39 @@ function generateIndividualCommandOperations(operation) {
                 timestamp: new Date().toISOString()
             });
             
-            // 5. Storage Network - Direct Attachment
+            // 5. Get Server UUID
+            commands.push({
+                type: 'server-get-uuid',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Get server UUID for network operations',
+                description: 'Retrieves the OpenStack server UUID required for network attachment',
+                command: `openstack server list --all-projects --name "${operation.hostname}" -c ID -f value`,
+                timing: 'Immediate',
+                command_type: 'server',
+                purpose: 'Get the server UUID required for OpenStack network operations',
+                expected_output: 'Server UUID (e.g., 832eccd6-d9fb-4c00-9b71-8ee69b19a14b)',
+                dependencies: ['storage-find-network'],
+                timestamp: new Date().toISOString()
+            });
+            
+            // 6. Storage Network - Direct Attachment
             commands.push({
                 type: 'storage-attach-network',
                 hostname: operation.hostname,
                 parent_operation: 'runpod-launch',
                 title: 'Attach storage network to VM',
                 description: 'Directly attaches the storage network to the VM using server UUID',
-                command: `openstack server add network <SERVER_UUID> "RunPod-Storage-Canada-1" # Server: ${operation.hostname}`,
+                command: `openstack server add network <SERVER_UUID> "RunPod-Storage-Canada-1"`,
                 timing: 'Immediate',
                 command_type: 'network',
                 purpose: 'Connect VM to high-performance storage network for data access',
                 expected_output: 'Network successfully attached to VM',
-                dependencies: ['storage-find-network'],
+                dependencies: ['server-get-uuid'],
                 timestamp: new Date().toISOString()
             });
             
-            // 6. Sleep 180 seconds before firewall operations
+            // 7. Sleep 180 seconds before firewall operations
             commands.push({
                 type: 'firewall-wait-command',
                 hostname: operation.hostname,
@@ -1376,7 +1392,7 @@ function generateIndividualCommandOperations(operation) {
                 timestamp: new Date().toISOString()
             });
             
-            // 7. Firewall - Get Current Attachments
+            // 8. Firewall - Get Current Attachments
             commands.push({
                 type: 'firewall-get-attachments',
                 hostname: operation.hostname,

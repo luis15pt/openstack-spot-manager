@@ -361,7 +361,34 @@ function executeNetworkCommand(command) {
         window.Logs.addToDebugLog('OpenStack', `Executing network command: ${command}`, 'info');
         
         // Parse command to determine operation
-        if (command.includes('network show')) {
+        if (command.includes('server list --all-projects --name')) {
+            // Extract server name from command: openstack server list --all-projects --name "server_name"
+            const nameMatch = command.match(/--name\s+[\"']?([^\"'\s]+)[\"']?/);
+            const serverName = nameMatch ? nameMatch[1] : null;
+            
+            if (!serverName) {
+                reject(new Error('Could not parse server name from command'));
+                return;
+            }
+            
+            // Call backend to get server UUID via SDK
+            window.Utils.fetchWithTimeout('/api/openstack/server/get-uuid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ server_name: serverName })
+            }, 30000)
+            .then(window.Utils.checkResponse)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resolve(data.server_uuid);
+                } else {
+                    reject(new Error(data.error || 'Server UUID lookup failed'));
+                }
+            })
+            .catch(error => reject(error));
+            
+        } else if (command.includes('network show')) {
             // Extract network name from command
             const networkMatch = command.match(/network show ["\']?([^"'\s]+)["\']?/);
             const networkName = networkMatch ? networkMatch[1] : null;

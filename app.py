@@ -1752,6 +1752,46 @@ def openstack_server_add_network():
         print(f"❌ Error attaching network: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/openstack/server/get-uuid', methods=['POST'])
+def openstack_server_get_uuid():
+    """Get server UUID by name using OpenStack SDK"""
+    try:
+        data = request.get_json()
+        server_name = data.get('server_name')
+        
+        if not server_name:
+            return jsonify({'success': False, 'error': 'Server name is required'})
+        
+        print(f"🔍 Looking up UUID for server: {server_name}")
+        
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+        
+        # Get server list with all projects to find UUID - matching openstack server list --all-projects --name
+        servers = list(conn.compute.servers(all_projects=True, name=server_name))
+        
+        if not servers:
+            return jsonify({'success': False, 'error': f'Server {server_name} not found'})
+        
+        if len(servers) > 1:
+            print(f"⚠️ Multiple servers found with name {server_name}, using first one")
+        
+        server = servers[0]
+        server_uuid = server.id
+        print(f"✅ Found server {server_name} with UUID: {server_uuid}")
+        
+        return jsonify({
+            'success': True, 
+            'server_uuid': server_uuid,
+            'server_name': server_name,
+            'status': server.status
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting server UUID: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 OpenStack Spot Manager Starting...")
