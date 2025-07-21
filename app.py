@@ -1792,6 +1792,97 @@ def openstack_server_get_uuid():
         print(f"❌ Error getting server UUID: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/hyperstack/firewall/get-attachments', methods=['POST'])
+def hyperstack_firewall_get_attachments():
+    """Get current VM attachments for a firewall"""
+    try:
+        data = request.get_json()
+        firewall_id = data.get('firewall_id', HYPERSTACK_FIREWALL_CA1_ID)
+        
+        if not firewall_id:
+            return jsonify({'success': False, 'error': 'No firewall ID configured'})
+        
+        print(f"🔍 Getting firewall attachments for firewall ID: {firewall_id}")
+        
+        # Get current attachments using existing function
+        existing_vm_ids = get_firewall_current_attachments(firewall_id)
+        
+        return jsonify({
+            'success': True,
+            'firewall_id': firewall_id,
+            'vm_ids': existing_vm_ids,
+            'count': len(existing_vm_ids)
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting firewall attachments: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/hyperstack/firewall/update-attachments', methods=['POST'])
+def hyperstack_firewall_update_attachments():
+    """Update firewall with new VM attachments"""
+    try:
+        data = request.get_json()
+        firewall_id = data.get('firewall_id', HYPERSTACK_FIREWALL_CA1_ID)
+        new_vm_name = data.get('vm_name')
+        
+        if not firewall_id:
+            return jsonify({'success': False, 'error': 'No firewall ID configured'})
+        
+        if not new_vm_name:
+            return jsonify({'success': False, 'error': 'VM name is required'})
+        
+        print(f"🔥 Adding VM {new_vm_name} to firewall {firewall_id}")
+        
+        # Get current attachments
+        existing_vm_ids = get_firewall_current_attachments(firewall_id)
+        print(f"📋 Current VMs on firewall: {existing_vm_ids}")
+        
+        # Add new VM to the list
+        if new_vm_name not in existing_vm_ids:
+            updated_vm_ids = existing_vm_ids + [new_vm_name]
+            print(f"➕ Adding {new_vm_name} to firewall attachments")
+        else:
+            updated_vm_ids = existing_vm_ids
+            print(f"ℹ️ VM {new_vm_name} already attached to firewall")
+        
+        # Update firewall with all VMs (existing + new)
+        headers = {
+            'api_key': HYPERSTACK_API_KEY,
+            'Content-Type': 'application/json'
+        }
+        
+        payload = {
+            'virtual_machines': updated_vm_ids
+        }
+        
+        response = requests.post(
+            f'{HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments',
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            print(f"✅ Successfully updated firewall {firewall_id} with VM {new_vm_name}")
+            return jsonify({
+                'success': True,
+                'firewall_id': firewall_id,
+                'vm_name': new_vm_name,
+                'total_vms': len(updated_vm_ids),
+                'vm_list': updated_vm_ids
+            })
+        else:
+            error_msg = f'Failed to update firewall: HTTP {response.status_code}'
+            if response.text:
+                error_msg += f' - {response.text}'
+            print(f"❌ {error_msg}")
+            return jsonify({'success': False, 'error': error_msg})
+        
+    except Exception as e:
+        print(f"❌ Error updating firewall attachments: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 OpenStack Spot Manager Starting...")

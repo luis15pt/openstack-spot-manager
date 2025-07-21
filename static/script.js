@@ -800,23 +800,43 @@ function executeRealCommand(operation, command) {
                 break;
                 
             case 'firewall-get-attachments':
-                // Real Hyperstack firewall query
+                // Real Hyperstack firewall query via backend endpoint
                 console.log(`🛡️ Real firewall query for existing VMs`);
-                executeHyperstackCommand(`curl -H 'api_key: ${window.HYPERSTACK_API_KEY}' https://infrahub-api.nexgencloud.com/v1/core/firewalls/971`)
-                    .then(result => {
-                        resolve({ output: `Firewall attachments retrieved\n${result}` });
-                    })
-                    .catch(error => reject(error));
+                window.Utils.fetchWithTimeout('/api/hyperstack/firewall/get-attachments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})  // Uses default firewall ID from backend
+                }, 30000)
+                .then(window.Utils.checkResponse)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        resolve({ output: `Firewall attachments retrieved\nFirewall ID: ${data.firewall_id}\nCurrent VMs: ${data.vm_ids.join(', ')}\nTotal VMs: ${data.count}` });
+                    } else {
+                        reject(new Error(data.error || 'Firewall query failed'));
+                    }
+                })
+                .catch(error => reject(error));
                 break;
                 
             case 'firewall-update-attachments':
-                // Real Hyperstack firewall update
+                // Real Hyperstack firewall update via backend endpoint
                 console.log(`🛡️ Real firewall update with ${hostname}`);
-                executeHyperstackCommand(`curl -X POST -H 'api_key: ${window.HYPERSTACK_API_KEY}' -H 'Content-Type: application/json' -d '{"vms": ["${hostname}"]}' https://infrahub-api.nexgencloud.com/v1/core/firewalls/971/update-attachments`)
-                    .then(result => {
-                        resolve({ output: `Firewall updated successfully\n${hostname} added to security rules` });
-                    })
-                    .catch(error => reject(error));
+                window.Utils.fetchWithTimeout('/api/hyperstack/firewall/update-attachments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vm_name: hostname })
+                }, 30000)
+                .then(window.Utils.checkResponse)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        resolve({ output: `Firewall updated successfully\nVM ${hostname} added to firewall ${data.firewall_id}\nTotal VMs on firewall: ${data.total_vms}\nVM list: ${data.vm_list.join(', ')}` });
+                    } else {
+                        reject(new Error(data.error || 'Firewall update failed'));
+                    }
+                })
+                .catch(error => reject(error));
                 break;
                 
             default:
@@ -828,38 +848,7 @@ function executeRealCommand(operation, command) {
 
 // Note: executeOpenStackCommand function removed - now using OpenStack SDK via window.OpenStack.executeNetworkCommand
 
-// Execute real Hyperstack commands
-function executeHyperstackCommand(command) {
-    return new Promise((resolve, reject) => {
-        // Make real Hyperstack API call via backend
-        fetch('/api/execute-hyperstack-command', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: command })
-        })
-        .then(response => {
-            if (response.status === 404) {
-                // Backend endpoint not implemented yet - simulate success for now
-                console.log(`⚠️ Backend endpoint not available, simulating Hyperstack command: ${command}`);
-                resolve(`Simulated: ${command}\n[Hyperstack command would execute here]`);
-                return;
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data && data.success) {
-                resolve(data.output);
-            } else if (data && data.error) {
-                reject(new Error(data.error));
-            }
-            // If data is a string (from simulation), it's already resolved above
-        })
-        .catch(error => {
-            console.log(`⚠️ Hyperstack command failed, simulating: ${command}`);
-            resolve(`Simulated: ${command}\n[Hyperstack command would execute here]`);
-        });
-    });
-}
+// Note: executeHyperstackCommand function removed - now using dedicated backend endpoints for firewall operations
 
 function generateSimulatedOutput(commandTitle, hostname) {
     const timestamp = new Date().toLocaleString();
