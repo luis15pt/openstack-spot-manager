@@ -83,7 +83,7 @@
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="results-tab" data-bs-toggle="tab" data-bs-target="#results" type="button" role="tab">
-                                <i class="fas fa-chart-line"></i> Results
+                                <i class="fas fa-chart-pie"></i> Analytics
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -302,38 +302,39 @@
                             </div>
                         </div>
 
-                        <!-- Results Tab -->
+                        <!-- Analytics Tab -->
                         <div class="tab-pane fade" id="results" role="tabpanel">
                             <div class="row mt-3">
-                                <div class="col-12">
+                                <!-- Execution Statistics -->
+                                <div class="col-md-6">
                                     <div class="card">
                                         <div class="card-header">
                                             <h5 class="mb-0">
-                                                <i class="fas fa-chart-line"></i> Execution Results Summary
+                                                <i class="fas fa-chart-pie"></i> Execution Statistics
                                             </h5>
                                         </div>
                                         <div class="card-body">
                                             <div id="resultsSummary">
                                                 <div class="row">
-                                                    <div class="col-md-3">
+                                                    <div class="col-6 mb-3">
                                                         <div class="stat-card success">
                                                             <div class="stat-value" id="successCount">0</div>
                                                             <div class="stat-label">Successful</div>
                                                         </div>
                                                     </div>
-                                                    <div class="col-md-3">
+                                                    <div class="col-6 mb-3">
                                                         <div class="stat-card error">
                                                             <div class="stat-value" id="errorCount">0</div>
                                                             <div class="stat-label">Failed</div>
                                                         </div>
                                                     </div>
-                                                    <div class="col-md-3">
+                                                    <div class="col-6">
                                                         <div class="stat-card preview">
                                                             <div class="stat-value" id="previewCount">0</div>
                                                             <div class="stat-label">Previewed</div>
                                                         </div>
                                                     </div>
-                                                    <div class="col-md-3">
+                                                    <div class="col-6">
                                                         <div class="stat-card total">
                                                             <div class="stat-value" id="totalCount">0</div>
                                                             <div class="stat-label">Total</div>
@@ -341,15 +342,76 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="mt-4" id="recentResults">
-                                                <h6>Recent Command Results</h6>
-                                                <div id="recentResultsList">
-                                                    <div class="text-center text-muted">
-                                                        <i class="fas fa-chart-line fa-3x mb-3"></i>
-                                                        <p>No results yet. Execute some commands to see results here.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Session Analytics -->
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-clock"></i> Session Analytics
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-12 mb-3">
+                                                    <div class="analytics-item">
+                                                        <i class="fas fa-play-circle text-primary me-2"></i>
+                                                        <strong>Session Started:</strong>
+                                                        <span id="sessionStartTime">Loading...</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12 mb-3">
+                                                    <div class="analytics-item">
+                                                        <i class="fas fa-server text-success me-2"></i>
+                                                        <strong>Operations Executed:</strong>
+                                                        <span id="operationsCount">0</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12 mb-3">
+                                                    <div class="analytics-item">
+                                                        <i class="fas fa-terminal text-info me-2"></i>
+                                                        <strong>Commands Run:</strong>
+                                                        <span id="commandsExecuted">0</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="analytics-item">
+                                                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                                        <strong>Error Rate:</strong>
+                                                        <span id="errorRate">0%</span>
                                                     </div>
                                                 </div>
                                             </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Actions -->
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-download"></i> Export & Actions
+                                            </h5>
+                                        </div>
+                                        <div class="card-body text-center">
+                                            <button class="btn btn-primary me-2" onclick="exportCommandLog()">
+                                                <i class="fas fa-file-export me-1"></i>
+                                                Export Command Log
+                                            </button>
+                                            <button class="btn btn-success me-2" onclick="exportAnalytics()">
+                                                <i class="fas fa-chart-bar me-1"></i>
+                                                Export Analytics
+                                            </button>
+                                            <button class="btn btn-secondary" onclick="resetSessionStats()">
+                                                <i class="fas fa-refresh me-1"></i>
+                                                Reset Session
+                                            </button>
                                         </div>
                                     </div>
                                 </div>

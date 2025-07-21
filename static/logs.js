@@ -159,37 +159,86 @@ function renderCommandLog(commands) {
         return;
     }
     
-    const commandsHtml = commands.map(cmd => createCommandLogEntry(cmd)).join('');
+    const commandsHtml = commands.map((cmd, index) => createCommandLogEntry(cmd, index)).join('');
     container.innerHTML = commandsHtml;
 }
 
-function createCommandLogEntry(cmd) {
+function createCommandLogEntry(cmd, index) {
     const timestamp = new Date(cmd.timestamp).toLocaleString();
     const statusClass = cmd.success === null ? 'preview' : (cmd.success ? 'success' : (cmd.type === 'timeout' ? 'timeout' : 'error'));
-    const statusText = cmd.success === null ? 'preview' : (cmd.success ? 'success' : cmd.type);
+    const statusText = cmd.success === null ? 'PREVIEW' : (cmd.success ? 'SUCCESS' : cmd.type.toUpperCase());
+    const statusIcon = cmd.success === null ? 'fas fa-eye' : 
+                       (cmd.success ? 'fas fa-check-circle' : 
+                        (cmd.type === 'timeout' ? 'fas fa-clock' : 'fas fa-exclamation-circle'));
+    const cardClass = cmd.success === null ? 'border-info' : 
+                      (cmd.success ? 'border-success' : 
+                       (cmd.type === 'timeout' ? 'border-warning' : 'border-danger'));
+    
+    // Create collapsed unique ID for this command
+    const commandId = `cmd-log-${index}-${Date.now()}`;
     
     let output = '';
     if (cmd.type !== 'preview') {
         const outputText = cmd.stdout || cmd.stderr || 'No output';
-        const outputClass = cmd.stderr ? 'error' : (outputText === 'No output' ? 'empty' : '');
+        const outputClass = cmd.stderr ? 'command-error-output' : 'command-success-output';
         output = `
-            <div class="command-output ${outputClass}">
-                <pre>${outputText}</pre>
+            <div class="command-actual-output mt-2">
+                <strong class="text-primary">Output:</strong>
+                <div class="${outputClass} bg-dark text-light p-2 rounded small mt-1" style="font-family: monospace; white-space: pre-wrap;">${outputText}</div>
             </div>`;
     }
     
     return `
-        <div class="command-entry mb-3">
-            <div class="command-header">
-                <span class="badge bg-${statusClass}">${statusText}</span>
-                <span class="command-timestamp">${timestamp}</span>
-                <span class="command-host">${cmd.hostname || 'N/A'}</span>
+        <div class="command-log-card card mb-3 ${cardClass}">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <button class="btn btn-sm btn-outline-secondary me-2" 
+                                onclick="toggleCommandLogCollapse('${commandId}')" 
+                                id="collapse-btn-${commandId}"
+                                title="Expand/Collapse command details">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div>
+                            <span class="badge bg-${statusClass} me-2">
+                                <i class="${statusIcon} me-1"></i>
+                                ${statusText}
+                            </span>
+                            <strong>${cmd.command.substring(0, 60)}${cmd.command.length > 60 ? '...' : ''}</strong>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted d-block">${timestamp}</small>
+                        <small class="text-muted">${cmd.hostname || 'N/A'}</small>
+                    </div>
+                </div>
             </div>
-            <div class="command-details">
-                <strong>${cmd.command}</strong>
-                ${output}
+            <div class="card-body collapse" id="command-body-${commandId}">
+                <div class="command-details">
+                    <div class="mb-2">
+                        <strong class="text-primary">Full Command:</strong>
+                        <div class="bg-dark text-light p-2 rounded small mt-1" style="font-family: monospace; white-space: pre-wrap;">${cmd.command}</div>
+                    </div>
+                    ${output}
+                </div>
             </div>
         </div>`;
+}
+
+function toggleCommandLogCollapse(commandId) {
+    const body = document.getElementById(`command-body-${commandId}`);
+    const btn = document.getElementById(`collapse-btn-${commandId}`);
+    const icon = btn.querySelector('i');
+    
+    if (body && btn) {
+        body.classList.toggle('show');
+        
+        if (body.classList.contains('show')) {
+            icon.className = 'fas fa-chevron-up';
+        } else {
+            icon.className = 'fas fa-chevron-down';
+        }
+    }
 }
 
 function clearCommandLog() {
@@ -302,6 +351,7 @@ window.Logs = {
     loadCommandLog,
     renderCommandLog,
     createCommandLogEntry,
+    toggleCommandLogCollapse,
     clearCommandLog,
     updateCommandCount,
     loadResultsSummary,
@@ -312,3 +362,101 @@ window.Logs = {
     incrementOperationsCount: () => debugStats.operationsCount++,
     incrementCommandsExecuted: () => debugStats.commandsExecuted++
 };
+
+// Analytics and export functions
+function exportCommandLog() {
+    window.Utils.fetchWithTimeout('/api/command-log', {}, 10000)
+        .then(window.Utils.checkResponse)
+        .then(response => response.json())
+        .then(data => {
+            const blob = new Blob([JSON.stringify(data.commands, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `command-log-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            URL.revokeObjectURL(url);
+            addToDebugLog('System', 'Command log exported successfully', 'info');
+        })
+        .catch(error => {
+            console.error('Error exporting command log:', error);
+            addToDebugLog('System', `Error exporting command log: ${error.message}`, 'error');
+        });
+}
+
+function exportAnalytics() {
+    const stats = debugStats;
+    const analyticsData = {
+        session_start: document.getElementById('sessionStartTime')?.textContent || 'N/A',
+        statistics: {
+            successful: parseInt(document.getElementById('successCount')?.textContent || '0'),
+            failed: parseInt(document.getElementById('errorCount')?.textContent || '0'),
+            previewed: parseInt(document.getElementById('previewCount')?.textContent || '0'),
+            total: parseInt(document.getElementById('totalCount')?.textContent || '0'),
+            error_rate: document.getElementById('errorRate')?.textContent || '0%'
+        },
+        session_analytics: {
+            operations_executed: stats.operationsCount,
+            commands_executed: stats.commandsExecuted,
+            errors_count: stats.errorsCount
+        },
+        export_timestamp: new Date().toISOString()
+    };
+    
+    const blob = new Blob([JSON.stringify(analyticsData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    URL.revokeObjectURL(url);
+    addToDebugLog('System', 'Analytics exported successfully', 'info');
+}
+
+function resetSessionStats() {
+    if (!confirm('Are you sure you want to reset session statistics? This action cannot be undone.')) {
+        return;
+    }
+    
+    // Reset debug stats
+    debugStats.operationsCount = 0;
+    debugStats.commandsExecuted = 0;
+    debugStats.errorsCount = 0;
+    
+    // Reset display elements
+    const elements = ['successCount', 'errorCount', 'previewCount', 'totalCount'];
+    elements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = '0';
+    });
+    
+    const errorRateElement = document.getElementById('errorRate');
+    if (errorRateElement) errorRateElement.textContent = '0%';
+    
+    const operationsElement = document.getElementById('operationsCount');
+    if (operationsElement) operationsElement.textContent = '0';
+    
+    const commandsElement = document.getElementById('commandsExecuted');
+    if (commandsElement) commandsElement.textContent = '0';
+    
+    // Update session start time
+    const sessionStartElement = document.getElementById('sessionStartTime');
+    if (sessionStartElement) sessionStartElement.textContent = new Date().toLocaleString();
+    
+    updateDebugStats();
+    addToDebugLog('System', 'Session statistics reset successfully', 'info');
+}
+
+// Also make functions available globally for HTML onclick
+window.toggleCommandLogCollapse = toggleCommandLogCollapse;
+window.exportCommandLog = exportCommandLog;
+window.exportAnalytics = exportAnalytics;
+window.resetSessionStats = resetSessionStats;

@@ -1878,7 +1878,7 @@ def hyperstack_firewall_update_attachments():
         }
         
         payload = {
-            'virtual_machines': updated_vm_ids
+            'vms': updated_vm_ids
         }
         
         response = requests.post(
