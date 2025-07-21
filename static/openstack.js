@@ -179,10 +179,17 @@ function loadGpuTypes() {
             console.log('💾 Storing GPU types for background loading...');
             // Store available GPU types for background loading
             if (!window.Frontend) {
-                console.error('❌ Frontend module not available!');
-                return;
+                console.warn('⚠️ Frontend module not yet available, deferring GPU types storage...');
+                // Try again after a short delay to allow frontend.js to fully load
+                setTimeout(() => {
+                    if (window.Frontend) {
+                        window.Frontend.availableGpuTypes = data.gpu_types;
+                        console.log('✅ GPU types stored after frontend module loaded');
+                    }
+                }, 100);
+            } else {
+                window.Frontend.availableGpuTypes = data.gpu_types;
             }
-            window.Frontend.availableGpuTypes = data.gpu_types;
             
             // Add discovered GPU types
             console.log(`🎯 Adding ${data.gpu_types.length} GPU types to selector...`);

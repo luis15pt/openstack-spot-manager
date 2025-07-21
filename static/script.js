@@ -1244,8 +1244,7 @@ function refreshAggregateDataAfterOperations() {
                             window.Frontend.renderOnDemandVariantColumns(data.ondemand);
                         }
                         
-                        // Update overall GPU usage statistics
-                        window.Frontend.updateOverallGpuStats(data.gpu_overview);
+                        // Note: GPU stats are updated automatically when columns are re-rendered
                     }
                 })
                 .catch(error => {

@@ -1581,7 +1581,6 @@ window.Frontend = {
     renderAggregateData,
     renderHosts,
     renderOnDemandVariantColumns,
-    updateOverallGpuStats,
     showLoading,
     updateLoadingProgress,
     showMainContent,
