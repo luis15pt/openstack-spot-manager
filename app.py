@@ -1917,6 +1917,7 @@ def hyperstack_firewall_update_attachments():
         print(f"❌ Error updating firewall attachments: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 OpenStack Spot Manager Starting...")

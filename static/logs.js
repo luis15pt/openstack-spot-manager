@@ -312,7 +312,7 @@ function renderResultsSummary(commands) {
     
     const errorRateElement = document.getElementById('errorRate');
     if (errorRateElement) {
-        const errorRate = totalCommands > 0 ? Math.round((failedCount / totalCommands) * 100) : 0;
+        const errorRate = stats.total > 0 ? Math.round((stats.failed / stats.total) * 100) : 0;
         errorRateElement.textContent = `${errorRate}%`;
     }
     

@@ -858,38 +858,35 @@ function executeRealCommand(operation, command) {
                 break;
                 
             case 'aggregate-remove-host':
-                console.log(`🗑️ Removing host ${hostname} from aggregate`);
-                window.Utils.fetchWithTimeout('/api/remove-from-aggregate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ hostname: hostname })
-                }, 30000)
-                .then(window.Utils.checkResponse)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        resolve({ output: `Host ${hostname} successfully removed from aggregate ${data.source_aggregate}` });
-                    } else {
-                        reject(new Error(data.error || 'Failed to remove host from aggregate'));
-                    }
-                })
-                .catch(error => reject(error));
-                break;
-                
             case 'aggregate-add-host':
-                console.log(`➕ Adding host ${hostname} to aggregate`);
-                window.Utils.fetchWithTimeout('/api/add-to-aggregate', {
+                // Both aggregate operations should be handled by the existing migration system
+                // Get the operation context to determine source and target aggregates
+                const operationContext = window.commandContext?.[hostname];
+                if (!operationContext) {
+                    reject(new Error('Operation context not available for aggregate migration'));
+                    return;
+                }
+                
+                const migrationData = {
+                    host: hostname,
+                    source_aggregate: operationContext.sourceAggregate || 'unknown',
+                    target_aggregate: operationContext.targetAggregate || 'unknown'
+                };
+                
+                console.log(`🔄 Executing aggregate migration for ${hostname}: ${migrationData.source_aggregate} → ${migrationData.target_aggregate}`);
+                
+                window.Utils.fetchWithTimeout('/api/execute-migration', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ hostname: hostname })
-                }, 30000)
+                    body: JSON.stringify(migrationData)
+                }, 60000)
                 .then(window.Utils.checkResponse)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        resolve({ output: `Host ${hostname} successfully added to aggregate ${data.target_aggregate}` });
+                        resolve({ output: `Successfully migrated ${hostname} from ${migrationData.source_aggregate} to ${migrationData.target_aggregate}` });
                     } else {
-                        reject(new Error(data.error || 'Failed to add host to aggregate'));
+                        reject(new Error(data.error || 'Failed to execute migration'));
                     }
                 })
                 .catch(error => reject(error));

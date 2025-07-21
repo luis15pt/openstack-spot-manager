@@ -1579,6 +1579,9 @@ window.Frontend = {
     
     // Functions
     renderAggregateData,
+    renderHosts,
+    renderOnDemandVariantColumns,
+    updateOverallGpuStats,
     showLoading,
     updateLoadingProgress,
     showMainContent,
