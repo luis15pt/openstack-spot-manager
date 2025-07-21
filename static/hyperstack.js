@@ -115,9 +115,12 @@ function scheduleRunpodLaunch(hostname) {
         return;
     }
     
-    // Add to pending operations with runpod-launch type
-    window.Frontend.addToPendingOperations(hostname, 'runpod', 'runpod-launch', {
+    // Add RunPod launch operation (not a migration)
+    window.Frontend.addRunPodLaunchOperation(hostname, {
         vm_name: hostname,
+        flavor_name: 'default', // Should be determined based on host specs
+        image_name: 'default',  // Should be determined based on requirements
+        key_name: 'default',    // Should be determined based on user preferences
         manual: true,
         source: 'manual_launch'
     });

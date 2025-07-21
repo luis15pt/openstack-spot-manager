@@ -777,6 +777,60 @@ function addToPendingOperations(hostname, sourceType, targetType, targetVariant 
     showNotification(`Added ${hostname} to pending operations (${sourceType} → ${targetType})`, 'info');
 }
 
+// Add RunPod launch operation (separate from migrations)
+function addRunPodLaunchOperation(hostname, vmDetails) {
+    // Get the host card to check current aggregate
+    const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
+    const currentAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
+    const isRunPodHost = sourceCard ? sourceCard.dataset.type === 'runpod' : false;
+    
+    console.log('🔍 addRunPodLaunchOperation:', {
+        hostname,
+        currentAggregate,
+        isRunPodHost,
+        vmDetails
+    });
+    
+    // Check if host is already in RunPod aggregate
+    if (!isRunPodHost) {
+        // Host needs to be moved to RunPod first, then launched
+        showNotification(`Host ${hostname} must be moved to RunPod aggregate first`, 'warning');
+        return;
+    }
+    
+    // Create RunPod launch operation
+    const operation = {
+        hostname: hostname,
+        type: 'runpod-launch',
+        sourceAggregate: currentAggregate,
+        targetAggregate: currentAggregate, // Same aggregate, just launching VM
+        vm_name: vmDetails.vm_name || hostname,
+        flavor_name: vmDetails.flavor_name,
+        image_name: vmDetails.image_name,
+        key_name: vmDetails.key_name,
+        timestamp: new Date().toISOString(),
+        manual: vmDetails.manual || false,
+        source: vmDetails.source || 'unknown'
+    };
+    
+    // Check for duplicates
+    const existingOperation = pendingOperations.find(op => 
+        op.hostname === hostname && op.type === 'runpod-launch'
+    );
+    
+    if (existingOperation) {
+        showNotification(`RunPod launch for ${hostname} is already pending`, 'warning');
+        return;
+    }
+    
+    pendingOperations.push(operation);
+    
+    console.log('✅ Added RunPod launch operation:', operation);
+    updateCardPendingIndicators();
+    updatePendingOperationsDisplay();
+    showNotification(`Added RunPod launch for ${hostname} to pending operations`, 'info');
+}
+
 function updatePendingOperationsDisplay() {
     const list = document.getElementById('pendingOperationsList');
     const count = document.getElementById('pendingCount');
@@ -1162,21 +1216,24 @@ function generateIndividualCommandOperations(operation) {
     const commands = [];
     
     if (operation.type === 'runpod-launch') {
-        // Wait command
-        commands.push({
-            type: 'wait-command',
-            hostname: operation.hostname,
-            parent_operation: 'runpod-launch',
-            title: 'Wait for aggregate migration to complete',
-            description: 'Ensure host is properly moved to Runpod aggregate before VM deployment - prevents deployment failures',
-            command: `sleep 60  # Wait for OpenStack aggregate membership to propagate across all services`,
-            timing: '60s delay',
-            command_type: 'timing',
-            purpose: 'Prevent deployment failures by ensuring aggregate membership is fully propagated',
-            expected_output: 'Wait completed - aggregate membership propagated',
-            dependencies: [],
-            timestamp: new Date().toISOString()
-        });
+        // Only add wait command if this was part of a migration (host was moved to RunPod)
+        // If sourceAggregate !== targetAggregate, it means host was migrated and needs wait
+        if (operation.sourceAggregate !== operation.targetAggregate) {
+            commands.push({
+                type: 'wait-command',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Wait for aggregate migration to complete',
+                description: 'Ensure host is properly moved to Runpod aggregate before VM deployment - prevents deployment failures',
+                command: `sleep 60  # Wait for OpenStack aggregate membership to propagate across all services`,
+                timing: '60s delay',
+                command_type: 'timing',
+                purpose: 'Prevent deployment failures by ensuring aggregate membership is fully propagated',
+                expected_output: 'Wait completed - aggregate membership propagated',
+                dependencies: [],
+                timestamp: new Date().toISOString()
+            });
+        }
         
         // VM Launch command
         commands.push({
@@ -1200,7 +1257,7 @@ function generateIndividualCommandOperations(operation) {
             command_type: 'api',
             purpose: 'Create the virtual machine on the specified compute host with proper configuration for RunPod integration',
             expected_output: 'VM created successfully with assigned ID and floating IP',
-            dependencies: ['wait-command'],
+            dependencies: operation.sourceAggregate !== operation.targetAggregate ? ['wait-command'] : [],
             timestamp: new Date().toISOString()
         });
         
@@ -1308,6 +1365,7 @@ window.Frontend = {
     showNotification,
     updateGpuTypeSelector,
     addToPendingOperations,
+    addRunPodLaunchOperation,
     updatePendingOperationsDisplay,
     updateCardPendingIndicators,
     refreshAffectedColumns
