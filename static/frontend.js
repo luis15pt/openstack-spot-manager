@@ -1325,8 +1325,9 @@ function generateIndividualCommandOperations(operation) {
                 parent_operation: 'runpod-launch',
                 title: 'Get current firewall VM attachments',
                 description: 'Retrieves list of VMs currently attached to firewall to preserve them during update',
-                command: `curl -H 'api_key: <HYPERSTACK_API_KEY>' \\
-  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971`,
+                command: `curl -X GET https://infrahub-api.nexgencloud.com/v1/core/firewalls/971 \\
+  -H 'api_key: <HYPERSTACK_API_KEY>' \\
+  -H 'Content-Type: application/json'`,
                 timing: '180s after VM launch',
                 command_type: 'security',
                 purpose: 'Preserve existing VM attachments when updating firewall rules',
@@ -1342,10 +1343,15 @@ function generateIndividualCommandOperations(operation) {
                 parent_operation: 'runpod-launch',
                 title: 'Update firewall with all VMs (existing + new)',
                 description: 'Updates firewall to include all existing VMs plus the newly created VM',
-                command: `curl -X POST -H 'api_key: <HYPERSTACK_API_KEY>' \\
+                command: `curl -X POST https://infrahub-api.nexgencloud.com/v1/core/firewalls/971/update-attachments \\
+  -H 'api_key: <HYPERSTACK_API_KEY>' \\
   -H 'Content-Type: application/json' \\
-  -d '{"vms": [<EXISTING_VM_IDS>, <NEW_VM_ID>]}' \\
-  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971/update-attachments`,
+  -d '{
+    "virtual_machines": [
+      "<EXISTING_VM_IDS>",
+      "${operation.vm_name || operation.hostname}"
+    ]
+  }'`,
                 timing: 'After getting existing attachments',
                 command_type: 'security',
                 purpose: 'Apply security rules to new VM while preserving existing VM protections',
