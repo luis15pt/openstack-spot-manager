@@ -73,9 +73,14 @@ function executeRunpodLaunch(hostname) {
                     window.Frontend.showNotification(message, 'success');
                     
                     // Refresh host status to show it's now in use
-                    window.Frontend.updateHostAfterVMLaunch(hostname);
-                    console.log(`🔄 Updated host status for ${hostname} to show VM is running`);
-                    window.Logs.addToDebugLog('Hyperstack', 'Host status updated to show VM is running', 'success', hostname);
+                    if (window.Frontend && window.Frontend.updateHostAfterVMLaunch) {
+                        window.Frontend.updateHostAfterVMLaunch(hostname);
+                        console.log(`🔄 Updated host status for ${hostname} to show VM is running`);
+                        window.Logs.addToDebugLog('Hyperstack', 'Host status updated to show VM is running', 'success', hostname);
+                    } else {
+                        console.log(`🔄 Host status update skipped for ${hostname} (function not available)`);
+                        window.Logs.addToDebugLog('Hyperstack', 'Host status update function not available - skipped', 'info', hostname);
+                    }
                     
                     resolve(data);
                 } else {
