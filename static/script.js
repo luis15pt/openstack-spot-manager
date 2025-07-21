@@ -630,6 +630,7 @@ function executeCommandsForOperation(operation, commands, callback) {
         markCommandAsInProgress(command.element);
         
         console.log(`🔄 Executing REAL command: ${command.title}`);
+        console.log(`🔍 Command object:`, command); // Debug log to see command properties
         window.Logs.addToDebugLog('Real Command Started', `Executing: ${command.title}`, 'info', operation.hostname);
         
         // Execute REAL API calls based on command type
@@ -663,8 +664,31 @@ function executeCommandsForOperation(operation, commands, callback) {
 // Execute real API calls based on command type
 function executeRealCommand(operation, command) {
     return new Promise((resolve, reject) => {
-        const commandType = command.type;
         const hostname = operation.hostname;
+        
+        // Extract command type from title since command.type might be missing
+        const commandTitle = command.title;
+        let commandType;
+        
+        if (commandTitle.includes('Wait for aggregate')) {
+            commandType = 'wait-command';
+        } else if (commandTitle.includes('Deploy VM via Hyperstack')) {
+            commandType = 'hyperstack-launch';
+        } else if (commandTitle.includes('Find RunPod storage network')) {
+            commandType = 'storage-find-network';
+        } else if (commandTitle.includes('Create storage network port')) {
+            commandType = 'storage-create-port';
+        } else if (commandTitle.includes('Attach storage port')) {
+            commandType = 'storage-attach-port';
+        } else if (commandTitle.includes('Get current firewall')) {
+            commandType = 'firewall-get-attachments';
+        } else if (commandTitle.includes('Update firewall')) {
+            commandType = 'firewall-update-attachments';
+        } else {
+            commandType = 'unknown';
+        }
+        
+        console.log(`🔍 Determined command type: "${commandType}" from title: "${commandTitle}"`);
         
         switch (commandType) {
             case 'wait-command':
@@ -988,7 +1012,7 @@ function removeCompletedCommands() {
             
             // If all commands for this operation are completed, remove the operation
             // Count total commands for this specific operation
-            const operationCommands = window.Frontend.generateIndividualCommandOperations(operation);
+            const operationCommands = window.generateIndividualCommandOperations ? window.generateIndividualCommandOperations(operation) : [];
             const totalCommands = operationCommands.length;
             
             console.log(`🔍 Operation ${operation.hostname}: ${operation.completedCommands.length}/${totalCommands} commands completed`);
