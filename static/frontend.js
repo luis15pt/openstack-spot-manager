@@ -1351,7 +1351,7 @@ function generateIndividualCommandOperations(operation) {
                 parent_operation: 'runpod-launch',
                 title: 'Attach storage network to VM',
                 description: 'Directly attaches the storage network to the VM using server UUID',
-                command: `openstack server add network ${operation.hostname} "RunPod-Storage-Canada-1"`,
+                command: `openstack server add network <SERVER_UUID> "RunPod-Storage-Canada-1" # Server: ${operation.hostname}`,
                 timing: 'Immediate',
                 command_type: 'network',
                 purpose: 'Connect VM to high-performance storage network for data access',
