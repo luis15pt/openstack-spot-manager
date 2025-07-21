@@ -850,25 +850,7 @@ function executeRealCommand(operation, command) {
 
 // Note: executeHyperstackCommand function removed - now using dedicated backend endpoints for firewall operations
 
-function generateSimulatedOutput(commandTitle, hostname) {
-    const timestamp = new Date().toLocaleString();
-    
-    if (commandTitle.includes('Wait for aggregate')) {
-        return `[${timestamp}] Wait completed - 60 seconds elapsed\nAggregate membership propagated successfully`;
-    } else if (commandTitle.includes('Deploy VM')) {
-        return `[${timestamp}] VM created successfully\nID: vm-${Math.random().toString(36).substr(2, 9)}\nFloating IP: 10.1.110.${Math.floor(Math.random() * 200) + 50}\nStatus: ACTIVE`;
-    } else if (commandTitle.includes('storage network')) {
-        return `[${timestamp}] Storage network operation completed\nNetwork ID: ${Math.random().toString(36).substr(2, 9)}\nPort attached successfully`;
-    } else if (commandTitle.includes('firewall')) {
-        return `[${timestamp}] Firewall operation completed\nVM added to firewall rules\nCurrent attachments: 3 VMs`;
-    } else if (commandTitle.includes('Remove host')) {
-        return `[${timestamp}] Host ${hostname} removed from aggregate\nOperation completed successfully`;
-    } else if (commandTitle.includes('Add host')) {
-        return `[${timestamp}] Host ${hostname} added to aggregate\nOperation completed successfully`;
-    } else {
-        return `[${timestamp}] Command executed successfully\nOperation completed for ${hostname}`;
-    }
-}
+// Note: generateSimulatedOutput function removed - all commands now use real API calls
 
 function markCommandAsInProgress(commandElement) {
     commandElement.classList.add('in-progress-step');
