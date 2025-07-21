@@ -1241,8 +1241,8 @@ power_state:
                 'returncode': 0
             }, 'executed')
             
-            # Schedule storage network attachment after 120 seconds (OpenStack)
-            attach_runpod_storage_network(hostname, delay_seconds=120)
+            # Note: Storage network attachment is now handled by frontend commands
+            # attach_runpod_storage_network(hostname, delay_seconds=120)  # Disabled to prevent conflicts
             
             # Schedule firewall attachment after 180 seconds (Hyperstack API) - Canada hosts only
             firewall_scheduled = False
@@ -1263,7 +1263,7 @@ power_state:
                 'vm_id': vm_id,
                 'flavor_name': flavor_name,
                 'response': result_data,
-                'storage_network_scheduled': True,
+                'storage_network_scheduled': False,  # Now handled by frontend commands
                 'firewall_scheduled': firewall_scheduled
             })
         else:

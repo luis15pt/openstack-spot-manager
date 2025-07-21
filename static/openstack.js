@@ -422,18 +422,18 @@ function executeNetworkCommand(command) {
             .catch(error => reject(error));
             
         } else if (command.includes('server add port')) {
-            // Extract server and port from command
+            // Extract server and port from command: openstack server add port <server_name> <port_name>
             const parts = command.split(' ');
-            const serverIndex = parts.indexOf('server') + 1;
-            const portIndex = parts.indexOf('port') + 1;
+            const addIndex = parts.indexOf('add');
+            const portKeywordIndex = parts.indexOf('port');
             
-            if (serverIndex >= parts.length || portIndex >= parts.length) {
+            if (addIndex === -1 || portKeywordIndex === -1 || portKeywordIndex + 2 >= parts.length) {
                 reject(new Error('Could not parse server or port from command'));
                 return;
             }
             
-            const serverName = parts[serverIndex + 1];
-            const portName = parts[portIndex + 1];
+            const serverName = parts[portKeywordIndex + 1];  // First argument after 'port'
+            const portName = parts[portKeywordIndex + 2];    // Second argument after 'port'
             
             // Call backend to attach port via SDK
             window.Utils.fetchWithTimeout('/api/openstack/server/add-port', {
