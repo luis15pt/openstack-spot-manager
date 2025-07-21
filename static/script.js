@@ -573,6 +573,9 @@ function executeCommandsSequentially(commandsByOperation) {
             removeCompletedCommands();
             window.Frontend.updatePendingOperationsDisplay();
             
+            // Refresh aggregate data to show any changes after operations complete
+            refreshAggregateDataAfterOperations();
+            
             // Only refresh command log and results, don't refresh all host data
             window.Logs.loadCommandLog();
             window.Logs.loadResultsSummary();
@@ -695,6 +698,10 @@ function executeRealCommand(operation, command) {
             commandType = 'firewall-get-attachments';
         } else if (commandTitle.includes('Update firewall')) {
             commandType = 'firewall-update-attachments';
+        } else if (commandTitle.includes('Remove host from')) {
+            commandType = 'aggregate-remove-host';
+        } else if (commandTitle.includes('Add host to')) {
+            commandType = 'aggregate-add-host';
         } else {
             commandType = 'unknown';
         }
@@ -845,6 +852,44 @@ function executeRealCommand(operation, command) {
                         resolve({ output: `Firewall updated successfully\nVM ${hostname} (ID: ${vmId}) added to firewall ${data.firewall_id}\nTotal VMs on firewall: ${data.total_vms}\nVM list: ${data.vm_list.join(', ')}` });
                     } else {
                         reject(new Error(data.error || 'Firewall update failed'));
+                    }
+                })
+                .catch(error => reject(error));
+                break;
+                
+            case 'aggregate-remove-host':
+                console.log(`🗑️ Removing host ${hostname} from aggregate`);
+                window.Utils.fetchWithTimeout('/api/remove-from-aggregate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hostname: hostname })
+                }, 30000)
+                .then(window.Utils.checkResponse)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        resolve({ output: `Host ${hostname} successfully removed from aggregate ${data.source_aggregate}` });
+                    } else {
+                        reject(new Error(data.error || 'Failed to remove host from aggregate'));
+                    }
+                })
+                .catch(error => reject(error));
+                break;
+                
+            case 'aggregate-add-host':
+                console.log(`➕ Adding host ${hostname} to aggregate`);
+                window.Utils.fetchWithTimeout('/api/add-to-aggregate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hostname: hostname })
+                }, 30000)
+                .then(window.Utils.checkResponse)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        resolve({ output: `Host ${hostname} successfully added to aggregate ${data.target_aggregate}` });
+                    } else {
+                        reject(new Error(data.error || 'Failed to add host to aggregate'));
                     }
                 })
                 .catch(error => reject(error));
@@ -1150,6 +1195,12 @@ function removeCompletedCommands() {
                 console.log(`✅ All commands completed for ${operation.hostname}, removing from pending operations`);
                 window.Logs.addToDebugLog('Operation Completed', `Removed ${operation.hostname} - all ${totalCommands} commands completed`, 'success', operation.hostname);
                 window.Frontend.pendingOperations.splice(operationIndex, 1);
+                
+                // Refresh aggregate data for individual operation completion if it was an aggregate migration
+                if (operation.type === 'move-to-spot' || operation.type === 'move-to-ondemand' || operation.type === 'move-to-runpod') {
+                    console.log(`🔄 Individual operation completed for ${operation.hostname}, refreshing aggregate data`);
+                    refreshAggregateDataAfterOperations();
+                }
             }
         }
     });
@@ -1160,6 +1211,51 @@ function refreshData() {
     const selectedType = document.getElementById('gpuTypeSelect').value;
     if (selectedType) {
         window.OpenStack.loadAggregateData(selectedType);
+    }
+}
+
+// Refresh aggregate data after operations complete to show any changes
+function refreshAggregateDataAfterOperations() {
+    const selectedType = document.getElementById('gpuTypeSelect').value;
+    if (selectedType && window.currentGpuType) {
+        console.log(`🔄 Refreshing aggregate data after operations completion for GPU type: ${window.currentGpuType}`);
+        
+        // Show brief refresh notification
+        window.Frontend.showNotification(`Refreshing host data...`, 'info');
+        
+        // Add a small delay to ensure backend operations have fully completed
+        setTimeout(() => {
+            window.OpenStack.loadAggregateData(window.currentGpuType, false)
+                .then(data => {
+                    console.log(`✅ Successfully refreshed aggregate data after operations`);
+                    window.Logs.addToDebugLog('System', 'Aggregate data refreshed after operations completion', 'success');
+                    
+                    // Update the host displays to show any changes
+                    if (data) {
+                        // Update RunPod hosts
+                        if (data.runpod && data.runpod.hosts) {
+                            window.Frontend.renderHosts('runpodHosts', data.runpod.hosts, 'runpod', data.runpod.name);
+                        }
+                        
+                        // Update Spot hosts  
+                        if (data.spot && data.spot.hosts) {
+                            window.Frontend.renderHosts('spotHosts', data.spot.hosts, 'spot', data.spot.name);
+                        }
+                        
+                        // Update On-demand hosts (including variants)
+                        if (data.ondemand) {
+                            window.Frontend.renderOnDemandVariantColumns(data.ondemand);
+                        }
+                        
+                        // Update overall GPU usage statistics
+                        window.Frontend.updateOverallGpuStats(data.gpu_overview);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error refreshing aggregate data after operations:', error);
+                    window.Logs.addToDebugLog('System', `Error refreshing aggregate data: ${error.message}`, 'error');
+                });
+        }, 2000); // 2-second delay to ensure backend consistency
     }
 }
 

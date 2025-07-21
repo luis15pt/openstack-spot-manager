@@ -303,40 +303,27 @@ function renderResultsSummary(commands) {
     document.getElementById('previewCount').textContent = stats.preview;
     document.getElementById('totalCount').textContent = stats.total;
     
-    // Show recent results
-    const recentResults = commands.slice(-10).reverse();
-    const recentResultsList = document.getElementById('recentResultsList');
+    // Update session analytics  
+    const operationsElement = document.getElementById('operationsCount');
+    if (operationsElement) operationsElement.textContent = debugStats.operationsCount;
     
-    if (recentResults.length === 0) {
-        recentResultsList.innerHTML = `
-            <div class="text-center text-muted">
-                <i class="fas fa-chart-line fa-3x mb-3"></i>
-                <p>No results yet. Execute some commands to see results here.</p>
-            </div>`;
-        return;
+    const commandsElement = document.getElementById('commandsExecuted');
+    if (commandsElement) commandsElement.textContent = debugStats.commandsExecuted;
+    
+    const errorRateElement = document.getElementById('errorRate');
+    if (errorRateElement) {
+        const errorRate = totalCommands > 0 ? Math.round((failedCount / totalCommands) * 100) : 0;
+        errorRateElement.textContent = `${errorRate}%`;
     }
     
-    const resultsHtml = recentResults.map(cmd => {
-        const statusClass = cmd.success === null ? 'secondary' : (cmd.success ? 'success' : 'danger');
-        const statusIcon = cmd.success === null ? 'fas fa-eye' : (cmd.success ? 'fas fa-check' : 'fas fa-times');
-        
-        return `
-            <div class="result-item border-start border-${statusClass} border-3 ps-3 mb-2">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <i class="${statusIcon} text-${statusClass} me-2"></i>
-                        <strong>${cmd.hostname || 'N/A'}</strong>
-                        <small class="text-muted ms-2">${window.Utils.formatDate(cmd.timestamp)}</small>
-                    </div>
-                    <span class="badge bg-${statusClass}">${cmd.success === null ? 'preview' : (cmd.success ? 'success' : 'failed')}</span>
-                </div>
-                <div class="command-text text-truncate text-muted mt-1">
-                    ${cmd.command}
-                </div>
-            </div>`;
-    }).join('');
+    // Initialize session start time if not set
+    const sessionStartElement = document.getElementById('sessionStartTime');
+    if (sessionStartElement && sessionStartElement.textContent === 'Loading...') {
+        sessionStartElement.textContent = new Date().toLocaleString();
+    }
     
-    recentResultsList.innerHTML = resultsHtml;
+    // Skip recent results list since it doesn't exist in the new Analytics tab structure
+    return;
 }
 
 // Export logging functions
