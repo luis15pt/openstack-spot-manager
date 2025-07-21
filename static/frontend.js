@@ -888,7 +888,7 @@ function updatePendingOperationsDisplay() {
                 statusBadge = 'Completed';
                 statusClass = 'bg-success';
             } else {
-                statusBadge = cmd.timing || 'Pending';
+                statusBadge = 'Pending';
                 statusClass = 'bg-secondary';
             }
             
