@@ -603,8 +603,8 @@ function executeCommandsSequentially(commandsByOperation) {
 
 // Execute commands for a specific operation (restored from original working version)
 function executeCommandsForOperation(operation, commands, callback) {
-    // This function will execute the actual commands for an operation
-    // Pure simulation as in the working version - no real API calls
+    // Execute only CHECKED commands with REAL API calls - no simulation
+    // Skip any unchecked commands entirely
     
     let commandIndex = 0;
     
@@ -616,31 +616,175 @@ function executeCommandsForOperation(operation, commands, callback) {
         
         const command = commands[commandIndex];
         
+        // Check if this command is actually checked/selected for execution
+        const checkbox = command.element.querySelector('.command-operation-checkbox');
+        if (!checkbox || !checkbox.checked) {
+            console.log(`⏭️ Skipping unchecked command: ${command.title}`);
+            window.Logs.addToDebugLog('Command Skipped', `Skipped (unchecked): ${command.title}`, 'info', operation.hostname);
+            commandIndex++;
+            executeNextCommand();
+            return;
+        }
+        
         // Mark command as in progress
         markCommandAsInProgress(command.element);
         
-        console.log(`🔄 Executing command: ${command.title}`);
-        window.Logs.addToDebugLog('Command Started', `Executing: ${command.title}`, 'info', operation.hostname);
+        console.log(`🔄 Executing REAL command: ${command.title}`);
+        window.Logs.addToDebugLog('Real Command Started', `Executing: ${command.title}`, 'info', operation.hostname);
         
-        // Simulate command execution with delay (simulate actual execution time)
-        const executionTime = Math.floor(Math.random() * 3000) + 1000; // 1-4 seconds
-        
-        setTimeout(() => {
-            // Simulate command output
-            const simulatedOutput = generateSimulatedOutput(command.title, operation.hostname);
-            
-            // Mark command as completed with output
-            markCommandAsCompleted(command.element, simulatedOutput);
-            
-            // Add to debug log
-            window.Logs.addToDebugLog('Command Completed', `✓ ${command.title}`, 'success', operation.hostname);
-            
-            commandIndex++;
-            executeNextCommand();
-        }, executionTime);
+        // Execute REAL API calls based on command type
+        executeRealCommand(operation, command)
+            .then((result) => {
+                // Mark command as completed with real API response
+                const successOutput = result.output || `${command.title} completed successfully`;
+                markCommandAsCompleted(command.element, successOutput);
+                window.Logs.addToDebugLog('Real Command Success', `✓ ${command.title}`, 'success', operation.hostname);
+                
+                commandIndex++;
+                executeNextCommand();
+            })
+            .catch(error => {
+                console.error(`❌ Real command failed for ${operation.hostname}:`, error);
+                window.Logs.addToDebugLog('Real Command Failed', `✗ ${command.title}: ${error.message}`, 'error', operation.hostname);
+                
+                // Mark as failed with error details
+                const errorOutput = `REAL COMMAND FAILED: ${error.message}\n\nCommand: ${command.title}`;
+                markCommandAsCompleted(command.element, errorOutput);
+                
+                // Continue with next command even if this failed
+                commandIndex++;
+                executeNextCommand();
+            });
     };
     
     executeNextCommand();
+}
+
+// Execute real API calls based on command type
+function executeRealCommand(operation, command) {
+    return new Promise((resolve, reject) => {
+        const commandType = command.type;
+        const hostname = operation.hostname;
+        
+        switch (commandType) {
+            case 'wait-command':
+                // Real wait - actually wait the specified time
+                console.log(`⏰ Real wait: 60 seconds for aggregate propagation`);
+                setTimeout(() => {
+                    resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 60 seconds elapsed\nAggregate membership propagated` });
+                }, 60000); // Real 60 second wait
+                break;
+                
+            case 'hyperstack-launch':
+                // Real VM deployment via Hyperstack API
+                console.log(`🚀 Real Hyperstack VM deployment for ${hostname}`);
+                window.Hyperstack.executeRunpodLaunch(hostname)
+                    .then(result => {
+                        const output = result && result.vm_id ? 
+                            `VM ${hostname} launched successfully\nVM ID: ${result.vm_id}\nFloating IP: ${result.floating_ip || 'Assigned'}\nStatus: ACTIVE` :
+                            `VM ${hostname} launched successfully via Hyperstack API`;
+                        resolve({ output });
+                    })
+                    .catch(error => reject(error));
+                break;
+                
+            case 'storage-find-network':
+                // Real OpenStack network lookup
+                console.log(`🌐 Real network lookup for RunPod-Storage-Canada-1`);
+                executeOpenStackCommand(`openstack network show "RunPod-Storage-Canada-1" -c id -f value`)
+                    .then(result => {
+                        resolve({ output: `Network UUID: ${result.trim()}\nRunPod-Storage-Canada-1 network found` });
+                    })
+                    .catch(error => reject(error));
+                break;
+                
+            case 'storage-create-port':
+                // Real OpenStack port creation
+                console.log(`🌐 Real storage port creation for ${hostname}`);
+                executeOpenStackCommand(`openstack port create --network "RunPod-Storage-Canada-1" --name "${hostname}-storage-port" -c id -f value`)
+                    .then(result => {
+                        resolve({ output: `Port UUID: ${result.trim()}\nStorage port created for ${hostname}` });
+                    })
+                    .catch(error => reject(error));
+                break;
+                
+            case 'storage-attach-port':
+                // Real OpenStack port attachment
+                console.log(`🌐 Real port attachment to ${hostname}`);
+                executeOpenStackCommand(`openstack server add port ${hostname} ${hostname}-storage-port`)
+                    .then(result => {
+                        resolve({ output: `Port attached successfully to ${hostname}\nHigh-performance storage network connected` });
+                    })
+                    .catch(error => reject(error));
+                break;
+                
+            case 'firewall-get-attachments':
+                // Real Hyperstack firewall query
+                console.log(`🛡️ Real firewall query for existing VMs`);
+                executeHyperstackCommand(`curl -H 'api_key: ${window.HYPERSTACK_API_KEY}' https://infrahub-api.nexgencloud.com/v1/core/firewalls/971`)
+                    .then(result => {
+                        resolve({ output: `Firewall attachments retrieved\n${result}` });
+                    })
+                    .catch(error => reject(error));
+                break;
+                
+            case 'firewall-update-attachments':
+                // Real Hyperstack firewall update
+                console.log(`🛡️ Real firewall update with ${hostname}`);
+                executeHyperstackCommand(`curl -X POST -H 'api_key: ${window.HYPERSTACK_API_KEY}' -H 'Content-Type: application/json' -d '{"vms": ["${hostname}"]}' https://infrahub-api.nexgencloud.com/v1/core/firewalls/971/update-attachments`)
+                    .then(result => {
+                        resolve({ output: `Firewall updated successfully\n${hostname} added to security rules` });
+                    })
+                    .catch(error => reject(error));
+                break;
+                
+            default:
+                // For any unknown command types, reject
+                reject(new Error(`Unknown command type: ${commandType}`));
+        }
+    });
+}
+
+// Execute real OpenStack commands
+function executeOpenStackCommand(command) {
+    return new Promise((resolve, reject) => {
+        // Make real OpenStack API call via backend
+        fetch('/api/execute-openstack-command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: command })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resolve(data.output);
+            } else {
+                reject(new Error(data.error || 'OpenStack command failed'));
+            }
+        })
+        .catch(error => reject(error));
+    });
+}
+
+// Execute real Hyperstack commands
+function executeHyperstackCommand(command) {
+    return new Promise((resolve, reject) => {
+        // Make real Hyperstack API call via backend
+        fetch('/api/execute-hyperstack-command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: command })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resolve(data.output);
+            } else {
+                reject(new Error(data.error || 'Hyperstack command failed'));
+            }
+        })
+        .catch(error => reject(error));
+    });
 }
 
 function generateSimulatedOutput(commandTitle, hostname) {
@@ -843,8 +987,15 @@ function removeCompletedCommands() {
             }
             
             // If all commands for this operation are completed, remove the operation
-            const totalCommands = 2; // Most operations have 2 commands (remove + add)
+            // Count total commands for this specific operation
+            const operationCommands = window.Frontend.generateIndividualCommandOperations(operation);
+            const totalCommands = operationCommands.length;
+            
+            console.log(`🔍 Operation ${operation.hostname}: ${operation.completedCommands.length}/${totalCommands} commands completed`);
+            
             if (operation.completedCommands.length >= totalCommands) {
+                console.log(`✅ All commands completed for ${operation.hostname}, removing from pending operations`);
+                window.Logs.addToDebugLog('Operation Completed', `Removed ${operation.hostname} - all ${totalCommands} commands completed`, 'success', operation.hostname);
                 window.Frontend.pendingOperations.splice(operationIndex, 1);
             }
         }
