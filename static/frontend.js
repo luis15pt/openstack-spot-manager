@@ -512,7 +512,7 @@ function createHostCard(host, type, aggregateName = null) {
                 ${type === 'runpod' && !hasVms ? `
                 <div class="launch-runpod-info">
                     <button class="btn btn-sm btn-outline-primary launch-runpod-btn" 
-                            onclick="scheduleRunpodLaunch('${host.name}')" 
+                            onclick="window.Hyperstack.scheduleRunpodLaunch('${host.name}')" 
                             title="Schedule VM launch on this host">
                         <i class="fas fa-rocket"></i> Launch into Runpod
                     </button>
@@ -1216,26 +1216,30 @@ function generateIndividualCommandOperations(operation) {
     const commands = [];
     
     if (operation.type === 'runpod-launch') {
-        // Only add wait command if this was part of a migration (host was moved to RunPod)
-        // If sourceAggregate !== targetAggregate, it means host was migrated and needs wait
-        if (operation.sourceAggregate !== operation.targetAggregate) {
-            commands.push({
-                type: 'wait-command',
-                hostname: operation.hostname,
-                parent_operation: 'runpod-launch',
-                title: 'Wait for aggregate migration to complete',
-                description: 'Ensure host is properly moved to Runpod aggregate before VM deployment - prevents deployment failures',
-                command: `sleep 60  # Wait for OpenStack aggregate membership to propagate across all services`,
-                timing: '60s delay',
-                command_type: 'timing',
-                purpose: 'Prevent deployment failures by ensuring aggregate membership is fully propagated',
-                expected_output: 'Wait completed - aggregate membership propagated',
-                dependencies: [],
-                timestamp: new Date().toISOString()
-            });
-        }
+        // Generate all 7 individual, selectable steps as they were in the working version
+        // Each command is a separate operation that can be individually committed
         
-        // VM Launch command
+        // 1. Wait command
+        commands.push({
+            type: 'wait-command',
+            hostname: operation.hostname,
+            parent_operation: 'runpod-launch',
+            title: 'Wait for aggregate migration to complete',
+            description: 'Ensure host is properly moved to Runpod aggregate before VM deployment - prevents deployment failures',
+            command: `sleep 60  # Wait for OpenStack aggregate membership to propagate across all services`,
+            verification_commands: [
+                `openstack aggregate show <runpod-aggregate-name>`,
+                `openstack hypervisor show ${operation.hostname}`
+            ],
+            timing: '60s delay',
+            command_type: 'timing',
+            purpose: 'Prevent deployment failures by ensuring aggregate membership is fully propagated',
+            expected_output: 'Wait completed - aggregate membership propagated',
+            dependencies: [],
+            timestamp: new Date().toISOString()
+        });
+        
+        // 2. VM Launch command
         commands.push({
             type: 'hyperstack-launch',
             hostname: operation.hostname,
@@ -1253,13 +1257,103 @@ function generateIndividualCommandOperations(operation) {
     "assign_floating_ip": true,
     "user_data": "#!/bin/bash\\necho \\"api_key=<RUNPOD_API_KEY>\\" > /tmp/runpod-config"
   }'`,
+            verification_commands: [
+                `openstack server show ${operation.vm_name || operation.hostname} --all-projects`,
+                `openstack server list --host ${operation.hostname} --all-projects`
+            ],
             timing: 'Immediate',
             command_type: 'api',
             purpose: 'Create the virtual machine on the specified compute host with proper configuration for RunPod integration',
             expected_output: 'VM created successfully with assigned ID and floating IP',
-            dependencies: operation.sourceAggregate !== operation.targetAggregate ? ['wait-command'] : [],
+            dependencies: ['wait-command'],
             timestamp: new Date().toISOString()
         });
+        
+        if (operation.hostname.startsWith('CA1-')) {
+            // 3. Storage Network - Find Network ID
+            commands.push({
+                type: 'storage-find-network',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Find RunPod storage network ID',
+                description: 'Retrieves the network ID for RunPod-Storage-Canada-1 network to use for port creation',
+                command: `openstack network show "RunPod-Storage-Canada-1" -c id -f value`,
+                timing: '120s after VM launch',
+                command_type: 'network',
+                purpose: 'Get the network UUID required for creating storage network port',
+                expected_output: 'Network UUID (e.g., 12345678-1234-1234-1234-123456789012)',
+                dependencies: ['hyperstack-launch'],
+                timestamp: new Date().toISOString()
+            });
+            
+            // 4. Storage Network - Create Port
+            commands.push({
+                type: 'storage-create-port',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Create storage network port',
+                description: 'Creates a dedicated port on the storage network for the VM',
+                command: `openstack port create --network "RunPod-Storage-Canada-1" --name "${operation.hostname}-storage-port" -c id -f value`,
+                timing: 'After network ID found',
+                command_type: 'network',
+                purpose: 'Create a dedicated network port for high-performance storage access',
+                expected_output: 'Port UUID for the storage network interface',
+                dependencies: ['storage-find-network'],
+                timestamp: new Date().toISOString()
+            });
+            
+            // 5. Storage Network - Attach Port
+            commands.push({
+                type: 'storage-attach-port',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Attach storage port to VM',
+                description: 'Attaches the storage network port to the VM for high-performance storage access',
+                command: `openstack server add port ${operation.hostname} <PORT_ID>`,
+                timing: 'After port created',
+                command_type: 'network',
+                purpose: 'Connect VM to high-performance storage network for data access',
+                expected_output: 'Port successfully attached to VM',
+                dependencies: ['storage-create-port'],
+                timestamp: new Date().toISOString()
+            });
+            
+            // 6. Firewall - Get Current Attachments
+            commands.push({
+                type: 'firewall-get-attachments',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Get current firewall VM attachments',
+                description: 'Retrieves list of VMs currently attached to firewall to preserve them during update',
+                command: `curl -H 'api_key: <HYPERSTACK_API_KEY>' \\
+  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971`,
+                timing: '180s after VM launch',
+                command_type: 'security',
+                purpose: 'Preserve existing VM attachments when updating firewall rules',
+                expected_output: 'JSON list of currently attached VM IDs',
+                dependencies: ['hyperstack-launch'],
+                timestamp: new Date().toISOString()
+            });
+            
+            // 7. Firewall - Update with All VMs
+            commands.push({
+                type: 'firewall-update-attachments',
+                hostname: operation.hostname,
+                parent_operation: 'runpod-launch',
+                title: 'Update firewall with all VMs (existing + new)',
+                description: 'Updates firewall to include all existing VMs plus the newly created VM',
+                command: `curl -X POST -H 'api_key: <HYPERSTACK_API_KEY>' \\
+  -H 'Content-Type: application/json' \\
+  -d '{"vms": [<EXISTING_VM_IDS>, <NEW_VM_ID>]}' \\
+  https://infrahub-api.nexgencloud.com/v1/core/firewalls/971/update-attachments`,
+                timing: 'After getting existing attachments',
+                command_type: 'security',
+                purpose: 'Apply security rules to new VM while preserving existing VM protections',
+                expected_output: 'Firewall updated successfully with all VM attachments',
+                dependencies: ['firewall-get-attachments'],
+                timestamp: new Date().toISOString()
+            });
+        }
         
     } else {
         // Migration commands
@@ -1335,7 +1429,7 @@ function toggleOperationCollapse(index) {
 
 window.toggleGroup = toggleGroup;
 window.handleHostClick = handleHostClick;
-window.scheduleRunpodLaunch = scheduleRunpodLaunch;
+// scheduleRunpodLaunch is now in window.Hyperstack namespace
 window.removePendingOperation = removePendingOperation;
 window.generateIndividualCommandOperations = generateIndividualCommandOperations;
 window.updateCommitButtonState = updateCommitButtonState;

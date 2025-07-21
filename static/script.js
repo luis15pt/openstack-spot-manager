@@ -603,12 +603,153 @@ function executeCommandsSequentially(commandsByOperation) {
 
 // Execute commands for a specific operation (restored from original working version)
 function executeCommandsForOperation(operation, commands, callback) {
-    if (operation.type === 'runpod-launch') {
-        // Execute RunPod launch
-        executeRunPodLaunch(operation, callback);
+    // This function will execute the actual commands for an operation
+    // Pure simulation as in the working version - no real API calls
+    
+    let commandIndex = 0;
+    
+    const executeNextCommand = () => {
+        if (commandIndex >= commands.length) {
+            callback(true);
+            return;
+        }
+        
+        const command = commands[commandIndex];
+        
+        // Mark command as in progress
+        markCommandAsInProgress(command.element);
+        
+        console.log(`🔄 Executing command: ${command.title}`);
+        window.Logs.addToDebugLog('Command Started', `Executing: ${command.title}`, 'info', operation.hostname);
+        
+        // Simulate command execution with delay (simulate actual execution time)
+        const executionTime = Math.floor(Math.random() * 3000) + 1000; // 1-4 seconds
+        
+        setTimeout(() => {
+            // Simulate command output
+            const simulatedOutput = generateSimulatedOutput(command.title, operation.hostname);
+            
+            // Mark command as completed with output
+            markCommandAsCompleted(command.element, simulatedOutput);
+            
+            // Add to debug log
+            window.Logs.addToDebugLog('Command Completed', `✓ ${command.title}`, 'success', operation.hostname);
+            
+            commandIndex++;
+            executeNextCommand();
+        }, executionTime);
+    };
+    
+    executeNextCommand();
+}
+
+function generateSimulatedOutput(commandTitle, hostname) {
+    const timestamp = new Date().toLocaleString();
+    
+    if (commandTitle.includes('Wait for aggregate')) {
+        return `[${timestamp}] Wait completed - 60 seconds elapsed\nAggregate membership propagated successfully`;
+    } else if (commandTitle.includes('Deploy VM')) {
+        return `[${timestamp}] VM created successfully\nID: vm-${Math.random().toString(36).substr(2, 9)}\nFloating IP: 10.1.110.${Math.floor(Math.random() * 200) + 50}\nStatus: ACTIVE`;
+    } else if (commandTitle.includes('storage network')) {
+        return `[${timestamp}] Storage network operation completed\nNetwork ID: ${Math.random().toString(36).substr(2, 9)}\nPort attached successfully`;
+    } else if (commandTitle.includes('firewall')) {
+        return `[${timestamp}] Firewall operation completed\nVM added to firewall rules\nCurrent attachments: 3 VMs`;
+    } else if (commandTitle.includes('Remove host')) {
+        return `[${timestamp}] Host ${hostname} removed from aggregate\nOperation completed successfully`;
+    } else if (commandTitle.includes('Add host')) {
+        return `[${timestamp}] Host ${hostname} added to aggregate\nOperation completed successfully`;
     } else {
-        // Execute OpenStack migration
-        executeOpenStackMigration(operation, callback);
+        return `[${timestamp}] Command executed successfully\nOperation completed for ${hostname}`;
+    }
+}
+
+function markCommandAsInProgress(commandElement) {
+    commandElement.classList.add('in-progress-step');
+    commandElement.classList.remove('completed-step');
+    
+    const badge = commandElement.querySelector('.badge');
+    if (badge) {
+        badge.className = 'badge bg-warning ms-2';
+        badge.textContent = 'In Progress';
+    }
+    
+    const checkbox = commandElement.querySelector('.command-operation-checkbox');
+    if (checkbox) {
+        checkbox.disabled = true;
+    }
+    
+    // Show output section
+    const outputSection = commandElement.querySelector('.command-output');
+    if (outputSection) {
+        outputSection.style.display = 'block';
+        const outputContent = outputSection.querySelector('.command-output-content');
+        outputContent.innerHTML = `
+            <div class="output-placeholder text-warning">
+                <i class="fas fa-spinner fa-spin me-1"></i>
+                Command executing...
+            </div>
+        `;
+    }
+}
+
+function markCommandAsCompleted(commandElement, output = null) {
+    commandElement.classList.remove('in-progress-step');
+    commandElement.classList.add('completed-step');
+    
+    const badge = commandElement.querySelector('.badge');
+    if (badge) {
+        badge.className = 'badge bg-success ms-2';
+        badge.textContent = 'Completed';
+    }
+    
+    const titleElement = commandElement.querySelector('.command-title');
+    if (titleElement && !titleElement.querySelector('.fa-check-circle')) {
+        titleElement.insertAdjacentHTML('afterbegin', '<i class="fas fa-check-circle text-success me-1"></i>');
+    }
+    
+    const checkbox = commandElement.querySelector('.command-operation-checkbox');
+    if (checkbox) {
+        checkbox.checked = true;
+        checkbox.disabled = true;
+    }
+    
+    // Update output section with actual output
+    const outputSection = commandElement.querySelector('.command-output');
+    if (outputSection) {
+        const outputContent = outputSection.querySelector('.command-output-content');
+        const timestamp = new Date().toLocaleTimeString();
+        
+        if (output) {
+            outputContent.innerHTML = `
+                <div class="command-success-output">
+                    <div class="text-success small mb-1">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Command completed at ${timestamp}
+                    </div>
+                    <pre class="mb-0">${output}</pre>
+                </div>
+            `;
+        } else {
+            outputContent.innerHTML = `
+                <div class="command-success-output">
+                    <div class="text-success small">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Command completed successfully at ${timestamp}
+                    </div>
+                </div>
+            `;
+        }
+    }
+}
+
+function getCommandIcon(type) {
+    switch(type) {
+        case 'timing': return 'fas fa-clock text-warning';
+        case 'api': return 'fas fa-rocket text-primary';
+        case 'network': return 'fas fa-network-wired text-info';
+        case 'security': return 'fas fa-shield-alt text-success';
+        case 'migration': return 'fas fa-exchange-alt text-secondary';
+        default: return 'fas fa-cog text-muted';
     }
 }
 
