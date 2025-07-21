@@ -32,7 +32,7 @@ NETBOX_API_KEY = os.getenv('NETBOX_API_KEY')
 HYPERSTACK_API_URL = os.getenv('HYPERSTACK_API_URL', 'https://infrahub-api.nexgencloud.com/v1')
 HYPERSTACK_API_KEY = os.getenv('HYPERSTACK_API_KEY')
 RUNPOD_API_KEY = os.getenv('RUNPOD_API_KEY')
-HYPERSTACK_FIREWALL_CA1_ID = os.getenv('HYPERSTACK_FIREWALL_CA1_ID')  # Firewall ID for CA1 hosts
+HYPERSTACK_FIREWALL_CA1_ID = os.getenv('HYPERSTACK_FIREWALL_CA1_ID', '971')  # Firewall ID for CA1 hosts
 
 # Cache for NetBox tenant lookups to avoid repeated API calls
 _tenant_cache = {}
