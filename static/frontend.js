@@ -995,14 +995,18 @@ function renderOnDemandVariantColumns(ondemandData) {
         const mainRow = document.querySelector('.row.mt-3');
         const spotColumnElement = document.querySelector('#spotColumn').closest('.col-md-2, .col-md-3, .col-md-4');
         
-        // Remove existing dynamically created variant columns
-        // These columns have IDs like "A100n3Column", "A100n3NVLinkColumn", etc.
-        const existingVariantColumns = mainRow.querySelectorAll('.aggregate-column[id$="Column"]:not(#runpodColumn):not(#spotColumn):not(#ondemandColumn)');
-        existingVariantColumns.forEach(columnDiv => {
-            const parentCol = columnDiv.closest('.col-md-2, .col-md-3, .col-md-4');
-            if (parentCol) {
-                console.log('🗑️ Removing duplicate variant column:', columnDiv.id);
-                parentCol.remove();
+        // Remove ALL existing dynamically created variant columns
+        // Look for any column that has an aggregate-column div but isn't one of the three static columns
+        console.log('🔍 Cleaning up existing variant columns...');
+        const allColumns = mainRow.querySelectorAll('.col-md-2, .col-md-3, .col-md-4');
+        allColumns.forEach(col => {
+            const columnDiv = col.querySelector('.aggregate-column');
+            if (columnDiv && columnDiv.id) {
+                // Keep only the three static columns
+                if (columnDiv.id !== 'runpodColumn' && columnDiv.id !== 'spotColumn' && columnDiv.id !== 'ondemandColumn') {
+                    console.log('🗑️ Removing variant column:', columnDiv.id);
+                    col.remove();
+                }
             }
         });
         
