@@ -1794,11 +1794,24 @@ def openstack_server_add_network():
         
         print(f"📋 Found network {network_name} with UUID: {network.id}")
         
-        # Attach the network to the server using server UUID
+        # Attach the network to the server using server UUID with retry logic
         # This is equivalent to: openstack server add network {server_uuid} {network_name}
-        conn.compute.create_server_interface(server_uuid, net_id=network.id)
+        max_retries = 3
+        retry_delay = 10  # seconds
         
-        print(f"✅ Attached network {network_name} to server {server_name} (UUID: {server_uuid})")
+        for attempt in range(max_retries):
+            try:
+                conn.compute.create_server_interface(server_uuid, net_id=network.id)
+                print(f"✅ Attached network {network_name} to server {server_name} (UUID: {server_uuid})")
+                break
+            except Exception as attach_error:
+                if "vm_state building" in str(attach_error) and attempt < max_retries - 1:
+                    print(f"⏳ VM {server_name} still building, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # Either not a building state error, or we've exhausted retries
+                    raise attach_error
         
         # Log the command
         log_command(f'openstack server add network {server_uuid} "{network_name}"', {
