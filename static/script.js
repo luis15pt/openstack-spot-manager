@@ -865,7 +865,8 @@ function executeRealCommand(operation, command) {
                 const targetMatch = command.title.match(/Add host to (.+)/);
                 
                 // Get the operation to determine full migration context
-                const operationIndex = parseInt(command.id.split('-')[3]) || 0; // Extract from cmd-hostname-type-index
+                const parts = command.id.split('-');
+                const operationIndex = parseInt(parts[parts.length - 1]) || 0; // Extract operation index from end
                 const currentOperation = window.Frontend?.pendingOperations?.[operationIndex];
                 
                 if (!currentOperation) {
