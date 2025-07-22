@@ -858,17 +858,51 @@ function executeRealCommand(operation, command) {
                 break;
                 
             case 'aggregate-remove-host':
-                // These commands are part of the migration process handled by the existing system
-                // For individual commands, we need to simulate them as they're part of a larger migration
-                console.log(`🔄 Simulating aggregate remove for ${hostname} (part of migration flow)`);
-                resolve({ output: `Host ${hostname} removal command completed (handled by migration system)` });
-                break;
-                
             case 'aggregate-add-host':
-                // These commands are part of the migration process handled by the existing system
-                // For individual commands, we need to simulate them as they're part of a larger migration
-                console.log(`🔄 Simulating aggregate add for ${hostname} (part of migration flow)`);
-                resolve({ output: `Host ${hostname} add command completed (handled by migration system)` });
+                // Handle both operations as a complete migration
+                const isRemove = commandType === 'aggregate-remove-host';
+                const sourceMatch = command.title.match(/Remove host from (.+)/);
+                const targetMatch = command.title.match(/Add host to (.+)/);
+                
+                // Get the operation to determine full migration context
+                const operationIndex = parseInt(command.id.split('-')[3]) || 0; // Extract from cmd-hostname-type-index
+                const currentOperation = window.Frontend?.pendingOperations?.[operationIndex];
+                
+                if (!currentOperation) {
+                    reject(new Error('Operation context not found for migration'));
+                    return;
+                }
+                
+                const migrationData = {
+                    host: hostname,
+                    source_aggregate: currentOperation.sourceAggregate || (sourceMatch ? sourceMatch[1] : ''),
+                    target_aggregate: currentOperation.targetAggregate || (targetMatch ? targetMatch[1] : '')
+                };
+                
+                console.log(`✅ REAL OPERATION: ${isRemove ? 'Removing' : 'Adding'} ${hostname} ${isRemove ? 'from' : 'to'} aggregate ${isRemove ? migrationData.source_aggregate : migrationData.target_aggregate}`);
+                
+                window.Utils.fetchWithTimeout('/api/execute-migration', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(migrationData)
+                }, 60000)
+                .then(window.Utils.checkResponse)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const action = isRemove ? 'removed from' : 'added to';
+                        const aggregate = isRemove ? migrationData.source_aggregate : migrationData.target_aggregate;
+                        console.log(`🎉 SUCCESS: Host ${hostname} was actually ${action} aggregate ${aggregate} - NO SIMULATION!`);
+                        resolve({ output: `Host ${hostname} successfully ${action} aggregate ${aggregate}` });
+                    } else {
+                        console.error(`❌ FAILED: Aggregate operation failed for ${hostname}: ${data.error}`);
+                        reject(new Error(data.error || 'Failed to execute migration'));
+                    }
+                })
+                .catch(error => {
+                    console.error(`💥 NETWORK ERROR: Failed to communicate with backend for ${hostname}: ${error.message}`);
+                    reject(error);
+                });
                 break;
                 
             default:
