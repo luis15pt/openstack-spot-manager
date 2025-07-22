@@ -121,6 +121,9 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                 </div>
             </div>
         `;
+        
+        // Re-setup drag and drop for new elements
+        setupDragAndDrop();
         return;
     }
     
@@ -287,6 +290,9 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
     // No need to add drop zones anymore - entire columns are now drop zones
     
     container.innerHTML = sectionsHtml;
+    
+    // Re-setup drag and drop for new elements
+    setupDragAndDrop();
 }
 
 // EXACT ORIGINAL renderOnDemandVariants function
@@ -451,6 +457,9 @@ function renderOnDemandVariants(container, hosts, variants) {
             ${variantsHtml}
         </div>
     `;
+    
+    // Re-setup drag and drop for new elements
+    setupDragAndDrop();
 }
 
 // EXACT ORIGINAL createHostCard function
@@ -524,8 +533,23 @@ function createHostCard(host, type, aggregateName = null) {
 
 // EXACT ORIGINAL setupDragAndDrop function
 function setupDragAndDrop() {
+    // Remove existing event listeners to prevent duplicates
+    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
+        card.removeEventListener('dragstart', handleDragStart);
+        card.removeEventListener('dragend', handleDragEnd);
+        card.removeEventListener('click', handleHostClick);
+    });
+    
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+        zone.removeEventListener('dragover', handleDragOver);
+        zone.removeEventListener('drop', handleDrop);
+        zone.removeEventListener('dragenter', handleDragEnter);
+        zone.removeEventListener('dragleave', handleDragLeave);
+    });
+    
     // Add event listeners to both machine cards and host cards
     document.querySelectorAll('.machine-card, .host-card').forEach(card => {
+        console.log('🔧 Setting up drag for card:', card.dataset.host, card.dataset.type);
         card.addEventListener('dragstart', handleDragStart);
         card.addEventListener('dragend', handleDragEnd);
         card.addEventListener('click', handleHostClick);
@@ -541,6 +565,13 @@ function setupDragAndDrop() {
 }
 
 function handleDragStart(e) {
+    console.log('🚀 handleDragStart called:', {
+        host: this.dataset.host,
+        type: this.dataset.type,
+        element: this,
+        classes: this.className
+    });
+    
     this.classList.add('dragging');
     e.dataTransfer.setData('text/plain', this.dataset.host);
     e.dataTransfer.setData('source-type', this.dataset.type);
