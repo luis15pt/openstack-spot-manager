@@ -168,7 +168,7 @@ function generateRunpodLaunchCommands(operation) {
   -d '{
     "name": "${operation.vm_name || operation.hostname}",
     "flavor_name": "gpu-${operation.gpu_type || 'L40'}-1x",
-    "image_name": "Ubuntu 20.04 LTS",
+    "image_name": "Ubuntu Server 24.04 LTS R570 CUDA 12.8",
     "keypair_name": "runpod-keypair",
     "assign_floating_ip": true,
     "user_data": "#!/bin/bash\\necho \\"RunPod VM initialized\\" > /var/log/runpod-init.log",

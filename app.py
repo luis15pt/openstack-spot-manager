@@ -34,6 +34,9 @@ HYPERSTACK_API_KEY = os.getenv('HYPERSTACK_API_KEY')
 RUNPOD_API_KEY = os.getenv('RUNPOD_API_KEY')
 HYPERSTACK_FIREWALL_CA1_ID = os.getenv('HYPERSTACK_FIREWALL_CA1_ID', '971')  # Firewall ID for CA1 hosts
 
+# Debug configuration - use Flask's debug mode
+# DEBUG_AGGREGATE_DISCOVERY controlled by Flask's app.debug
+
 # Cache for NetBox tenant lookups to avoid repeated API calls
 _tenant_cache = {}
 
@@ -332,7 +335,8 @@ def discover_gpu_aggregates():
                     'runpod': data['runpod']
                 }
         
-        print(f"📊 Discovered GPU aggregates: {result}")
+        if app.debug:
+            print(f"📊 Discovered GPU aggregates: {result}")
         return result
         
     except Exception as e:
@@ -538,7 +542,8 @@ def get_aggregate_hosts(aggregate_name):
         
         if aggregate:
             hosts = aggregate.hosts or []
-            print(f"📋 Found {len(hosts)} hosts in aggregate {aggregate_name}: {hosts}")
+            if app.debug:
+                print(f"📋 Found {len(hosts)} hosts in aggregate {aggregate_name}: {hosts}")
             return hosts
         else:
             print(f"⚠️ Aggregate {aggregate_name} not found")
@@ -1098,7 +1103,7 @@ def preview_runpod_launch():
   -d '{{
     "name": "{hostname}",
     "environment_name": "CA1-RunPod",
-    "image_name": "Ubuntu Server 22.04 LTS (Jammy Jellyfish)",
+    "image_name": "Ubuntu Server 24.04 LTS R570 CUDA 12.8",
     "volume_name": "",
     "flavor_name": "{flavor_name}",
     "assign_floating_ip": true,
@@ -1235,7 +1240,7 @@ power_state:
     payload = {
         "name": hostname,
         "environment_name": "CA1-RunPod",
-        "image_name": "Ubuntu Server 22.04 LTS (Jammy Jellyfish)",
+        "image_name": "Ubuntu Server 24.04 LTS R570 CUDA 12.8",
         "volume_name": "",
         "flavor_name": flavor_name,
         "assign_floating_ip": True,

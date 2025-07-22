@@ -3490,7 +3490,7 @@ function generateIndividualCommandOperations(operation) {
   -d '{
     "name": "${operation.vm_name || operation.hostname}",
     "environment_name": "CA1-RunPod",
-    "image_name": "Ubuntu Server 22.04 LTS (Jammy Jellyfish)",
+    "image_name": "Ubuntu Server 24.04 LTS R570 CUDA 12.8",
     "flavor_name": "<gpu-flavor>",
     "assign_floating_ip": true,
     "user_data": "#!/bin/bash\\necho \\"api_key=<RUNPOD_API_KEY>\\" > /tmp/runpod-config"
