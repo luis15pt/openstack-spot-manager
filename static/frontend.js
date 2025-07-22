@@ -1249,27 +1249,7 @@ function generateIndividualCommandOperations(operation) {
     if (operation.type === 'runpod-launch') {
         // Generate individual commands with explicit sleep operations as separate steps
         
-        // 1. Wait command for aggregate
-        commands.push({
-            type: 'wait-command',
-            hostname: operation.hostname,
-            parent_operation: 'runpod-launch',
-            title: 'Wait for aggregate migration to complete',
-            description: 'Ensure host is properly moved to Runpod aggregate before VM deployment - prevents deployment failures',
-            command: `sleep 60  # Wait for OpenStack aggregate membership to propagate across all services`,
-            verification_commands: [
-                `openstack aggregate show <runpod-aggregate-name>`,
-                `openstack hypervisor show ${operation.hostname}`
-            ],
-            timing: '60s delay',
-            command_type: 'timing',
-            purpose: 'Prevent deployment failures by ensuring aggregate membership is fully propagated',
-            expected_output: 'Wait completed - aggregate membership propagated',
-            dependencies: [],
-            timestamp: new Date().toISOString()
-        });
-        
-        // 2. VM Launch command
+        // 1. VM Launch command (removed wait for aggregate migration)
         commands.push({
             type: 'hyperstack-launch',
             hostname: operation.hostname,

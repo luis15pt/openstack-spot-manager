@@ -682,9 +682,7 @@ function executeRealCommand(operation, command) {
         const commandTitle = command.title;
         let commandType;
         
-        if (commandTitle.includes('Wait for aggregate')) {
-            commandType = 'wait-command';
-        } else if (commandTitle.includes('Sleep 120 seconds')) {
+        if (commandTitle.includes('Sleep 120 seconds')) {
             commandType = 'storage-wait-command';
         } else if (commandTitle.includes('Sleep 10 seconds')) {
             commandType = 'firewall-wait-command';
@@ -709,14 +707,6 @@ function executeRealCommand(operation, command) {
         console.log(`🔍 Determined command type: "${commandType}" from title: "${commandTitle}"`);
         
         switch (commandType) {
-            case 'wait-command':
-                // Real wait - actually wait the specified time
-                console.log(`⏰ Waiting 60 seconds for aggregate propagation`);
-                setTimeout(() => {
-                    resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 60 seconds elapsed\nAggregate membership propagated` });
-                }, 60000); // Real 60 second wait
-                break;
-                
             case 'storage-wait-command':
                 // Real wait for storage operations
                 console.log(`⏰ Waiting 120 seconds for VM boot completion`);
