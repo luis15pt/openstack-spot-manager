@@ -683,10 +683,18 @@ function addToPendingOperations(hostname, sourceType, targetType, targetVariant 
     
     // For target aggregate, determine based on new data structure
     let targetAggregate = '';
+    console.log(`🔍 DEBUG: Determining target aggregate for ${targetType}. Current aggregateData:`, {
+        spot: aggregateData.spot?.name,
+        ondemand: aggregateData.ondemand?.name,
+        runpod: aggregateData.runpod?.name,
+        gpu_type: aggregateData.gpu_type
+    });
+    
     if (aggregateData.ondemand && aggregateData.ondemand.variants && aggregateData.spot) {
         if (targetType === 'spot') {
             // Moving to spot - always use the single spot aggregate
             targetAggregate = aggregateData.spot.name;
+            console.log(`✅ Selected spot target: ${targetAggregate} for GPU type: ${aggregateData.gpu_type}`);
         } else if (targetType === 'runpod') {
             // Moving to runpod
             if (aggregateData.runpod) {

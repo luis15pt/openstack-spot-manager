@@ -54,6 +54,12 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
         console.log(`✅ Loading ${gpuType} from cache`);
         if (!isBackgroundLoad) {
             const cachedData = window.gpuDataCache.get(gpuType);
+            console.log(`🔍 DEBUG: Cached data for ${gpuType}:`, {
+                gpu_type: cachedData.gpu_type,
+                spot: cachedData.spot?.name,
+                ondemand: cachedData.ondemand?.name,
+                runpod: cachedData.runpod?.name
+            });
             window.Frontend.aggregateData = cachedData;
             window.Frontend.renderAggregateData(cachedData);
             window.Frontend.showMainContent();
@@ -93,6 +99,12 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
             }
             
             console.log(`✅ Loaded ${gpuType} aggregate data:`, data);
+            console.log(`🔍 DEBUG: Fresh API data for ${gpuType}:`, {
+                gpu_type: data.gpu_type,
+                spot: data.spot?.name,
+                ondemand: data.ondemand?.name,
+                runpod: data.runpod?.name
+            });
             window.Logs.addToDebugLog('OpenStack', `Successfully loaded aggregate data for ${gpuType}`, 'success');
             
             // Cache the data
