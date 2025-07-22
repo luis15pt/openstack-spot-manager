@@ -1798,25 +1798,47 @@ def openstack_server_add_network():
         # This is equivalent to: openstack server add network {server_uuid} {network_name}
         max_retries = 3
         retry_delay = 10  # seconds
+        retry_log = []
         
         for attempt in range(max_retries):
             try:
                 conn.compute.create_server_interface(server_uuid, net_id=network.id)
-                print(f"✅ Attached network {network_name} to server {server_name} (UUID: {server_uuid})")
+                success_msg = f"✅ Attached network {network_name} to server {server_name} (UUID: {server_uuid})"
+                if attempt > 0:
+                    success_msg += f" (succeeded on attempt {attempt + 1})"
+                print(success_msg)
                 break
             except Exception as attach_error:
                 if "vm_state building" in str(attach_error) and attempt < max_retries - 1:
-                    print(f"⏳ VM {server_name} still building, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})")
+                    retry_msg = f"⏳ VM {server_name} still building, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})"
+                    print(retry_msg)
+                    retry_log.append(retry_msg)
                     time.sleep(retry_delay)
                     continue
                 else:
                     # Either not a building state error, or we've exhausted retries
+                    error_details = f"Failed after {attempt + 1} attempts: {str(attach_error)}"
+                    if retry_log:
+                        error_details = "\n".join(retry_log) + f"\nFinal error: {str(attach_error)}"
+                    
+                    # Log the failed command with detailed retry information
+                    log_command(f'openstack server add network {server_uuid} "{network_name}"', {
+                        'success': False,
+                        'stdout': '',
+                        'stderr': error_details,
+                        'returncode': 1
+                    }, 'executed')
+                    
                     raise attach_error
         
-        # Log the command
+        # Log the successful command with retry details if applicable
+        stdout_msg = f'Network {network_name} successfully attached to server {server_name} (UUID: {server_uuid})'
+        if retry_log:
+            stdout_msg = "\n".join(retry_log) + f"\n{stdout_msg}"
+            
         log_command(f'openstack server add network {server_uuid} "{network_name}"', {
             'success': True,
-            'stdout': f'Network {network_name} successfully attached to server {server_name} (UUID: {server_uuid})',
+            'stdout': stdout_msg,
             'stderr': '',
             'returncode': 0
         }, 'executed')
@@ -1824,7 +1846,18 @@ def openstack_server_add_network():
         return jsonify({'success': True, 'message': f'Network {network_name} attached to server {server_name}'})
         
     except Exception as e:
-        print(f"❌ Error attaching network: {e}")
+        error_msg = f"❌ Error attaching network: {e}"
+        print(error_msg)
+        
+        # Log the failed command (if not already logged above)
+        if 'server_uuid' in locals():
+            log_command(f'openstack server add network {server_uuid} "{network_name}"', {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': 1
+            }, 'executed')
+        
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/openstack/server/get-uuid', methods=['POST'])
