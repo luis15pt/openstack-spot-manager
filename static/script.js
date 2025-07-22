@@ -606,7 +606,7 @@ function executeCommandsSequentially(commandsByOperation) {
 
 // Execute commands for a specific operation (restored from original working version)
 function executeCommandsForOperation(operation, commands, callback) {
-    // Execute only CHECKED commands with REAL API calls - no simulation
+    // Execute only CHECKED commands with API calls
     // Skip any unchecked commands entirely
     
     let commandIndex = 0;
@@ -643,7 +643,7 @@ function executeCommandsForOperation(operation, commands, callback) {
         
         console.log(`🔄 Executing REAL command: ${command.title}`);
         console.log(`🔍 Command object:`, command); // Debug log to see command properties
-        window.Logs.addToDebugLog('Real Command Started', `Executing: ${command.title}`, 'info', operation.hostname);
+        window.Logs.addToDebugLog('Command Started', `Executing: ${command.title}`, 'info', operation.hostname);
         
         // Execute REAL API calls based on command type
         executeRealCommand(operation, command)
@@ -651,14 +651,14 @@ function executeCommandsForOperation(operation, commands, callback) {
                 // Mark command as completed with real API response
                 const successOutput = result.output || `${command.title} completed successfully`;
                 markCommandAsCompleted(command.element, successOutput);
-                window.Logs.addToDebugLog('Real Command Success', `✓ ${command.title}`, 'success', operation.hostname);
+                window.Logs.addToDebugLog('Command Success', `✓ ${command.title}`, 'success', operation.hostname);
                 
                 commandIndex++;
                 executeNextCommand();
             })
             .catch(error => {
-                console.error(`❌ Real command failed for ${operation.hostname}:`, error);
-                window.Logs.addToDebugLog('Real Command Failed', `✗ ${command.title}: ${error.message}`, 'error', operation.hostname);
+                console.error(`❌ Command failed for ${operation.hostname}:`, error);
+                window.Logs.addToDebugLog('Command Failed', `✗ ${command.title}: ${error.message}`, 'error', operation.hostname);
                 
                 // Mark as failed with error details
                 const errorOutput = `REAL COMMAND FAILED: ${error.message}\n\nCommand: ${command.title}`;
@@ -711,7 +711,7 @@ function executeRealCommand(operation, command) {
         switch (commandType) {
             case 'wait-command':
                 // Real wait - actually wait the specified time
-                console.log(`⏰ Real wait: 60 seconds for aggregate propagation`);
+                console.log(`⏰ Waiting 60 seconds for aggregate propagation`);
                 setTimeout(() => {
                     resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 60 seconds elapsed\nAggregate membership propagated` });
                 }, 60000); // Real 60 second wait
@@ -719,7 +719,7 @@ function executeRealCommand(operation, command) {
                 
             case 'storage-wait-command':
                 // Real wait for storage operations
-                console.log(`⏰ Real wait: 120 seconds for VM boot completion`);
+                console.log(`⏰ Waiting 120 seconds for VM boot completion`);
                 setTimeout(() => {
                     resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 120 seconds elapsed\nVM ready for storage network operations` });
                 }, 120000); // Real 120 second wait
@@ -727,15 +727,15 @@ function executeRealCommand(operation, command) {
                 
             case 'firewall-wait-command':
                 // Real wait for firewall operations
-                console.log(`⏰ Real wait: 10 seconds for network stabilization`);
+                console.log(`⏰ Waiting 10 seconds for network stabilization`);
                 setTimeout(() => {
                     resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 10 seconds elapsed\nNetwork configuration stable, ready for firewall configuration` });
                 }, 10000); // Real 10 second wait
                 break;
                 
             case 'hyperstack-launch':
-                // Real VM deployment via Hyperstack API
-                console.log(`🚀 Real Hyperstack VM deployment for ${hostname}`);
+                // VM deployment via Hyperstack API
+                console.log(`🚀 Deploying Hyperstack VM for ${hostname}`);
                 window.Hyperstack.executeRunpodLaunch(hostname)
                     .then(result => {
                         // Store the VM ID for use in firewall operations
@@ -757,8 +757,8 @@ function executeRealCommand(operation, command) {
                 break;
                 
             case 'server-get-uuid':
-                // Real OpenStack server UUID lookup using SDK
-                console.log(`🔍 Real server UUID lookup for ${hostname}`);
+                // OpenStack server UUID lookup using SDK
+                console.log(`🔍 Looking up server UUID for ${hostname}`);
                 window.OpenStack.executeNetworkCommand(`openstack server list --all-projects --name "${hostname}" -c ID -f value`)
                     .then(result => {
                         // Store the UUID for use in subsequent commands
@@ -774,8 +774,8 @@ function executeRealCommand(operation, command) {
                 break;
                 
             case 'storage-attach-network':
-                // Real OpenStack network attachment using SDK (server add network approach)
-                console.log(`🌐 Real network attachment to ${hostname}`);
+                // OpenStack network attachment using SDK (server add network approach)
+                console.log(`🌐 Attaching network to ${hostname}`);
                 
                 // Get the stored UUID from previous command
                 const serverUuid = window.commandContext && window.commandContext[`${hostname}_uuid`];
@@ -808,8 +808,8 @@ function executeRealCommand(operation, command) {
                 break;
                 
             case 'firewall-get-attachments':
-                // Real Hyperstack firewall query via backend endpoint
-                console.log(`🛡️ Real firewall query for existing VMs`);
+                // Hyperstack firewall query via backend endpoint
+                console.log(`🛡️ Querying firewall for existing VMs`);
                 window.Utils.fetchWithTimeout('/api/hyperstack/firewall/get-attachments', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -828,8 +828,8 @@ function executeRealCommand(operation, command) {
                 break;
                 
             case 'firewall-update-attachments':
-                // Real Hyperstack firewall update via backend endpoint
-                console.log(`🛡️ Real firewall update with ${hostname}`);
+                // Hyperstack firewall update via backend endpoint
+                console.log(`🛡️ Updating firewall with ${hostname}`);
                 
                 // Get the stored VM ID from Step 1
                 const vmId = window.commandContext && window.commandContext[`${hostname}_vm_id`];
@@ -879,7 +879,7 @@ function executeRealCommand(operation, command) {
                     target_aggregate: currentOperation.targetAggregate || (targetMatch ? targetMatch[1] : '')
                 };
                 
-                console.log(`✅ REAL OPERATION: ${isRemove ? 'Removing' : 'Adding'} ${hostname} ${isRemove ? 'from' : 'to'} aggregate ${isRemove ? migrationData.source_aggregate : migrationData.target_aggregate}`);
+                console.log(`🔄 ${isRemove ? 'Removing' : 'Adding'} ${hostname} ${isRemove ? 'from' : 'to'} aggregate ${isRemove ? migrationData.source_aggregate : migrationData.target_aggregate}`);
                 
                 window.Utils.fetchWithTimeout('/api/execute-migration', {
                     method: 'POST',
@@ -892,7 +892,7 @@ function executeRealCommand(operation, command) {
                     if (data.success) {
                         const action = isRemove ? 'removed from' : 'added to';
                         const aggregate = isRemove ? migrationData.source_aggregate : migrationData.target_aggregate;
-                        console.log(`🎉 SUCCESS: Host ${hostname} was actually ${action} aggregate ${aggregate} - NO SIMULATION!`);
+                        console.log(`✅ SUCCESS: Host ${hostname} ${action} aggregate ${aggregate}`);
                         resolve({ output: `Host ${hostname} successfully ${action} aggregate ${aggregate}` });
                     } else {
                         console.error(`❌ FAILED: Aggregate operation failed for ${hostname}: ${data.error}`);
@@ -916,7 +916,7 @@ function executeRealCommand(operation, command) {
 
 // Note: executeHyperstackCommand function removed - now using dedicated backend endpoints for firewall operations
 
-// Note: generateSimulatedOutput function removed - all commands now use real API calls
+// Note: generateSimulatedOutput function removed - all commands use API calls
 
 // Update command display with actual values from previous steps
 function updateCommandDisplayWithValue(hostname, commandType, placeholder, actualValue) {
