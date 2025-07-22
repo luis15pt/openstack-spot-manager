@@ -1004,6 +1004,54 @@ def execute_migration():
         print(f"❌ {error_msg}")
         return jsonify({'error': error_msg}), 500
 
+@app.route('/api/get-target-aggregate', methods=['POST'])
+def get_target_aggregate():
+    """Determine the correct target aggregate based on source hostname and target type"""
+    data = request.json
+    hostname = data.get('hostname')
+    target_type = data.get('target_type')
+    target_variant = data.get('target_variant')
+    
+    if not hostname or not target_type:
+        return jsonify({'error': 'Missing hostname or target_type'}), 400
+    
+    # Get GPU type from hostname context
+    gpu_type = get_gpu_type_from_hostname_context(hostname)
+    if not gpu_type:
+        return jsonify({'error': f'Could not determine GPU type for hostname {hostname}'}), 404
+    
+    # Get aggregate configuration for this GPU type
+    gpu_aggregates = discover_gpu_aggregates()
+    config = gpu_aggregates.get(gpu_type)
+    if not config:
+        return jsonify({'error': f'No configuration found for GPU type {gpu_type}'}), 404
+    
+    # Determine target aggregate based on target type
+    target_aggregate = None
+    if target_type == 'spot' and config.get('spot'):
+        target_aggregate = config['spot']
+    elif target_type == 'runpod' and config.get('runpod'):
+        target_aggregate = config['runpod']
+    elif target_type == 'ondemand' and config.get('ondemand_variants'):
+        if target_variant:
+            # Use specific variant if provided
+            variant_info = next((v for v in config['ondemand_variants'] if v['aggregate'] == target_variant), None)
+            if variant_info:
+                target_aggregate = variant_info['aggregate']
+        else:
+            # Use first available variant as fallback
+            target_aggregate = config['ondemand_variants'][0]['aggregate']
+    
+    if not target_aggregate:
+        return jsonify({'error': f'No target aggregate found for GPU type {gpu_type} and target type {target_type}'}), 404
+    
+    return jsonify({
+        'hostname': hostname,
+        'gpu_type': gpu_type,
+        'target_type': target_type,
+        'target_aggregate': target_aggregate
+    })
+
 @app.route('/api/command-log')
 def get_command_log():
     """Get the command execution log"""

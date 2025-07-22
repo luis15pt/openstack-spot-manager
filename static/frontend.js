@@ -563,7 +563,7 @@ function handleDragLeave(e) {
     e.currentTarget.classList.remove('drag-over');
 }
 
-function handleDrop(e) {
+async function handleDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
     
@@ -581,7 +581,7 @@ function handleDrop(e) {
     });
     
     if (sourceType !== targetType) {
-        addToPendingOperations(hostname, sourceType, targetType, targetVariant);
+        await addToPendingOperations(hostname, sourceType, targetType, targetVariant);
     }
 }
 
@@ -668,7 +668,7 @@ function updateGpuTypeSelector(cachedTypes = []) {
     });
 }
 
-function addToPendingOperations(hostname, sourceType, targetType, targetVariant = null) {
+async function addToPendingOperations(hostname, sourceType, targetType, targetVariant = null) {
     // Get the aggregate name from the card data
     const sourceCard = document.querySelector(`[data-host="${hostname}"]`);
     const sourceAggregate = sourceCard ? sourceCard.dataset.aggregate : '';
@@ -678,111 +678,86 @@ function addToPendingOperations(hostname, sourceType, targetType, targetVariant 
         sourceType,
         targetType,
         sourceAggregate,
-        hasVariants: aggregateData.ondemand?.variants?.length || 0
+        targetVariant
     });
     
-    // For target aggregate, determine based on new data structure
-    let targetAggregate = '';
-    console.log(`🔍 DEBUG: Determining target aggregate for ${targetType}. Current aggregateData:`, {
-        spot: aggregateData.spot?.name,
-        ondemand: aggregateData.ondemand?.name,
-        runpod: aggregateData.runpod?.name,
-        gpu_type: aggregateData.gpu_type
-    });
-    
-    if (aggregateData.ondemand && aggregateData.ondemand.variants && aggregateData.spot) {
-        if (targetType === 'spot') {
-            // Moving to spot - always use the single spot aggregate
-            targetAggregate = aggregateData.spot.name;
-            console.log(`✅ Selected spot target: ${targetAggregate} for GPU type: ${aggregateData.gpu_type}`);
-        } else if (targetType === 'runpod') {
-            // Moving to runpod
-            if (aggregateData.runpod) {
-                targetAggregate = aggregateData.runpod.name;
-            }
-        } else if (targetType === 'ondemand') {
-            // Moving to on-demand - use the specific variant from drop zone
-            if (targetVariant) {
-                // User dropped into a specific variant drop zone
-                targetAggregate = targetVariant;
-                
-                // Check if host NVLink capability matches the target variant
-                const hostCard = document.querySelector(`[data-host="${hostname}"]`);
-                const hasNVLink = hostCard && hostCard.dataset.nvlinks === 'true';
-                const targetVariantInfo = aggregateData.ondemand.variants?.find(v => v.aggregate === targetVariant);
-                const targetIsNVLink = targetVariantInfo?.variant.toLowerCase().includes('nvlink');
-                
-                // Show warning if NVLink mismatch
-                if (hasNVLink && !targetIsNVLink) {
-                    const proceed = confirm(`⚠️ Warning: Host ${hostname} has NVLink capability but you're moving it to a non-NVLink variant (${targetVariantInfo?.variant}). Do you want to proceed?`);
-                    if (!proceed) return;
-                } else if (!hasNVLink && targetIsNVLink) {
-                    const proceed = confirm(`⚠️ Warning: Host ${hostname} does not have NVLink capability but you're moving it to an NVLink variant (${targetVariantInfo?.variant}). Do you want to proceed?`);
-                    if (!proceed) return;
-                }
-            } else if (aggregateData.ondemand.variants && aggregateData.ondemand.variants.length > 0) {
-                // No specific variant specified, use smart logic
-                const sourceVariant = aggregateData.ondemand.variants.find(variant => 
-                    variant.aggregate === sourceAggregate
-                );
-                if (sourceVariant) {
-                    targetAggregate = sourceVariant.aggregate;
-                } else {
-                    // Fallback to first available variant
-                    targetAggregate = aggregateData.ondemand.variants[0].aggregate;
-                }
-            } else {
-                // Fallback to single ondemand aggregate
-                targetAggregate = aggregateData.ondemand.name;
-            }
-        }
-    } else {
-        // Fallback for old data structure
-        if (targetType === 'spot' && aggregateData.spot) {
-            targetAggregate = aggregateData.spot.name;
-        } else if (targetType === 'ondemand' && aggregateData.ondemand) {
-            targetAggregate = aggregateData.ondemand.name;
-        } else if (targetType === 'runpod' && aggregateData.runpod) {
-            targetAggregate = aggregateData.runpod.name;
-        }
-    }
-    
-    console.log('🔍 Target aggregate determined:', {
-        targetAggregate,
-        targetType,
-        variants: aggregateData.ondemand?.variants,
-        variantDetails: aggregateData.ondemand?.variants?.map(v => ({
-            variant: v.variant,
-            aggregate: v.aggregate
-        }))
-    });
-    
-    // Check if operation already exists
-    const existingIndex = pendingOperations.findIndex(op => op.hostname === hostname);
-    if (existingIndex !== -1) {
-        // Update existing operation
-        pendingOperations[existingIndex] = {
-            hostname,
-            sourceType,
-            targetType,
-            sourceAggregate,
-            targetAggregate,
-            timestamp: new Date().toISOString()
-        };
-    } else {
-        // Add new operation
-        pendingOperations.push({
-            hostname,
-            sourceType,
-            targetType,
-            sourceAggregate,
-            targetAggregate,
-            timestamp: new Date().toISOString()
+    try {
+        // Call backend to determine correct target aggregate based on hostname's GPU type
+        const response = await fetch('/api/get-target-aggregate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                hostname,
+                target_type: targetType,
+                target_variant: targetVariant
+            })
         });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to determine target aggregate');
+        }
+        
+        const result = await response.json();
+        const targetAggregate = result.target_aggregate;
+        
+        console.log('✅ Backend determined target aggregate:', {
+            hostname,
+            gpu_type: result.gpu_type,
+            target_type: result.target_type,
+            target_aggregate: targetAggregate
+        });
+        
+        // For on-demand moves with variants, check NVLink compatibility
+        if (targetType === 'ondemand' && targetVariant && aggregateData.ondemand?.variants) {
+            const hostCard = document.querySelector(`[data-host="${hostname}"]`);
+            const hasNVLink = hostCard && hostCard.dataset.nvlinks === 'true';
+            const targetVariantInfo = aggregateData.ondemand.variants?.find(v => v.aggregate === targetVariant);
+            const targetIsNVLink = targetVariantInfo?.variant.toLowerCase().includes('nvlink');
+            
+            // Show warning if NVLink mismatch
+            if (hasNVLink && !targetIsNVLink) {
+                const proceed = confirm(`⚠️ Warning: Host ${hostname} has NVLink capability but you're moving it to a non-NVLink variant (${targetVariantInfo?.variant}). Do you want to proceed?`);
+                if (!proceed) return;
+            } else if (!hasNVLink && targetIsNVLink) {
+                const proceed = confirm(`⚠️ Warning: Host ${hostname} does not have NVLink capability but you're moving it to an NVLink variant (${targetVariantInfo?.variant}). Do you want to proceed?`);
+                if (!proceed) return;
+            }
+        }
+        
+        // Check if operation already exists
+        const existingIndex = pendingOperations.findIndex(op => op.hostname === hostname);
+        if (existingIndex !== -1) {
+            // Update existing operation
+            pendingOperations[existingIndex] = {
+                hostname,
+                sourceType,
+                targetType,
+                sourceAggregate,
+                targetAggregate,
+                timestamp: new Date().toISOString()
+            };
+        } else {
+            // Add new operation
+            pendingOperations.push({
+                hostname,
+                sourceType,
+                targetType,
+                sourceAggregate,
+                targetAggregate,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        updatePendingOperationsDisplay();
+        showNotification(`Added ${hostname} to pending operations (${sourceType} → ${targetType})`, 'info');
+        
+    } catch (error) {
+        console.error('❌ Failed to determine target aggregate:', error);
+        showNotification(`Failed to add ${hostname}: ${error.message}`, 'error');
     }
-    
-    updatePendingOperationsDisplay();
-    showNotification(`Added ${hostname} to pending operations (${sourceType} → ${targetType})`, 'info');
 }
 
 // Add RunPod launch operation (separate from migrations)
