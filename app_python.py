@@ -58,66 +58,95 @@ def load_aggregate_data_internal(gpu_type):
         sys.path.append('.')
         import app
         
-        # Use Flask app context for the original function
+        # Use Flask app context and call the core logic directly
         with app.app.app_context():
-            data = app.get_aggregate_data(gpu_type)
-        
-        # If no data found (likely no OpenStack connection), provide demo data
-        if not data:
-            logs_manager.add_to_debug_log('System', f'No OpenStack connection - using demo data for {gpu_type}', 'INFO')
-            return {
+            # Get GPU aggregates discovery data
+            gpu_aggregates = app.discover_gpu_aggregates()
+            
+            if gpu_type not in gpu_aggregates:
+                logs_manager.add_to_debug_log('System', f'GPU type {gpu_type} not found in discovered aggregates', 'WARNING')
+                return None
+                
+            config = gpu_aggregates[gpu_type]
+            
+            # Get the aggregate data (this is the core logic from get_aggregate_data)
+            result = {
                 'gpu_type': gpu_type,
-                'spot': {
-                    'name': f'{gpu_type}-spot',
-                    'hosts': [
-                        {'name': f'demo-host-01', 'has_vms': False, 'vm_count': 0, 'gpu_used': 0, 'gpu_capacity': 8, 'owner_group': 'Demo'},
-                        {'name': f'demo-host-02', 'has_vms': True, 'vm_count': 2, 'gpu_used': 4, 'gpu_capacity': 8, 'owner_group': 'Demo'}
-                    ],
-                    'gpu_summary': {'gpu_used': 4, 'gpu_capacity': 16, 'gpu_usage_ratio': '25%'}
-                },
-                'ondemand': {
-                    'name': f'{gpu_type}-ondemand',
-                    'hosts': [
-                        {'name': f'demo-host-03', 'has_vms': True, 'vm_count': 1, 'gpu_used': 2, 'gpu_capacity': 8, 'owner_group': 'Demo'}
-                    ],
-                    'gpu_summary': {'gpu_used': 2, 'gpu_capacity': 8, 'gpu_usage_ratio': '25%'}
-                },
-                'runpod': {
-                    'name': f'{gpu_type}-runpod',
-                    'hosts': [
-                        {'name': f'demo-host-04', 'has_vms': False, 'vm_count': 0, 'gpu_used': 0, 'gpu_capacity': 8, 'owner_group': 'Demo'}
-                    ]
-                }
+                'spot': None,
+                'ondemand': None,
+                'runpod': None
             }
             
-        return data
+            # Process spot aggregate
+            if config.get('spot'):
+                try:
+                    spot_data = app.get_aggregate_hosts(config['spot'])
+                    if spot_data:
+                        result['spot'] = {
+                            'name': config['spot'],
+                            'hosts': spot_data.get('hosts', []),
+                            'gpu_summary': spot_data.get('gpu_summary', {})
+                        }
+                except Exception as e:
+                    logs_manager.add_to_debug_log('System', f'Error loading spot data: {str(e)}', 'ERROR')
+            
+            # Process ondemand aggregate  
+            if config.get('ondemand'):
+                try:
+                    ondemand_data = app.get_aggregate_hosts(config['ondemand'])
+                    if ondemand_data:
+                        result['ondemand'] = {
+                            'name': config['ondemand'],
+                            'hosts': ondemand_data.get('hosts', []),
+                            'gpu_summary': ondemand_data.get('gpu_summary', {}),
+                            'variants': config.get('ondemand_variants', [])
+                        }
+                except Exception as e:
+                    logs_manager.add_to_debug_log('System', f'Error loading ondemand data: {str(e)}', 'ERROR')
+            
+            # Process runpod aggregate
+            if config.get('runpod'):
+                try:
+                    runpod_data = app.get_aggregate_hosts(config['runpod'])
+                    if runpod_data:
+                        result['runpod'] = {
+                            'name': config['runpod'], 
+                            'hosts': runpod_data.get('hosts', [])
+                        }
+                except Exception as e:
+                    logs_manager.add_to_debug_log('System', f'Error loading runpod data: {str(e)}', 'ERROR')
+            
+            logs_manager.add_to_debug_log('System', f'Successfully loaded real data for {gpu_type}', 'SUCCESS')
+            return result
+        
     except Exception as e:
         logs_manager.add_to_debug_log('System', f'Error loading aggregate data for {gpu_type}: {str(e)} - using demo data', 'WARNING')
-        # Return demo data on any error
-        return {
-            'gpu_type': gpu_type,
-            'spot': {
-                'name': f'{gpu_type}-spot',
-                'hosts': [
-                    {'name': f'demo-host-01', 'has_vms': False, 'vm_count': 0, 'gpu_used': 0, 'gpu_capacity': 8, 'owner_group': 'Demo'},
-                    {'name': f'demo-host-02', 'has_vms': True, 'vm_count': 2, 'gpu_used': 4, 'gpu_capacity': 8, 'owner_group': 'Demo'}
-                ],
-                'gpu_summary': {'gpu_used': 4, 'gpu_capacity': 16, 'gpu_usage_ratio': '25%'}
-            },
-            'ondemand': {
-                'name': f'{gpu_type}-ondemand',
-                'hosts': [
-                    {'name': f'demo-host-03', 'has_vms': True, 'vm_count': 1, 'gpu_used': 2, 'gpu_capacity': 8, 'owner_group': 'Demo'}
-                ],
-                'gpu_summary': {'gpu_used': 2, 'gpu_capacity': 8, 'gpu_usage_ratio': '25%'}
-            },
-            'runpod': {
-                'name': f'{gpu_type}-runpod',
-                'hosts': [
-                    {'name': f'demo-host-04', 'has_vms': False, 'vm_count': 0, 'gpu_used': 0, 'gpu_capacity': 8, 'owner_group': 'Demo'}
-                ]
-            }
+        
+    # Fallback to demo data
+    return {
+        'gpu_type': gpu_type,
+        'spot': {
+            'name': f'{gpu_type}-spot',
+            'hosts': [
+                {'name': f'demo-host-01', 'has_vms': False, 'vm_count': 0, 'gpu_used': 0, 'gpu_capacity': 8, 'owner_group': 'Demo'},
+                {'name': f'demo-host-02', 'has_vms': True, 'vm_count': 2, 'gpu_used': 4, 'gpu_capacity': 8, 'owner_group': 'Demo'}
+            ],
+            'gpu_summary': {'gpu_used': 4, 'gpu_capacity': 16, 'gpu_usage_ratio': '25%'}
+        },
+        'ondemand': {
+            'name': f'{gpu_type}-ondemand',
+            'hosts': [
+                {'name': f'demo-host-03', 'has_vms': True, 'vm_count': 1, 'gpu_used': 2, 'gpu_capacity': 8, 'owner_group': 'Demo'}
+            ],
+            'gpu_summary': {'gpu_used': 2, 'gpu_capacity': 8, 'gpu_usage_ratio': '25%'}
+        },
+        'runpod': {
+            'name': f'{gpu_type}-runpod',
+            'hosts': [
+                {'name': f'demo-host-04', 'has_vms': False, 'vm_count': 0, 'gpu_used': 0, 'gpu_capacity': 8, 'owner_group': 'Demo'}
+            ]
         }
+    }
 
 # Template filters
 @app.template_filter('safe')
