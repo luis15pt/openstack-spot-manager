@@ -37,15 +37,20 @@ def load_gpu_types_internal():
         # Import the original functions from app.py
         import sys
         sys.path.append('.')
-        from app import get_gpu_types
-        gpu_types = get_gpu_types()
+        import app
         
-        # If no GPU types found (likely no OpenStack connection), provide demo data
-        if not gpu_types:
-            logs_manager.add_to_debug_log('System', 'No OpenStack connection - using demo GPU types', 'INFO')
-            return ['A100', 'H100', 'RTX-A6000', 'V100']
+        # Use the same function that's working in your backend logs
+        with app.app.app_context():
+            gpu_aggregates = app.discover_gpu_aggregates()
+            gpu_types = list(gpu_aggregates.keys())
             
-        return gpu_types
+            if gpu_types:
+                logs_manager.add_to_debug_log('System', f'Successfully loaded {len(gpu_types)} GPU types from OpenStack: {gpu_types}', 'SUCCESS')
+                return gpu_types
+            else:
+                logs_manager.add_to_debug_log('System', 'No GPU types found in OpenStack - using demo data', 'WARNING')
+                return ['A100', 'H100', 'RTX-A6000', 'V100']
+                
     except Exception as e:
         logs_manager.add_to_debug_log('System', f'Error loading GPU types: {str(e)} - using demo data', 'WARNING')
         return ['A100', 'H100', 'RTX-A6000', 'V100']
