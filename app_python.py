@@ -222,7 +222,8 @@ openstack_manager = OpenStackManager()
 hyperstack_manager = HyperstackManager()
 
 # Initialize the coordinator
-coordinator = initialize_coordinator()
+coordinator = get_coordinator()
+initialize_coordinator()  # This just initializes it, but we need the actual coordinator object
 
 # Internal data loading functions - standalone Python implementation
 def load_gpu_types_internal():
@@ -443,7 +444,6 @@ def dashboard():
         cached_gpu_types = list(openstack_manager.gpu_data_cache.keys())
         
         # Debug logging
-        print(f"🔍 DEBUG - Available GPU types: {available_gpu_types}")
         logs_manager.add_to_debug_log('Dashboard', f'Loading dashboard with GPU types: {available_gpu_types}', 'INFO')
         
         # Initialize template context
@@ -452,9 +452,9 @@ def dashboard():
             'available_gpu_types': available_gpu_types,
             'cached_gpu_types': cached_gpu_types,
             'aggregate_data': None,
-            'pending_operations': coordinator.get_pending_operations(),
+            'pending_operations': [op.__dict__ for op in frontend_manager.pending_operations],
             'session_stats': logs_manager.get_debug_stats(),
-            'debug_entries': logs_manager.get_debug_entries(),
+            'debug_entries': logs_manager._debug_entries,
             'total_gpu_used': 0,
             'total_gpu_capacity': 0,
             'total_gpu_usage_percentage': 0

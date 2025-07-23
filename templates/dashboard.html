@@ -349,7 +349,7 @@
                                             <div style="max-height: 400px; overflow-y: auto;">
                                                 {% for entry in debug_entries[-20:] %}
                                                 <div class="debug-entry mb-2 p-2 border-start border-{{ 'success' if entry.level == 'SUCCESS' else ('warning' if entry.level == 'WARNING' else ('danger' if entry.level == 'ERROR' else 'info')) }} border-3">
-                                                    <small class="text-muted">{{ entry.timestamp.strftime('%H:%M:%S') }}</small>
+                                                    <small class="text-muted">{{ entry.timestamp[:19] if entry.timestamp else 'N/A' }}</small>
                                                     <span class="badge bg-{{ 'success' if entry.level == 'SUCCESS' else ('warning' if entry.level == 'WARNING' else ('danger' if entry.level == 'ERROR' else 'info')) }} ms-2">{{ entry.level }}</span>
                                                     {% if entry.hostname %}<span class="badge bg-secondary ms-1">{{ entry.hostname }}</span>{% endif %}
                                                     <br>
