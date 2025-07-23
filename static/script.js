@@ -2,80 +2,10 @@
 // Coordinates between modules and handles application initialization
 
 // Application state - store directly on window for proper module access
-window.backgroundLoadingStarted = false;
 window.currentGpuType = '';
 window.gpuDataCache = new Map(); // Cache for loaded GPU data
-window.backgroundLoadingInProgress = false;
 
-// Function declarations need to be available before DOM ready
-function startBackgroundLoading(currentGpuType) {
-    if (window.backgroundLoadingStarted || window.backgroundLoadingInProgress) {
-        return;
-    }
-    
-    if (!window.Frontend?.availableGpuTypes || window.Frontend.availableGpuTypes.length <= 1) {
-        return;
-    }
-    
-    // Get GPU types to load in background (excluding current one and already cached)
-    const typesToLoad = window.Frontend.availableGpuTypes.filter(type => 
-        type !== currentGpuType && !window.gpuDataCache.has(type)
-    );
-    
-    if (typesToLoad.length === 0) {
-        return;
-    }
-    
-    window.backgroundLoadingStarted = true;
-    window.backgroundLoadingInProgress = true;
-    
-    console.log(`📋 Loading ${typesToLoad.length} GPU types in background: ${typesToLoad.join(', ')}`);
-    window.Logs?.addToDebugLog('System', `Background loading ${typesToLoad.length} GPU types`, 'info');
-    
-    // Show background loading status
-    const statusElement = document.getElementById('backgroundLoadingStatus');
-    if (statusElement) {
-        statusElement.style.display = 'inline';
-    }
-    
-    // Load all types concurrently using Promise.allSettled for better error handling
-    Promise.allSettled(typesToLoad.map(type => window.OpenStack.loadAggregateData(type, true)))
-        .then(results => {
-            // Get successfully cached types
-            const cachedTypes = typesToLoad.filter((type, index) => results[index].status === 'fulfilled');
-            const successful = cachedTypes.length;
-            const failed = results.length - successful;
-            
-            console.log(`📊 Background loading completed: ${successful} successful, ${failed} failed`);
-            console.log(`✅ Successfully cached types: ${cachedTypes.join(', ')}`);
-            window.Logs?.addToDebugLog('System', `Background loading completed: ${successful} successful, ${failed} failed`, 'info');
-            
-            // Hide background loading status
-            if (statusElement) {
-                statusElement.style.display = 'none';
-            }
-            
-            // Update GPU type selector to show cached types with ⚡ indicators
-            window.Frontend?.updateGpuTypeSelector(cachedTypes);
-            
-            // Reset background loading progress
-            window.backgroundLoadingInProgress = false;
-        })
-        .catch(error => {
-            console.error('Background loading error:', error);
-            window.Logs?.addToDebugLog('System', `Background loading error: ${error.message}`, 'error');
-            
-            if (statusElement) {
-                statusElement.style.display = 'none';
-            }
-            
-            // Reset background loading progress
-            window.backgroundLoadingInProgress = false;
-        });
-}
-
-// Make function globally available
-window.startBackgroundLoading = startBackgroundLoading;
+// Background loading functionality removed - GPU types now load only on user selection
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -105,7 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🔧 Initializing event listeners...');
     initializeEventListeners();
     
-    console.log('📊 Loading GPU types...');
+    console.log('📊 Loading GPU type options for dropdown...');
     window.OpenStack.loadGpuTypes();
     
     console.log('🐛 Initializing debug tab...');
@@ -163,18 +93,7 @@ function initializeEventListeners() {
     });
 }
 
-// Preload all GPU types
-function preloadAllGpuTypes() {
-    const currentType = document.getElementById('gpuTypeSelect').value;
-    if (!currentType) {
-        window.Frontend.showNotification('Please select a GPU type first', 'warning');
-        return;
-    }
-    
-    if (!window.backgroundLoadingStarted) {
-        startBackgroundLoading(currentType);
-    }
-}
+// Preload functionality removed - GPU types load individually on user selection
 
 // Move selected hosts to target type
 function moveSelectedHosts(targetType) {

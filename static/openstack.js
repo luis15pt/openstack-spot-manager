@@ -64,10 +64,7 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
             window.Frontend.renderAggregateData(cachedData);
             window.Frontend.showMainContent();
             
-            // Start background loading after first successful load
-            if (!window.backgroundLoadingStarted) {
-                window.startBackgroundLoading(gpuType);
-            }
+            // GPU data loaded successfully for selected type only
         }
         return Promise.resolve(window.gpuDataCache.get(gpuType));
     }
@@ -123,10 +120,7 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
                     window.Frontend.showLoading(false);
                     window.Frontend.showMainContent();
                     
-                    // Start background loading after first successful load
-                    if (!window.backgroundLoadingStarted) {
-                        window.startBackgroundLoading(gpuType);
-                    }
+                    // GPU data loaded successfully - no background loading
                 }, 500);
             }
             
@@ -215,16 +209,7 @@ function loadGpuTypes() {
             
             console.log(`📊 Total options in select: ${select.options.length}`);
             
-            // Show preload button if there are types to preload
-            if (data.gpu_types.length > 1) {
-                console.log('👀 Showing preload button...');
-                const preloadBtn = document.getElementById('preloadAllBtn');
-                if (preloadBtn) {
-                    preloadBtn.style.display = 'inline-block';
-                } else {
-                    console.warn('⚠️ Preload button not found');
-                }
-            }
+            console.log('📊 GPU type selector populated - data will load on user selection');
             
             console.log('✅ GPU types loaded successfully');
         })
