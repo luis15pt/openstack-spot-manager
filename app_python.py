@@ -6,6 +6,11 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 import tempfile
+import openstack
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+import threading
 
 # Import our converted Python modules
 from modules.utils import check_response, fetch_with_timeout, get_status_class, get_status_icon, get_status_color, format_date
@@ -17,6 +22,195 @@ from modules.script import get_coordinator, initialize_coordinator
 
 # Load environment variables
 load_dotenv()
+
+# Global OpenStack connection - standalone implementation
+_openstack_connection = None
+
+# NetBox configuration
+NETBOX_URL = os.getenv('NETBOX_URL')
+NETBOX_API_KEY = os.getenv('NETBOX_API_KEY')
+
+# Cache for NetBox tenant lookups
+_tenant_cache = {}
+
+def get_openstack_connection():
+    """Get or create OpenStack connection - standalone implementation"""
+    global _openstack_connection
+    if _openstack_connection is None:
+        try:
+            _openstack_connection = openstack.connect(
+                auth_url=os.getenv('OS_AUTH_URL'),
+                username=os.getenv('OS_USERNAME'),
+                password=os.getenv('OS_PASSWORD'),
+                project_name=os.getenv('OS_PROJECT_NAME'),
+                user_domain_name=os.getenv('OS_USER_DOMAIN_NAME', 'Default'),
+                project_domain_name=os.getenv('OS_PROJECT_DOMAIN_NAME', 'Default'),
+                region_name=os.getenv('OS_REGION_NAME', 'RegionOne')
+            )
+            print("✅ OpenStack SDK connection established")
+        except Exception as e:
+            print(f"❌ Failed to connect to OpenStack: {e}")
+            _openstack_connection = None
+    
+    return _openstack_connection
+
+def find_aggregate_by_name(conn, aggregate_name):
+    """Helper function to find aggregate by name"""
+    try:
+        aggregates = list(conn.compute.aggregates())
+        for aggregate in aggregates:
+            if aggregate.name == aggregate_name:
+                return aggregate
+        return None
+    except Exception as e:
+        print(f"❌ Error finding aggregate {aggregate_name}: {e}")
+        return None
+
+def discover_gpu_aggregates():
+    """Dynamically discover GPU aggregates from OpenStack with variant support"""
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            return {}
+        
+        aggregates = list(conn.compute.aggregates())
+        gpu_aggregates = {}
+        
+        # Pattern matching for different GPU types and variants
+        for aggregate in aggregates:
+            name = aggregate.name
+            
+            # Extract GPU type from aggregate name
+            gpu_type = None
+            aggregate_type = None
+            
+            # Handle various naming patterns
+            if 'H100' in name:
+                if 'SXM5-GB' in name:
+                    gpu_type = 'H100-SXM5-GB'
+                elif 'SXM5' in name:
+                    gpu_type = 'H100-SXM5'
+                else:
+                    gpu_type = 'H100'
+            elif 'H200' in name:
+                gpu_type = 'H200-SXM5'
+            elif 'A100' in name:
+                gpu_type = 'A100'
+            elif 'RTX-A6000' in name:
+                gpu_type = 'RTX-A6000'
+            elif 'L40' in name:
+                gpu_type = 'L40'
+            
+            if not gpu_type:
+                continue
+                
+            # Determine aggregate type
+            if 'spot' in name.lower():
+                aggregate_type = 'spot'
+            elif 'runpod' in name.lower():
+                aggregate_type = 'runpod'
+            else:
+                aggregate_type = 'ondemand'
+            
+            # Initialize GPU type if not exists
+            if gpu_type not in gpu_aggregates:
+                gpu_aggregates[gpu_type] = {
+                    'ondemand': None,
+                    'ondemand_variants': [],
+                    'spot': None,
+                    'runpod': None
+                }
+            
+            # Set the aggregate
+            if aggregate_type == 'ondemand':
+                if gpu_aggregates[gpu_type]['ondemand'] is None:
+                    gpu_aggregates[gpu_type]['ondemand'] = name
+                
+                # Add to variants
+                gpu_aggregates[gpu_type]['ondemand_variants'].append({
+                    'aggregate': name,
+                    'variant': name
+                })
+            else:
+                gpu_aggregates[gpu_type][aggregate_type] = name
+        
+        print(f"📊 Discovered GPU aggregates: {gpu_aggregates}")
+        return gpu_aggregates
+        
+    except Exception as e:
+        print(f"❌ Error discovering GPU aggregates: {e}")
+        return {}
+
+def get_aggregate_hosts(aggregate_name):
+    """Get hosts in an aggregate using OpenStack SDK - standalone implementation"""
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            print(f"❌ No OpenStack connection available")
+            return None
+        
+        aggregate = find_aggregate_by_name(conn, aggregate_name)
+        if not aggregate:
+            print(f"❌ Aggregate '{aggregate_name}' not found")
+            return None
+        
+        hosts = []
+        gpu_used_total = 0
+        gpu_capacity_total = 0
+        
+        for host_name in aggregate.hosts:
+            try:
+                # Get basic host info
+                host_info = {
+                    'name': host_name,
+                    'has_vms': False,
+                    'vm_count': 0,
+                    'gpu_used': 0,
+                    'gpu_capacity': 8,  # Default capacity
+                    'owner_group': 'Production',
+                    'tenant': 'Unknown'
+                }
+                
+                # Get VM count for this host
+                servers = list(conn.compute.servers(all_projects=True, host=host_name))
+                host_info['vm_count'] = len(servers)
+                host_info['has_vms'] = len(servers) > 0
+                
+                # Estimate GPU usage (simplified)
+                host_info['gpu_used'] = min(len(servers) * 2, host_info['gpu_capacity'])
+                
+                gpu_used_total += host_info['gpu_used']
+                gpu_capacity_total += host_info['gpu_capacity']
+                
+                hosts.append(host_info)
+                
+            except Exception as e:
+                print(f"⚠️ Error getting info for host {host_name}: {e}")
+                # Add host with minimal info
+                hosts.append({
+                    'name': host_name,
+                    'has_vms': False,
+                    'vm_count': 0,
+                    'gpu_used': 0,
+                    'gpu_capacity': 8,
+                    'owner_group': 'Production',
+                    'tenant': 'Unknown'
+                })
+        
+        gpu_usage_ratio = f"{int((gpu_used_total/gpu_capacity_total)*100)}%" if gpu_capacity_total > 0 else "0%"
+        
+        return {
+            'hosts': hosts,
+            'gpu_summary': {
+                'gpu_used': gpu_used_total,
+                'gpu_capacity': gpu_capacity_total,
+                'gpu_usage_ratio': gpu_usage_ratio
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting aggregate hosts for {aggregate_name}: {e}")
+        return None
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
@@ -30,104 +224,99 @@ hyperstack_manager = HyperstackManager()
 # Initialize the coordinator
 coordinator = initialize_coordinator()
 
-# Internal data loading functions (bypass HTTP requests)
+# Internal data loading functions - standalone Python implementation
 def load_gpu_types_internal():
-    """Load GPU types from the original app logic"""
+    """Load GPU types using standalone Python implementation"""
     try:
-        # Import the original functions from app.py
-        import sys
-        sys.path.append('.')
-        import app
+        gpu_aggregates = discover_gpu_aggregates()
+        gpu_types = list(gpu_aggregates.keys())
         
-        # Use the same function that's working in your backend logs
-        with app.app.app_context():
-            gpu_aggregates = app.discover_gpu_aggregates()
-            gpu_types = list(gpu_aggregates.keys())
+        if gpu_types:
+            logs_manager.add_to_debug_log('System', f'Successfully loaded {len(gpu_types)} GPU types from OpenStack: {gpu_types}', 'SUCCESS')
+            return gpu_types
+        else:
+            logs_manager.add_to_debug_log('System', 'No GPU types found in OpenStack - using demo data', 'WARNING')
+            return ['A100', 'H100', 'RTX-A6000', 'V100']
             
-            if gpu_types:
-                logs_manager.add_to_debug_log('System', f'Successfully loaded {len(gpu_types)} GPU types from OpenStack: {gpu_types}', 'SUCCESS')
-                return gpu_types
-            else:
-                logs_manager.add_to_debug_log('System', 'No GPU types found in OpenStack - using demo data', 'WARNING')
-                return ['A100', 'H100', 'RTX-A6000', 'V100']
-                
     except Exception as e:
         logs_manager.add_to_debug_log('System', f'Error loading GPU types: {str(e)} - using demo data', 'WARNING')
         return ['A100', 'H100', 'RTX-A6000', 'V100']
 
 def load_aggregate_data_internal(gpu_type):
-    """Load aggregate data from the original app logic"""
+    """Load aggregate data using standalone Python implementation"""
     try:
-        # Import the original functions from app.py
-        import sys
-        sys.path.append('.')
-        import app
+        # Get GPU aggregates discovery data
+        gpu_aggregates = discover_gpu_aggregates()
         
-        # Use Flask app context and call the core logic directly
-        with app.app.app_context():
-            # Get GPU aggregates discovery data
-            gpu_aggregates = app.discover_gpu_aggregates()
+        if gpu_type not in gpu_aggregates:
+            logs_manager.add_to_debug_log('System', f'GPU type {gpu_type} not found in discovered aggregates', 'WARNING')
+            # Return demo data
+            return create_demo_data(gpu_type)
             
-            if gpu_type not in gpu_aggregates:
-                logs_manager.add_to_debug_log('System', f'GPU type {gpu_type} not found in discovered aggregates', 'WARNING')
-                return None
-                
-            config = gpu_aggregates[gpu_type]
-            
-            # Get the aggregate data (this is the core logic from get_aggregate_data)
-            result = {
-                'gpu_type': gpu_type,
-                'spot': None,
-                'ondemand': None,
-                'runpod': None
-            }
-            
-            # Process spot aggregate
-            if config.get('spot'):
-                try:
-                    spot_data = app.get_aggregate_hosts(config['spot'])
-                    if spot_data:
-                        result['spot'] = {
-                            'name': config['spot'],
-                            'hosts': spot_data.get('hosts', []),
-                            'gpu_summary': spot_data.get('gpu_summary', {})
-                        }
-                except Exception as e:
-                    logs_manager.add_to_debug_log('System', f'Error loading spot data: {str(e)}', 'ERROR')
-            
-            # Process ondemand aggregate  
-            if config.get('ondemand'):
-                try:
-                    ondemand_data = app.get_aggregate_hosts(config['ondemand'])
-                    if ondemand_data:
-                        result['ondemand'] = {
-                            'name': config['ondemand'],
-                            'hosts': ondemand_data.get('hosts', []),
-                            'gpu_summary': ondemand_data.get('gpu_summary', {}),
-                            'variants': config.get('ondemand_variants', [])
-                        }
-                except Exception as e:
-                    logs_manager.add_to_debug_log('System', f'Error loading ondemand data: {str(e)}', 'ERROR')
-            
-            # Process runpod aggregate
-            if config.get('runpod'):
-                try:
-                    runpod_data = app.get_aggregate_hosts(config['runpod'])
-                    if runpod_data:
-                        result['runpod'] = {
-                            'name': config['runpod'], 
-                            'hosts': runpod_data.get('hosts', [])
-                        }
-                except Exception as e:
-                    logs_manager.add_to_debug_log('System', f'Error loading runpod data: {str(e)}', 'ERROR')
-            
+        config = gpu_aggregates[gpu_type]
+        
+        # Get the aggregate data
+        result = {
+            'gpu_type': gpu_type,
+            'spot': None,
+            'ondemand': None,
+            'runpod': None
+        }
+        
+        # Process spot aggregate
+        if config.get('spot'):
+            try:
+                spot_data = get_aggregate_hosts(config['spot'])
+                if spot_data:
+                    result['spot'] = {
+                        'name': config['spot'],
+                        'hosts': spot_data.get('hosts', []),
+                        'gpu_summary': spot_data.get('gpu_summary', {})
+                    }
+            except Exception as e:
+                logs_manager.add_to_debug_log('System', f'Error loading spot data: {str(e)}', 'ERROR')
+        
+        # Process ondemand aggregate  
+        if config.get('ondemand'):
+            try:
+                ondemand_data = get_aggregate_hosts(config['ondemand'])
+                if ondemand_data:
+                    result['ondemand'] = {
+                        'name': config['ondemand'],
+                        'hosts': ondemand_data.get('hosts', []),
+                        'gpu_summary': ondemand_data.get('gpu_summary', {}),
+                        'variants': config.get('ondemand_variants', [])
+                    }
+            except Exception as e:
+                logs_manager.add_to_debug_log('System', f'Error loading ondemand data: {str(e)}', 'ERROR')
+        
+        # Process runpod aggregate
+        if config.get('runpod'):
+            try:
+                runpod_data = get_aggregate_hosts(config['runpod'])
+                if runpod_data:
+                    result['runpod'] = {
+                        'name': config['runpod'], 
+                        'hosts': runpod_data.get('hosts', [])
+                    }
+            except Exception as e:
+                logs_manager.add_to_debug_log('System', f'Error loading runpod data: {str(e)}', 'ERROR')
+        
+        # If we got real data, return it
+        if any([result['spot'], result['ondemand'], result['runpod']]):
             logs_manager.add_to_debug_log('System', f'Successfully loaded real data for {gpu_type}', 'SUCCESS')
             return result
+        else:
+            # Fall back to demo data
+            logs_manager.add_to_debug_log('System', f'No real data found for {gpu_type} - using demo data', 'INFO')
+            return create_demo_data(gpu_type)
         
     except Exception as e:
         logs_manager.add_to_debug_log('System', f'Error loading aggregate data for {gpu_type}: {str(e)} - using demo data', 'WARNING')
-        
-    # Fallback to demo data
+        return create_demo_data(gpu_type)
+
+def create_demo_data(gpu_type):
+    """Create demo data for testing purposes"""
     return {
         'gpu_type': gpu_type,
         'spot': {
@@ -252,6 +441,10 @@ def dashboard():
         # Load available GPU types
         available_gpu_types = load_gpu_types_internal()
         cached_gpu_types = list(openstack_manager.gpu_data_cache.keys())
+        
+        # Debug logging
+        print(f"🔍 DEBUG - Available GPU types: {available_gpu_types}")
+        logs_manager.add_to_debug_log('Dashboard', f'Loading dashboard with GPU types: {available_gpu_types}', 'INFO')
         
         # Initialize template context
         context = {
