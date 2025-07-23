@@ -205,36 +205,17 @@ def get_netbox_tenant(hostname):
     return get_netbox_tenants_bulk([hostname])[hostname]
 
 def extract_gpu_count_from_flavor(flavor_name):
-    """Extract GPU count from VM flavor name using pattern matching"""
-    if not flavor_name:
+    """Extract GPU count from flavor name like 'n3-RTX-A6000x8' or 'n3-RTX-A6000x1-spot' (matches original app.py)"""
+    if not flavor_name or flavor_name == 'N/A':
         return 0
     
-    # Common patterns for GPU count in flavor names
-    patterns = [
-        r'(\d+)x?[gG][pP][uU]',  # "8GPU", "8xGPU", "8gpu"
-        r'[gG][pP][uU][-_]?(\d+)',  # "GPU-8", "GPU_8", "gpu8" 
-        r'(\d+)[gG]',  # "8G"
-        r'[vV](\d+)',   # "V8" for multi-GPU variants
-    ]
-    
+    # Pattern to match GPU count from flavor names like n3-RTX-A6000x8, n3-RTX-A6000x1-spot
     import re
-    for pattern in patterns:
-        match = re.search(pattern, flavor_name)
-        if match:
-            gpu_count = int(match.group(1))
-            print(f"🔍 Extracted {gpu_count} GPUs from flavor: {flavor_name}")
-            return gpu_count
-    
-    # If no pattern matches, check for single GPU indicators
-    single_gpu_keywords = ['gpu', 'cuda', 'ml', 'ai']
-    flavor_lower = flavor_name.lower()
-    
-    for keyword in single_gpu_keywords:
-        if keyword in flavor_lower:
-            print(f"🔍 Detected single GPU from keyword '{keyword}' in flavor: {flavor_name}")
-            return 1
-    
-    print(f"⚠️ Could not determine GPU count from flavor: {flavor_name}")
+    match = re.search(r'x(\d+)', flavor_name)
+    if match:
+        gpu_count = int(match.group(1))
+        print(f"🔍 Extracted {gpu_count} GPUs from flavor: {flavor_name}")
+        return gpu_count
     return 0
 
 def get_host_gpu_info(hostname):
@@ -268,12 +249,10 @@ def get_host_gpu_info(hostname):
         available_gpus = max(0, total_gpus - total_used_gpus)
         
         result = {
-            'total_gpus': total_gpus,
-            'used_gpus': total_used_gpus,
-            'available_gpus': available_gpus,
+            'gpu_used': total_used_gpus,
+            'gpu_capacity': total_gpus,
             'vm_count': len(vms),
-            'gpu_vm_count': len(gpu_vms),
-            'vms': gpu_vms
+            'gpu_usage_ratio': f"{total_used_gpus}/{total_gpus}"
         }
         
         print(f"✅ GPU info for {hostname}: {total_used_gpus}/{total_gpus} GPUs used")
@@ -282,11 +261,10 @@ def get_host_gpu_info(hostname):
     except Exception as e:
         print(f"❌ Error getting GPU info for {hostname}: {e}")
         return {
-            'total_gpus': 0,
-            'used_gpus': 0,
-            'available_gpus': 0,
+            'gpu_used': 0,
+            'gpu_capacity': 8,
             'vm_count': 0,
-            'vms': []
+            'gpu_usage_ratio': "0/8"
         }
 
 def get_bulk_gpu_info(hostnames, max_workers=10):
