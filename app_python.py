@@ -30,6 +30,12 @@ _openstack_connection = None
 NETBOX_URL = os.getenv('NETBOX_URL')
 NETBOX_API_KEY = os.getenv('NETBOX_API_KEY')
 
+# Hyperstack API configuration for Runpod launches
+HYPERSTACK_API_URL = os.getenv('HYPERSTACK_API_URL', 'https://infrahub-api.nexgencloud.com/v1')
+HYPERSTACK_API_KEY = os.getenv('HYPERSTACK_API_KEY')
+RUNPOD_API_KEY = os.getenv('RUNPOD_API_KEY')
+HYPERSTACK_FIREWALL_CA1_ID = os.getenv('HYPERSTACK_FIREWALL_CA1_ID', '971')  # Firewall ID for CA1 hosts
+
 # Cache for NetBox tenant lookups
 _tenant_cache = {}
 
@@ -224,6 +230,307 @@ hyperstack_manager = HyperstackManager()
 # Initialize the coordinator
 coordinator = get_coordinator()
 initialize_coordinator()  # This just initializes it, but we need the actual coordinator object
+
+# Global command log storage for compatibility with original API
+command_log = []
+
+def log_command(command, result, execution_type='executed'):
+    """Log command execution with timestamp and result"""
+    global command_log
+    
+    log_entry = {
+        'id': len(command_log) + 1,
+        'timestamp': datetime.now().isoformat(),
+        'command': command,
+        'type': execution_type,
+        'success': result.get('success', False),
+        'stdout': result.get('stdout', ''),
+        'stderr': result.get('stderr', ''),
+        'returncode': result.get('returncode', -1)
+    }
+    
+    command_log.append(log_entry)
+    
+    # Keep only last 100 entries
+    if len(command_log) > 100:
+        command_log = command_log[-100:]
+    
+    return log_entry
+
+def get_host_vm_count(hostname):
+    """Get VM count for a specific host using OpenStack SDK"""
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            return 0
+        
+        # Method 1: Direct host filtering with all_projects (admin required)
+        try:
+            servers = list(conn.compute.servers(host=hostname, all_projects=True))
+            return len(servers)
+        except Exception as e:
+            print(f"⚠️ VM count method 1 failed for {hostname}: {e}")
+        
+        # Method 2: Try without all_projects as fallback
+        try:
+            servers = list(conn.compute.servers(host=hostname))
+            return len(servers)
+        except Exception as e:
+            print(f"⚠️ VM count method 2 failed for {hostname}: {e}")
+            
+        return 0
+        
+    except Exception as e:
+        print(f"❌ Error getting VM count for host {hostname}: {e}")
+        return 0
+
+def get_host_vms(hostname):
+    """Get VMs running on a specific host using OpenStack SDK"""
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            return []
+        
+        # Use same method as get_host_vm_count that works
+        try:
+            servers = list(conn.compute.servers(host=hostname, all_projects=True))
+            vm_list = []
+            for server in servers:
+                # Get additional server details
+                vm_info = {
+                    'Name': server.name,
+                    'Status': server.status,
+                    'ID': server.id,
+                    'Created': getattr(server, 'created', 'N/A'),
+                    'Updated': getattr(server, 'updated', 'N/A'),
+                    'Flavor': getattr(server, 'flavor', {}).get('original_name', 'N/A') if hasattr(getattr(server, 'flavor', {}), 'get') else 'N/A',
+                    'Image': getattr(server, 'image', {}).get('name', 'N/A') if hasattr(getattr(server, 'image', {}), 'get') else 'N/A',
+                    'Project': getattr(server, 'project_id', 'N/A'),
+                    'User': getattr(server, 'user_id', 'N/A')
+                }
+                vm_list.append(vm_info)
+            
+            return vm_list
+            
+        except Exception as e:
+            print(f"❌ Error getting VMs for host {hostname}: {e}")
+            return []
+        
+    except Exception as e:
+        print(f"❌ Error getting VMs for host {hostname}: {e}")
+        return []
+
+def get_gpu_type_from_hostname_context(hostname):
+    """Get GPU type by finding which aggregate the hostname belongs to"""
+    try:
+        gpu_aggregates = discover_gpu_aggregates()
+        
+        for gpu_type, config in gpu_aggregates.items():
+            # Check runpod aggregate
+            if config.get('runpod'):
+                runpod_data = get_aggregate_hosts(config['runpod'])
+                if runpod_data and any(host['name'] == hostname for host in runpod_data['hosts']):
+                    return gpu_type
+                    
+            # Check on-demand variants
+            if config.get('ondemand_variants'):
+                for variant in config['ondemand_variants']:
+                    variant_data = get_aggregate_hosts(variant['aggregate'])
+                    if variant_data and any(host['name'] == hostname for host in variant_data['hosts']):
+                        return gpu_type
+                        
+            # Check spot aggregate
+            if config.get('spot'):
+                spot_data = get_aggregate_hosts(config['spot'])
+                if spot_data and any(host['name'] == hostname for host in spot_data['hosts']):
+                    return gpu_type
+        
+        return None
+    except Exception as e:
+        print(f"❌ Error getting GPU type for hostname {hostname}: {e}")
+        return None
+
+def get_gpu_count_from_hostname(hostname):
+    """Determine GPU count from hostname - A4000 hosts have 10, others have 8"""
+    if 'A4000' in hostname:
+        return 10
+    return 8
+
+def build_flavor_name(hostname):
+    """Build dynamic flavor name like 'n3-RTX-A6000x8' from hostname"""
+    gpu_type = get_gpu_type_from_hostname_context(hostname)
+    gpu_count = get_gpu_count_from_hostname(hostname)
+    
+    if gpu_type:
+        return f"n3-{gpu_type}x{gpu_count}"
+    
+    # Fallback: try to extract from hostname pattern if available
+    import re
+    match = re.search(r'(RTX-A6000|A100|H100|L40)', hostname)
+    if match:
+        return f"n3-{match.group(1)}x{gpu_count}"
+    
+    # Default fallback
+    return f"n3-RTX-A6000x{gpu_count}"
+
+def mask_api_key(api_key, prefix=""):
+    """Mask API key for display purposes"""
+    if not api_key:
+        return "***_KEY"
+    
+    if len(api_key) <= 8:
+        return "***_KEY"
+    
+    return f"{api_key[:4]}***{api_key[-4:]}"
+
+def get_firewall_current_attachments(firewall_id):
+    """Get current VM attachments for a firewall to preserve existing VMs"""
+    try:
+        headers = {
+            'api_key': HYPERSTACK_API_KEY,
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.get(
+            f"{HYPERSTACK_API_URL}/core/firewalls/{firewall_id}",
+            headers=headers,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            firewall_data = response.json()
+            
+            # Extract VM IDs from attachments
+            vm_ids = []
+            if 'firewall' in firewall_data and 'attachments' in firewall_data['firewall']:
+                for attachment in firewall_data['firewall']['attachments']:
+                    if 'vm' in attachment and 'id' in attachment['vm']:
+                        vm_ids.append(attachment['vm']['id'])
+            elif 'attachments' in firewall_data:
+                for attachment in firewall_data['attachments']:
+                    if 'vm' in attachment and 'id' in attachment['vm']:
+                        vm_ids.append(attachment['vm']['id'])
+            
+            print(f"📋 Retrieved {len(vm_ids)} existing VM attachments for firewall {firewall_id}")
+            return vm_ids
+        else:
+            print(f"⚠️ Failed to get firewall {firewall_id} details: HTTP {response.status_code}")
+            if response.text:
+                print(f"   Response: {response.text}")
+            return []
+    except Exception as e:
+        print(f"⚠️ Error getting firewall attachments: {e}")
+        return []
+
+def attach_firewall_to_vm(vm_id, vm_name, delay_seconds=180):
+    """Attach firewall to VM after specified delay using Hyperstack API (Canada hosts only)"""
+    def delayed_firewall_attach():
+        try:
+            print(f"⏳ Waiting {delay_seconds}s before attaching firewall to VM {vm_name} (ID: {vm_id})...")
+            time.sleep(delay_seconds)
+            
+            # Check if host is in Canada (CA1 prefix) and use CA1 firewall ID
+            if not vm_name.startswith('CA1-'):
+                print(f"🌍 Skipping firewall attachment for {vm_name} - not a Canada host")
+                return
+            
+            # Check if CA1 firewall ID is configured
+            if not HYPERSTACK_FIREWALL_CA1_ID:
+                print(f"⚠️ No CA1 firewall ID configured - skipping firewall attachment for VM {vm_name}")
+                return
+            
+            firewall_id = HYPERSTACK_FIREWALL_CA1_ID
+            print(f"🔥 Starting firewall attachment for VM {vm_name} (ID: {vm_id}) with firewall {firewall_id}...")
+            
+            # Get current firewall attachments to preserve existing VMs
+            try:
+                existing_vm_ids = get_firewall_current_attachments(firewall_id)
+                print(f"📋 Found {len(existing_vm_ids)} existing VM attachments for firewall {firewall_id}")
+            except Exception as e:
+                print(f"⚠️ Failed to get current firewall attachments: {e}")
+                print(f"⚠️ Proceeding without preserving existing attachments (this may remove other VMs from firewall)")
+                existing_vm_ids = []
+            
+            # Prepare the API call to attach firewall with all VMs (existing + new)
+            headers = {
+                'api_key': HYPERSTACK_API_KEY,
+                'Content-Type': 'application/json'
+            }
+            
+            # Include existing VMs plus the new one
+            all_vm_ids = existing_vm_ids + [int(vm_id)]
+            # Remove duplicates while preserving order
+            unique_vm_ids = list(dict.fromkeys(all_vm_ids))
+            
+            payload = {
+                "vms": unique_vm_ids
+            }
+            
+            print(f"🔗 Attaching firewall to {len(unique_vm_ids)} VMs: {unique_vm_ids}")
+            print(f"   - Existing VMs: {existing_vm_ids}")
+            print(f"   - New VM: {vm_id}")
+            print(f"   - Total unique VMs: {unique_vm_ids}")
+            
+            response = requests.post(
+                f"{HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            # Build command for logging (with masked API key)
+            vm_ids_str = ', '.join(map(str, unique_vm_ids))
+            masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments -H 'api_key: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"vms\": [{vm_ids_str}]}}'"
+            
+            if response.status_code in [200, 201]:
+                print(f"✅ Successfully attached firewall to {len(unique_vm_ids)} VMs including new VM {vm_name} (ID: {vm_id})")
+                print(f"   🔐 Firewall now protects VMs: {unique_vm_ids}")
+                
+                # Log the successful command
+                log_command(masked_command, {
+                    'success': True,
+                    'stdout': f'Successfully attached firewall to {len(unique_vm_ids)} VMs including new VM {vm_name} (ID: {vm_id})',
+                    'stderr': '',
+                    'returncode': 0
+                }, 'executed')
+                
+            else:
+                error_msg = f'Failed to attach firewall to VM {vm_name}: HTTP {response.status_code}'
+                if response.text:
+                    error_msg += f' - {response.text}'
+                
+                print(f"❌ {error_msg}")
+                print(f"   ⚠️ This may have left existing VMs without firewall protection")
+                
+                # Log the failed command
+                log_command(masked_command, {
+                    'success': False,
+                    'stdout': '',
+                    'stderr': error_msg,
+                    'returncode': response.status_code
+                }, 'error')
+                
+        except Exception as e:
+            error_msg = f"Failed to attach firewall to VM {vm_name}: {str(e)}"
+            print(f"❌ {error_msg}")
+            
+            # Log the failure
+            log_command(f"firewall attach to VM {vm_name} (ID: {vm_id})", {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': -1
+            }, 'error')
+    
+    # Start the delayed firewall attachment in a separate thread
+    thread = threading.Thread(target=delayed_firewall_attach, daemon=True)
+    thread.start()
+    if vm_name.startswith('CA1-') and HYPERSTACK_FIREWALL_CA1_ID:
+        print(f"🔥 Scheduled firewall attachment for VM {vm_name} (ID: {vm_id}) with firewall {HYPERSTACK_FIREWALL_CA1_ID} in {delay_seconds} seconds")
+    elif vm_name.startswith('CA1-'):
+        print(f"⚠️ No CA1 firewall ID configured - firewall attachment will be skipped for {vm_name}")
+    else:
+        print(f"🌍 VM {vm_name} is not in Canada - firewall attachment will be skipped")
 
 # Internal data loading functions - standalone Python implementation
 def load_gpu_types_internal():
@@ -806,6 +1113,852 @@ def api_pending_operations():
         return jsonify({'operations': operations})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# Host migration API endpoints
+
+@app.route('/api/host-vms/<hostname>')
+def get_host_vm_details(hostname):
+    """Get detailed VM information for a host"""
+    vms = get_host_vms(hostname)
+    return jsonify({
+        'hostname': hostname,
+        'vms': vms,
+        'count': len(vms)
+    })
+
+@app.route('/api/preview-migration', methods=['POST'])
+def preview_migration():
+    """Preview migration commands without executing"""
+    data = request.json
+    host = data.get('host')
+    source_aggregate = data.get('source_aggregate')
+    target_aggregate = data.get('target_aggregate')
+    
+    print(f"\n👁️  PREVIEW MIGRATION: {host} from {source_aggregate} to {target_aggregate}")
+    
+    if not all([host, source_aggregate, target_aggregate]):
+        return jsonify({'error': 'Missing required parameters'}), 400
+    
+    commands = [
+        f"openstack aggregate remove host {source_aggregate} {host}",
+        f"openstack aggregate add host {target_aggregate} {host}"
+    ]
+    
+    print("📋 COMMANDS TO BE EXECUTED:")
+    for i, command in enumerate(commands, 1):
+        print(f"   {i}. {command}")
+    
+    # Log the preview (but don't execute)
+    for command in commands:
+        log_command(command, {'success': None, 'stdout': '', 'stderr': '', 'returncode': None}, 'preview')
+    
+    return jsonify({
+        'commands': commands,
+        'host': host,
+        'source': source_aggregate,
+        'target': target_aggregate
+    })
+
+@app.route('/api/execute-migration', methods=['POST'])
+def execute_migration():
+    """Execute the migration commands using OpenStack SDK"""
+    data = request.json
+    host = data.get('host')
+    source_aggregate = data.get('source_aggregate')
+    target_aggregate = data.get('target_aggregate')
+    
+    print(f"\n🚀 EXECUTING MIGRATION: {host} from {source_aggregate} to {target_aggregate}")
+    
+    if not all([host, source_aggregate, target_aggregate]):
+        return jsonify({'error': 'Missing required parameters'}), 400
+    
+    # Check if host has VMs and source is spot aggregate
+    if 'spot' in source_aggregate.lower():
+        vm_count = get_host_vm_count(host)
+        if vm_count > 0:
+            return jsonify({
+                'error': f'Host {host} has {vm_count} running VMs. Cannot migrate from spot aggregate.',
+                'vm_count': vm_count
+            }), 400
+    
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'error': 'No OpenStack connection available'}), 500
+        
+        results = []
+        
+        # Remove from source aggregate
+        remove_command = f"openstack aggregate remove host {source_aggregate} {host}"
+        try:
+            source_agg = find_aggregate_by_name(conn, source_aggregate)
+            if not source_agg:
+                return jsonify({'error': f'Source aggregate {source_aggregate} not found'}), 404
+            
+            conn.compute.remove_host_from_aggregate(source_agg, host)
+            
+            results.append({
+                'command': remove_command,
+                'success': True,
+                'output': f'Successfully removed {host} from {source_aggregate}'
+            })
+            
+            # Log the successful command
+            log_command(remove_command, {
+                'success': True,
+                'stdout': f'Successfully removed {host} from {source_aggregate}',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+        except Exception as e:
+            error_msg = f'Failed to remove {host} from {source_aggregate}: {str(e)}'
+            results.append({
+                'command': remove_command,
+                'success': False,
+                'output': error_msg
+            })
+            
+            # Log the failed command
+            log_command(remove_command, {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': 1
+            }, 'error')
+            
+            return jsonify({
+                'error': 'Failed to remove host from source aggregate',
+                'results': results
+            }), 500
+        
+        # Add to target aggregate
+        add_command = f"openstack aggregate add host {target_aggregate} {host}"
+        try:
+            target_agg = find_aggregate_by_name(conn, target_aggregate)
+            if not target_agg:
+                return jsonify({'error': f'Target aggregate {target_aggregate} not found'}), 404
+            
+            conn.compute.add_host_to_aggregate(target_agg, host)
+            
+            results.append({
+                'command': add_command,
+                'success': True,
+                'output': f'Successfully added {host} to {target_aggregate}'
+            })
+            
+            # Log the successful command
+            log_command(add_command, {
+                'success': True,
+                'stdout': f'Successfully added {host} to {target_aggregate}',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+        except Exception as e:
+            error_msg = f'Failed to add {host} to {target_aggregate}: {str(e)}'
+            results.append({
+                'command': add_command,
+                'success': False,
+                'output': error_msg
+            })
+            
+            # Log the failed command
+            log_command(add_command, {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': 1
+            }, 'error')
+            
+            return jsonify({
+                'error': 'Failed to add host to target aggregate',
+                'results': results
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'message': f'Successfully migrated {host} from {source_aggregate} to {target_aggregate}'
+        })
+        
+    except Exception as e:
+        error_msg = f'Migration failed: {str(e)}'
+        print(f"❌ {error_msg}")
+        return jsonify({'error': error_msg}), 500
+
+@app.route('/api/get-target-aggregate', methods=['POST'])
+def get_target_aggregate():
+    """Determine the correct target aggregate based on source hostname and target type"""
+    data = request.json
+    hostname = data.get('hostname')
+    target_type = data.get('target_type')
+    target_variant = data.get('target_variant')
+    
+    if not hostname or not target_type:
+        return jsonify({'error': 'Missing hostname or target_type'}), 400
+    
+    # Get GPU type from hostname context
+    gpu_type = get_gpu_type_from_hostname_context(hostname)
+    if not gpu_type:
+        return jsonify({'error': f'Could not determine GPU type for hostname {hostname}'}), 404
+    
+    # Get aggregate configuration for this GPU type
+    gpu_aggregates = discover_gpu_aggregates()
+    config = gpu_aggregates.get(gpu_type)
+    if not config:
+        return jsonify({'error': f'No configuration found for GPU type {gpu_type}'}), 404
+    
+    # Determine target aggregate based on target type
+    target_aggregate = None
+    if target_type == 'spot' and config.get('spot'):
+        target_aggregate = config['spot']
+    elif target_type == 'runpod' and config.get('runpod'):
+        target_aggregate = config['runpod']
+    elif target_type == 'ondemand' and config.get('ondemand_variants'):
+        if target_variant:
+            # Use specific variant if provided
+            variant_info = next((v for v in config['ondemand_variants'] if v['aggregate'] == target_variant), None)
+            if variant_info:
+                target_aggregate = variant_info['aggregate']
+        else:
+            # Use first available variant as fallback
+            target_aggregate = config['ondemand_variants'][0]['aggregate']
+    
+    if not target_aggregate:
+        return jsonify({'error': f'No target aggregate found for GPU type {gpu_type} and target type {target_type}'}), 404
+    
+    return jsonify({
+        'hostname': hostname,
+        'gpu_type': gpu_type,
+        'target_type': target_type,
+        'target_aggregate': target_aggregate
+    })
+
+@app.route('/api/command-log')
+def get_command_log():
+    """Get the command execution log"""
+    return jsonify({
+        'commands': command_log,
+        'count': len(command_log)
+    })
+
+@app.route('/api/clear-log', methods=['POST'])
+def clear_command_log():
+    """Clear the command execution log"""
+    global command_log
+    command_log = []
+    return jsonify({'message': 'Command log cleared'})
+
+# RunPod/Hyperstack Integration API endpoints
+
+@app.route('/api/preview-runpod-launch', methods=['POST'])
+def preview_runpod_launch():
+    """Preview runpod VM launch command without executing"""
+    data = request.json
+    hostname = data.get('hostname')
+    
+    print(f"\n👁️  PREVIEW RUNPOD LAUNCH: {hostname}")
+    
+    if not hostname:
+        return jsonify({'error': 'Missing hostname parameter'}), 400
+    
+    if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
+        return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
+    
+    # Build dynamic flavor name
+    flavor_name = build_flavor_name(hostname)
+    gpu_type = get_gpu_type_from_hostname_context(hostname)
+    
+    # Build the curl command for preview (with masked API keys)
+    masked_hyperstack_key = mask_api_key(HYPERSTACK_API_KEY)
+    masked_runpod_key = mask_api_key(RUNPOD_API_KEY)
+    
+    # Create user_data with masked API key for preview
+    user_data_preview = '"Content-Type: multipart/mixed...api_key=' + masked_runpod_key + '...power_state: reboot"'
+    
+    curl_command = f"""curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines \\
+  -H "api_key: {masked_hyperstack_key}" \\
+  -H "Content-Type: application/json" \\
+  -d '{{
+    "name": "{hostname}",
+    "environment_name": "CA1-RunPod",
+    "image_name": "Ubuntu Server 24.04 LTS R570 CUDA 12.8",
+    "volume_name": "",
+    "flavor_name": "{flavor_name}",
+    "assign_floating_ip": true,
+    "security_rules": [{{
+      "direction": "ingress",
+      "protocol": "tcp",
+      "ethertype": "IPv4",
+      "port_range_min": 22,
+      "port_range_max": 22,
+      "remote_ip_prefix": "0.0.0.0/0"
+    }}],
+    "key_name": "Fleio",
+    "user_data": {user_data_preview},
+    "labels": [],
+    "count": 1
+  }}'"""
+    
+    print("📋 COMMAND TO BE EXECUTED:")
+    print(f"   Launch VM '{hostname}' with flavor '{flavor_name}'")
+    
+    # Log the preview (but don't execute)
+    log_command(curl_command, {'success': None, 'stdout': '', 'stderr': '', 'returncode': None}, 'preview')
+    
+    return jsonify({
+        'command': curl_command,
+        'hostname': hostname,
+        'vm_name': hostname,
+        'flavor_name': flavor_name,
+        'gpu_type': gpu_type,
+        'api_url': HYPERSTACK_API_URL
+    })
+
+@app.route('/api/execute-runpod-launch', methods=['POST'])
+def execute_runpod_launch():
+    """Execute the runpod VM launch using Hyperstack API"""
+    data = request.json
+    hostname = data.get('hostname')
+    
+    print(f"\n🚀 EXECUTING RUNPOD LAUNCH: {hostname}")
+    
+    if not hostname:
+        return jsonify({'error': 'Missing hostname parameter'}), 400
+    
+    if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
+        return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
+    
+    # Build dynamic flavor name
+    flavor_name = build_flavor_name(hostname)
+    
+    # Build the complete user_data with actual API key
+    user_data_content = """Content-Type: multipart/mixed; boundary="==BOUNDARY=="
+MIME-Version: 1.0
+
+--==BOUNDARY==
+Content-Disposition: form-data; name="yaml-script"
+Content-Type: text/cloud-config; charset="us-ascii"
+
+#cloud-config
+# Upgrade packages
+package_update: true
+# package_upgrade: true
+packages:
+  # needed as we are using it to extract the hash ID from an API query
+  - jq
+
+write_files:
+  - path: /etc/runpod/config.json
+    owner: ubuntu:ubuntu
+    permissions: '0644'
+    content: |
+      {
+        "publicNetwork": {
+          "publicIp": "",
+          "ports": [10000, 50000]
+        }
+      }
+
+
+
+
+runcmd:
+  # Remove disk so we can use it later on in the script
+  - sudo umount /ephemeral
+  - sudo sed -i '/^ephemeral0.*\\/ephemeral/s/^/#/' /etc/fstab
+  - sudo sed -i '/^\\/dev\\/vdb.*\\/ephemeral/s/^/#/' /etc/fstab
+  - rm -f /etc/cloud/cloud.cfg.d/91_ephemeral.cfg
+
+#cloud-config
+  # Download Runpod's script
+  - sudo wget https://s.runpod.io/host-amd -O /home/ubuntu/rp
+
+  # Enable execution of the script
+  - sudo chmod +x /home/ubuntu/rp
+
+  # Execute the following as a script block to handle variables properly
+  - |
+      # Get hostname
+      HOSTNAME=$(uname -n)
+
+      # Create a machine via API command on Runpod and set its name as it was set in OpenStack
+      installCert=$(curl --request POST --header "content-type: application/json" \\
+        --url "https://api.runpod.io/graphql?api_key=""" + RUNPOD_API_KEY + """" \\
+        --data "{\\"query\\":\\"mutation Mutation{machineAdd(input:{name:\\\\\\"$HOSTNAME\\\\\\"}){\\\\nid\\\\ninstallCert}}\\",\\"variables\\":{}}")
+
+      # Clean up the output of the last line to only include the hash ID
+      installCertValue=$(echo $installCert | jq -r '.data.machineAdd.installCert')
+
+      # Install Runpod's script using the hash ID generated by the API
+      echo -e "\\nDisk\\n/dev/vdb\\nY" | sudo /home/ubuntu/rp --secret=$installCertValue --hostname=$HOSTNAME --gpu-kind=NVIDIA install
+
+      # Get the public IP and store it
+      PUBLIC_IP=$(curl https://ifconfig.me)
+
+      # Change owner of the config.json file for the next part to work
+      sudo chown ubuntu:ubuntu /etc/runpod/config.json
+
+      # Update the config.json file with the public IP
+      echo "{\\"publicNetwork\\": {\\"publicIp\\": \\"$PUBLIC_IP\\", \\"ports\\": [10000, 50000]}}" > /etc/runpod/config.json
+
+      # Output a summary of the variables set during the script
+      echo "The Hostname is $HOSTNAME, the public IP is $PUBLIC_IP, and the cert ID is $installCertValue"
+
+power_state:
+  delay: "+2"
+  mode: reboot
+  message: Rebooting now, cloud-init complete
+  timeout: 30
+
+
+--==BOUNDARY==--
+"""
+    
+    # Build the payload
+    payload = {
+        "name": hostname,
+        "environment_name": "CA1-RunPod",
+        "image_name": "Ubuntu Server 24.04 LTS R570 CUDA 12.8",
+        "volume_name": "",
+        "flavor_name": flavor_name,
+        "assign_floating_ip": True,
+        "security_rules": [
+            {
+                "direction": "ingress",
+                "protocol": "tcp",
+                "ethertype": "IPv4",
+                "port_range_min": 22,
+                "port_range_max": 22,
+                "remote_ip_prefix": "0.0.0.0/0"
+            }
+        ],
+        "key_name": "Fleio",
+        "user_data": user_data_content,
+        "labels": [],
+        "count": 1
+    }
+    
+    try:
+        # Make the API call to Hyperstack
+        headers = {
+            'api_key': HYPERSTACK_API_KEY,
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.post(
+            f"{HYPERSTACK_API_URL}/core/virtual-machines",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        # Build command for logging (with masked API key)
+        masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines -H 'api_key: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"name\": \"{hostname}\", \"flavor_name\": \"{flavor_name}\", ...}}'"
+        
+        if response.status_code in [200, 201]:
+            result_data = response.json()
+            
+            # Extract VM ID from response
+            vm_id = None
+            if result_data.get('instances') and len(result_data['instances']) > 0:
+                vm_id = result_data['instances'][0].get('id')
+                print(f"🆔 Extracted VM ID: {vm_id} for VM {hostname}")
+            
+            # Log the successful command
+            log_command(masked_command, {
+                'success': True,
+                'stdout': f'Successfully launched VM {hostname} with flavor {flavor_name} (ID: {vm_id})',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+            # Schedule firewall attachment after 180 seconds (Hyperstack API) - Canada hosts only
+            firewall_scheduled = False
+            if vm_id and hostname.startswith('CA1-') and HYPERSTACK_FIREWALL_CA1_ID:
+                attach_firewall_to_vm(vm_id, hostname, delay_seconds=180)
+                firewall_scheduled = True
+            elif vm_id and hostname.startswith('CA1-'):
+                print(f"⚠️ No CA1 firewall ID configured - firewall attachment will be skipped for {hostname}")
+            elif vm_id:
+                print(f"🌍 VM {hostname} is not in Canada - firewall attachment will be skipped")
+            else:
+                print(f"⚠️ No VM ID found in response - skipping firewall attachment for {hostname}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Successfully launched VM {hostname} on Hyperstack',
+                'vm_name': hostname,
+                'vm_id': vm_id,
+                'flavor_name': flavor_name,
+                'response': result_data,
+                'storage_network_scheduled': False,  # Now handled by frontend commands
+                'firewall_scheduled': firewall_scheduled
+            })
+        else:
+            error_msg = f'Failed to launch VM {hostname}: HTTP {response.status_code}'
+            if response.text:
+                error_msg += f' - {response.text}'
+            
+            # Log the failed command
+            log_command(masked_command, {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': response.status_code
+            }, 'error')
+            
+            return jsonify({'error': error_msg}), response.status_code
+            
+    except requests.exceptions.Timeout:
+        error_msg = f'Timeout launching VM {hostname} - request took longer than 30 seconds'
+        log_command(masked_command, {
+            'success': False,
+            'stdout': '',
+            'stderr': error_msg,
+            'returncode': -1
+        }, 'timeout')
+        return jsonify({'error': error_msg}), 408
+        
+    except Exception as e:
+        error_msg = f'Launch failed for VM {hostname}: {str(e)}'
+        print(f"❌ {error_msg}")
+        
+        # Log the failed command
+        log_command(masked_command, {
+            'success': False,
+            'stdout': '',
+            'stderr': error_msg,
+            'returncode': -1
+        }, 'error')
+        
+        return jsonify({'error': error_msg}), 500
+
+@app.route('/api/hyperstack/firewall/get-attachments', methods=['POST'])
+def hyperstack_firewall_get_attachments():
+    """Get current VM attachments for a firewall"""
+    try:
+        data = request.get_json()
+        firewall_id = data.get('firewall_id', HYPERSTACK_FIREWALL_CA1_ID)
+        
+        if not firewall_id:
+            return jsonify({'success': False, 'error': 'No firewall ID configured'})
+        
+        print(f"🔍 Getting firewall attachments for firewall ID: {firewall_id}")
+        
+        # Get current attachments using existing function
+        existing_vm_ids = get_firewall_current_attachments(firewall_id)
+        
+        # Log the command
+        log_command(f'curl -X GET https://infrahub-api.nexgencloud.com/v1/core/firewalls/{firewall_id}', {
+            'success': True,
+            'stdout': f'Retrieved {len(existing_vm_ids)} VM attachments: {", ".join(map(str, existing_vm_ids))}',
+            'stderr': '',
+            'returncode': 0
+        }, 'executed')
+        
+        return jsonify({
+            'success': True,
+            'firewall_id': firewall_id,
+            'vm_ids': existing_vm_ids,
+            'count': len(existing_vm_ids)
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting firewall attachments: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/hyperstack/firewall/update-attachments', methods=['POST'])
+def hyperstack_firewall_update_attachments():
+    """Update firewall with new VM attachments"""
+    try:
+        data = request.get_json()
+        firewall_id = data.get('firewall_id', HYPERSTACK_FIREWALL_CA1_ID)
+        new_vm_id = data.get('vm_id')
+        
+        if not firewall_id:
+            return jsonify({'success': False, 'error': 'No firewall ID configured'})
+        
+        if not new_vm_id:
+            return jsonify({'success': False, 'error': 'VM ID is required'})
+        
+        print(f"🔥 Adding VM ID {new_vm_id} to firewall {firewall_id}")
+        
+        # Get current attachments
+        existing_vm_ids = get_firewall_current_attachments(firewall_id)
+        print(f"📋 Current VMs on firewall: {existing_vm_ids}")
+        
+        # Add new VM ID to the list
+        if new_vm_id not in existing_vm_ids:
+            updated_vm_ids = existing_vm_ids + [new_vm_id]
+            print(f"➕ Adding VM ID {new_vm_id} to firewall attachments")
+        else:
+            updated_vm_ids = existing_vm_ids
+            print(f"ℹ️ VM ID {new_vm_id} already attached to firewall")
+        
+        # Update firewall with all VMs (existing + new)
+        headers = {
+            'api_key': HYPERSTACK_API_KEY,
+            'Content-Type': 'application/json'
+        }
+        
+        payload = {
+            'vms': updated_vm_ids
+        }
+        
+        response = requests.post(
+            f'{HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments',
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            print(f"✅ Successfully updated firewall {firewall_id} with VM ID {new_vm_id}")
+            
+            # Log the command
+            log_command(f'curl -X POST https://infrahub-api.nexgencloud.com/v1/core/firewalls/{firewall_id}/update-attachments', {
+                'success': True,
+                'stdout': f'Successfully updated firewall {firewall_id} with {len(updated_vm_ids)} VMs: {", ".join(map(str, updated_vm_ids))}',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+            return jsonify({
+                'success': True,
+                'firewall_id': firewall_id,
+                'vm_id': new_vm_id,
+                'total_vms': len(updated_vm_ids),
+                'vm_list': updated_vm_ids
+            })
+        else:
+            error_msg = f'Failed to update firewall: HTTP {response.status_code}'
+            if response.text:
+                error_msg += f' - {response.text}'
+            print(f"❌ {error_msg}")
+            return jsonify({'success': False, 'error': error_msg})
+        
+    except Exception as e:
+        print(f"❌ Error updating firewall attachments: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+# OpenStack Network Management API endpoints
+
+@app.route('/api/openstack/network/show', methods=['POST'])
+def openstack_network_show():
+    """Find network by name using OpenStack SDK"""
+    try:
+        data = request.get_json()
+        network_name = data.get('network_name')
+        
+        if not network_name:
+            return jsonify({'success': False, 'error': 'Network name is required'})
+        
+        print(f"🌐 Looking up network: {network_name}")
+        
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+        
+        # Find the network
+        network = conn.network.find_network(network_name)
+        if not network:
+            return jsonify({'success': False, 'error': f'Network {network_name} not found'})
+        
+        print(f"✅ Found network {network_name} with ID: {network.id}")
+        return jsonify({'success': True, 'network_id': network.id})
+        
+    except Exception as e:
+        print(f"❌ Error finding network: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/openstack/port/create', methods=['POST'])
+def openstack_port_create():
+    """Create port on network using OpenStack SDK"""
+    try:
+        data = request.get_json()
+        network_name = data.get('network_name')
+        port_name = data.get('port_name')
+        
+        if not network_name or not port_name:
+            return jsonify({'success': False, 'error': 'Network name and port name are required'})
+        
+        print(f"🌐 Creating port {port_name} on network {network_name}")
+        
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+        
+        # Find the network
+        network = conn.network.find_network(network_name)
+        if not network:
+            return jsonify({'success': False, 'error': f'Network {network_name} not found'})
+        
+        # Create the port
+        port = conn.network.create_port(
+            network_id=network.id,
+            name=port_name
+        )
+        
+        print(f"✅ Created port {port_name} with ID: {port.id}")
+        return jsonify({'success': True, 'port_id': port.id})
+        
+    except Exception as e:
+        print(f"❌ Error creating port: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/openstack/server/add-network', methods=['POST'])
+def openstack_server_add_network():
+    """Attach network to server using OpenStack SDK (server add network approach)"""
+    try:
+        data = request.get_json()
+        server_name = data.get('server_name')
+        network_name = data.get('network_name')
+        
+        if not server_name or not network_name:
+            return jsonify({'success': False, 'error': 'Server name and network name are required'})
+        
+        print(f"🌐 Attaching network {network_name} to server {server_name}")
+        
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+        
+        # First get server list with all projects to find UUID - matching your example command
+        # openstack server list --all-projects --name {server_name}
+        servers = list(conn.compute.servers(all_projects=True, name=server_name))
+        
+        if not servers:
+            return jsonify({'success': False, 'error': f'Server {server_name} not found'})
+        
+        if len(servers) > 1:
+            print(f"⚠️ Multiple servers found with name {server_name}, using first one")
+        
+        server = servers[0]
+        server_uuid = server.id
+        print(f"📋 Found server {server_name} with UUID: {server_uuid}")
+        
+        # Find the network
+        network = conn.network.find_network(network_name)
+        if not network:
+            return jsonify({'success': False, 'error': f'Network {network_name} not found'})
+        
+        print(f"📋 Found network {network_name} with UUID: {network.id}")
+        
+        # Attach the network to the server using server UUID with retry logic
+        # This is equivalent to: openstack server add network {server_uuid} {network_name}
+        max_retries = 3
+        retry_delay = 10  # seconds
+        retry_log = []
+        
+        for attempt in range(max_retries):
+            try:
+                conn.compute.create_server_interface(server_uuid, net_id=network.id)
+                success_msg = f"✅ Attached network {network_name} to server {server_name} (UUID: {server_uuid})"
+                if attempt > 0:
+                    success_msg += f" (succeeded on attempt {attempt + 1})"
+                print(success_msg)
+                break
+            except Exception as attach_error:
+                if "vm_state building" in str(attach_error) and attempt < max_retries - 1:
+                    retry_msg = f"⏳ VM {server_name} still building, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})"
+                    print(retry_msg)
+                    retry_log.append(retry_msg)
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # Either not a building state error, or we've exhausted retries
+                    error_details = f"Failed after {attempt + 1} attempts: {str(attach_error)}"
+                    if retry_log:
+                        error_details = "\n".join(retry_log) + f"\nFinal error: {str(attach_error)}"
+                    
+                    # Log the failed command with detailed retry information
+                    log_command(f'openstack server add network {server_uuid} "{network_name}"', {
+                        'success': False,
+                        'stdout': '',
+                        'stderr': error_details,
+                        'returncode': 1
+                    }, 'executed')
+                    
+                    raise attach_error
+        
+        # Log the successful command with retry details if applicable
+        stdout_msg = f'Network {network_name} successfully attached to server {server_name} (UUID: {server_uuid})'
+        if retry_log:
+            stdout_msg = "\n".join(retry_log) + f"\n{stdout_msg}"
+            
+        log_command(f'openstack server add network {server_uuid} "{network_name}"', {
+            'success': True,
+            'stdout': stdout_msg,
+            'stderr': '',
+            'returncode': 0
+        }, 'executed')
+        
+        return jsonify({'success': True, 'message': f'Network {network_name} attached to server {server_name}'})
+        
+    except Exception as e:
+        error_msg = f"❌ Error attaching network: {e}"
+        print(error_msg)
+        
+        # Log the failed command (if not already logged above)
+        if 'server_uuid' in locals():
+            log_command(f'openstack server add network {server_uuid} "{network_name}"', {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': 1
+            }, 'executed')
+        
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/openstack/server/get-uuid', methods=['POST'])
+def openstack_server_get_uuid():
+    """Get server UUID by name using OpenStack SDK"""
+    try:
+        data = request.get_json()
+        server_name = data.get('server_name')
+        
+        if not server_name:
+            return jsonify({'success': False, 'error': 'Server name is required'})
+        
+        print(f"🔍 Looking up UUID for server: {server_name}")
+        
+        conn = get_openstack_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+        
+        # Get server list with all projects to find UUID - matching openstack server list --all-projects --name
+        servers = list(conn.compute.servers(all_projects=True, name=server_name))
+        
+        if not servers:
+            return jsonify({'success': False, 'error': f'Server {server_name} not found'})
+        
+        if len(servers) > 1:
+            print(f"⚠️ Multiple servers found with name {server_name}, using first one")
+        
+        server = servers[0]
+        server_uuid = server.id
+        print(f"✅ Found server {server_name} with UUID: {server_uuid}")
+        
+        # Log the command
+        log_command(f'openstack server list --all-projects --name "{server_name}" -c ID -f value', {
+            'success': True,
+            'stdout': f'Server UUID: {server_uuid}',
+            'stderr': '',
+            'returncode': 0
+        }, 'executed')
+        
+        return jsonify({
+            'success': True, 
+            'server_uuid': server_uuid,
+            'server_name': server_name,
+            'status': server.status
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting server UUID: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     # Initialize logging
