@@ -242,38 +242,25 @@ def get_host_gpu_info(hostname):
     try:
         print(f"🔍 Getting GPU info for host: {hostname}")
         
-        # Get VMs on this host using our existing API
-        response = requests.get(f'/api/host-vms/{hostname}', timeout=15)
-        
-        if response.status_code != 200:
-            print(f"❌ Failed to get VMs for {hostname}: HTTP {response.status_code}")
-            return {
-                'total_gpus': 0,
-                'used_gpus': 0,
-                'available_gpus': 0,
-                'vm_count': 0,
-                'vms': []
-            }
-        
-        data = response.json()
-        vms = data.get('vms', [])
+        # Get VMs on this host using OpenStack SDK directly (avoid circular dependency)
+        vms = get_host_vms(hostname)
         
         # Calculate GPU usage from VM flavors
         total_used_gpus = 0
         gpu_vms = []
         
         for vm in vms:
-            flavor_name = vm.get('flavor', '')
+            flavor_name = vm.get('Flavor', '')  # Note: get_host_vms() returns 'Flavor' not 'flavor'
             gpu_count = extract_gpu_count_from_flavor(flavor_name)
             
             if gpu_count > 0:
                 total_used_gpus += gpu_count
                 gpu_vms.append({
-                    'name': vm.get('name', ''),
-                    'id': vm.get('id', ''),
+                    'name': vm.get('Name', ''),        # Note: get_host_vms() returns 'Name' not 'name'
+                    'id': vm.get('ID', ''),
                     'flavor': flavor_name,
                     'gpu_count': gpu_count,
-                    'status': vm.get('status', 'unknown')
+                    'status': vm.get('Status', 'unknown')
                 })
         
         # For most compute hosts, assume 8 GPUs total (can be configured)
@@ -361,13 +348,9 @@ def get_bulk_vm_counts(hostnames, max_workers=10):
     
     def get_single_vm_count(hostname):
         try:
-            response = requests.get(f'/api/host-vms/{hostname}', timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                vm_count = len(data.get('vms', []))
-                return hostname, vm_count
-            else:
-                return hostname, 0
+            # Call the internal function directly to avoid circular dependency
+            vm_count = get_host_vm_count(hostname)
+            return hostname, vm_count
         except Exception as e:
             print(f"❌ Error getting VM count for {hostname}: {e}")
             return hostname, 0
@@ -410,7 +393,7 @@ def find_aggregate_by_name(conn, aggregate_name):
         return None
 
 def discover_gpu_aggregates():
-    """Dynamically discover GPU aggregates from OpenStack with variant support"""
+    """Dynamically discover GPU aggregates from OpenStack with variant support (matches original app.py logic)"""
     try:
         conn = get_openstack_connection()
         if not conn:
@@ -419,113 +402,114 @@ def discover_gpu_aggregates():
         aggregates = list(conn.compute.aggregates())
         gpu_aggregates = {}
         
-        # Pattern matching for different GPU types and variants
-        for aggregate in aggregates:
-            name = aggregate.name
-            
-            # Extract GPU type from aggregate name
-            gpu_type = None
-            aggregate_type = None
-            
-            # Handle various naming patterns
-            if 'H100' in name:
-                if 'SXM5-GB' in name:
-                    gpu_type = 'H100-SXM5-GB'
-                elif 'SXM5' in name:
-                    gpu_type = 'H100-SXM5'
-                else:
-                    gpu_type = 'H100'
-            elif 'H200' in name:
-                gpu_type = 'H200-SXM5'
-            elif 'A100' in name:
-                gpu_type = 'A100'
-            elif 'RTX-A6000' in name:
-                gpu_type = 'RTX-A6000'
-            elif 'L40' in name:
-                gpu_type = 'L40'
-            
-            if not gpu_type:
-                continue
-                
-            # Determine aggregate type
-            if 'spot' in name.lower():
-                aggregate_type = 'spot'
-            elif 'runpod' in name.lower():
-                aggregate_type = 'runpod'
-            else:
-                aggregate_type = 'ondemand'
-            
-            # Initialize GPU type if not exists
-            if gpu_type not in gpu_aggregates:
-                gpu_aggregates[gpu_type] = {
-                    'ondemand': None,
-                    'ondemand_variants': [],
-                    'spot': None,
-                    'runpod': None
-                }
-            
-            # Set the aggregate
-            if aggregate_type == 'ondemand':
-                if gpu_aggregates[gpu_type]['ondemand'] is None:
-                    gpu_aggregates[gpu_type]['ondemand'] = name
-                
-                # Add to variants
-                gpu_aggregates[gpu_type]['ondemand_variants'].append({
-                    'aggregate': name,
-                    'variant': name
-                })
-            else:
-                gpu_aggregates[gpu_type][aggregate_type] = name
+        # EXACT same pattern matching as original app.py - this excludes Contract-* aggregates
+        import re
         
-        print(f"📊 Discovered GPU aggregates: {gpu_aggregates}")
-        return gpu_aggregates
+        for agg in aggregates:
+            # Match patterns like: RTX-A6000-n3, A100-n3-NVLink, RTX-A6000-n3-spot, RTX-A6000-n3-runpod
+            # This EXCLUDES Contract-* because they don't match this strict pattern
+            match = re.match(r'^([A-Z0-9-]+)-n3(-NVLink)?(-spot|-runpod)?$', agg.name)
+            if match:
+                gpu_type = match.group(1)
+                nvlink_suffix = match.group(2)  # -NVLink or None
+                pool_suffix = match.group(3)   # -spot, -runpod, or None
+                
+                if gpu_type not in gpu_aggregates:
+                    gpu_aggregates[gpu_type] = {
+                        'ondemand_variants': [],
+                        'spot': None,
+                        'runpod': None
+                    }
+                
+                if pool_suffix == '-spot':
+                    gpu_aggregates[gpu_type]['spot'] = agg.name
+                elif pool_suffix == '-runpod':
+                    gpu_aggregates[gpu_type]['runpod'] = agg.name
+                else:
+                    # No pool suffix = on-demand variant
+                    variant_name = agg.name
+                    if nvlink_suffix:
+                        variant_display = f"{gpu_type}-n3-NVLink"
+                    else:
+                        variant_display = f"{gpu_type}-n3"
+                    
+                    gpu_aggregates[gpu_type]['ondemand_variants'].append({
+                        'aggregate': agg.name,
+                        'variant': variant_display
+                    })
+        
+        # Convert to format compatible with existing code
+        result = {}
+        for gpu_type, data in gpu_aggregates.items():
+            if data['ondemand_variants']:
+                result[gpu_type] = {
+                    'ondemand': data['ondemand_variants'][0]['aggregate'],  # Primary for compatibility
+                    'ondemand_variants': data['ondemand_variants'],
+                    'spot': data['spot'],
+                    'runpod': data['runpod']
+                }
+        
+        print(f"📊 Discovered GPU aggregates: {result}")
+        return result
         
     except Exception as e:
         print(f"❌ Error discovering GPU aggregates: {e}")
         return {}
 
 def get_aggregate_hosts(aggregate_name):
-    """Get hosts in an aggregate using OpenStack SDK - standalone implementation"""
+    """Get hosts in an aggregate using OpenStack SDK with NetBox integration (matches original app.py logic)"""
     try:
         conn = get_openstack_connection()
         if not conn:
             print(f"❌ No OpenStack connection available")
-            return None
+            return []
         
         aggregate = find_aggregate_by_name(conn, aggregate_name)
         if not aggregate:
             print(f"❌ Aggregate '{aggregate_name}' not found")
-            return None
+            return []
+        
+        host_names = list(aggregate.hosts)
+        if not host_names:
+            print(f"⚠️ No hosts found in aggregate {aggregate_name}")
+            return []
+        
+        # Bulk NetBox lookup for all hostnames (like original app.py)
+        tenant_info_bulk = get_netbox_tenants_bulk(host_names)
+        
+        # Bulk VM count lookup for all hostnames
+        vm_counts_bulk = get_bulk_vm_counts(host_names)
+        
+        # Bulk GPU info lookup for all hostnames
+        gpu_info_bulk = get_bulk_gpu_info(host_names)
         
         hosts = []
-        gpu_used_total = 0
-        gpu_capacity_total = 0
         
-        for host_name in aggregate.hosts:
+        for host_name in host_names:
             try:
-                # Get basic host info
-                host_info = {
-                    'name': host_name,
-                    'has_vms': False,
-                    'vm_count': 0,
+                vm_count = vm_counts_bulk.get(host_name, 0)
+                tenant_info = tenant_info_bulk.get(host_name, {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False})
+                gpu_info = gpu_info_bulk.get(host_name, {
                     'gpu_used': 0,
-                    'gpu_capacity': 8,  # Default capacity
-                    'owner_group': 'Production',
-                    'tenant': 'Unknown'
+                    'gpu_capacity': 8,
+                    'vm_count': vm_count,
+                    'gpu_usage_ratio': "0/8"
+                })
+                
+                # Build host data structure matching original app.py format
+                host_data = {
+                    'name': host_name,
+                    'vm_count': vm_count,
+                    'has_vms': vm_count > 0,
+                    'tenant': tenant_info['tenant'],           # NetBox data
+                    'owner_group': tenant_info['owner_group'], # NetBox data  
+                    'nvlinks': tenant_info['nvlinks'],         # NetBox data
+                    'gpu_used': gpu_info['gpu_used'],
+                    'gpu_capacity': gpu_info['gpu_capacity'],
+                    'gpu_usage_ratio': gpu_info['gpu_usage_ratio']
                 }
                 
-                # Get VM count for this host
-                servers = list(conn.compute.servers(all_projects=True, host=host_name))
-                host_info['vm_count'] = len(servers)
-                host_info['has_vms'] = len(servers) > 0
-                
-                # Estimate GPU usage (simplified)
-                host_info['gpu_used'] = min(len(servers) * 2, host_info['gpu_capacity'])
-                
-                gpu_used_total += host_info['gpu_used']
-                gpu_capacity_total += host_info['gpu_capacity']
-                
-                hosts.append(host_info)
+                hosts.append(host_data)
                 
             except Exception as e:
                 print(f"⚠️ Error getting info for host {host_name}: {e}")
@@ -536,20 +520,18 @@ def get_aggregate_hosts(aggregate_name):
                     'vm_count': 0,
                     'gpu_used': 0,
                     'gpu_capacity': 8,
-                    'owner_group': 'Production',
-                    'tenant': 'Unknown'
+                    'owner_group': 'Investors',
+                    'tenant': 'Unknown',
+                    'nvlinks': False,
+                    'gpu_usage_ratio': '0/8'
                 })
         
-        gpu_usage_ratio = f"{int((gpu_used_total/gpu_capacity_total)*100)}%" if gpu_capacity_total > 0 else "0%"
+        # Calculate totals for summary
+        gpu_used_total = sum(host.get('gpu_used', 0) for host in hosts)
+        gpu_capacity_total = sum(host.get('gpu_capacity', 8) for host in hosts)
+        gpu_usage_percentage = int((gpu_used_total/gpu_capacity_total)*100) if gpu_capacity_total > 0 else 0
         
-        return {
-            'hosts': hosts,
-            'gpu_summary': {
-                'gpu_used': gpu_used_total,
-                'gpu_capacity': gpu_capacity_total,
-                'gpu_usage_ratio': gpu_usage_ratio
-            }
-        }
+        return hosts  # Return just the hosts list to match how it's used
         
     except Exception as e:
         print(f"❌ Error getting aggregate hosts for {aggregate_name}: {e}")
@@ -1052,25 +1034,33 @@ def load_aggregate_data_internal(gpu_type):
         # Process spot aggregate
         if config.get('spot'):
             try:
-                spot_data = get_aggregate_hosts(config['spot'])
-                if spot_data:
+                spot_hosts = get_aggregate_hosts(config['spot'])
+                if spot_hosts:
                     result['spot'] = {
                         'name': config['spot'],
-                        'hosts': spot_data.get('hosts', []),
-                        'gpu_summary': spot_data.get('gpu_summary', {})
+                        'hosts': spot_hosts
                     }
             except Exception as e:
                 logs_manager.add_to_debug_log('System', f'Error loading spot data: {str(e)}', 'ERROR')
         
-        # Process ondemand aggregate  
-        if config.get('ondemand'):
+        # Process ondemand aggregate(s) - handle multiple variants like original app.py
+        if config.get('ondemand_variants'):
             try:
-                ondemand_data = get_aggregate_hosts(config['ondemand'])
-                if ondemand_data:
+                all_ondemand_hosts = []
+                
+                # Get hosts from all on-demand variants
+                for variant in config['ondemand_variants']:
+                    variant_hosts = get_aggregate_hosts(variant['aggregate'])
+                    if variant_hosts:
+                        # Add variant information to each host
+                        for host in variant_hosts:
+                            host['variant'] = variant['variant']
+                        all_ondemand_hosts.extend(variant_hosts)
+                
+                if all_ondemand_hosts:
                     result['ondemand'] = {
                         'name': config['ondemand'],
-                        'hosts': ondemand_data.get('hosts', []),
-                        'gpu_summary': ondemand_data.get('gpu_summary', {}),
+                        'hosts': all_ondemand_hosts,
                         'variants': config.get('ondemand_variants', [])
                     }
             except Exception as e:
@@ -1079,11 +1069,11 @@ def load_aggregate_data_internal(gpu_type):
         # Process runpod aggregate
         if config.get('runpod'):
             try:
-                runpod_data = get_aggregate_hosts(config['runpod'])
-                if runpod_data:
+                runpod_hosts = get_aggregate_hosts(config['runpod'])
+                if runpod_hosts:
                     result['runpod'] = {
                         'name': config['runpod'], 
-                        'hosts': runpod_data.get('hosts', [])
+                        'hosts': runpod_hosts
                     }
             except Exception as e:
                 logs_manager.add_to_debug_log('System', f'Error loading runpod data: {str(e)}', 'ERROR')
