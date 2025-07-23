@@ -317,29 +317,102 @@ def load_aggregate_data_internal(gpu_type):
         return create_demo_data(gpu_type)
 
 def create_demo_data(gpu_type):
-    """Create demo data for testing purposes"""
+    """Create demo data for testing purposes with complete host information"""
     return {
         'gpu_type': gpu_type,
-        'spot': {
-            'name': f'{gpu_type}-spot',
+        'runpod': {
+            'name': f'{gpu_type}-runpod',
             'hosts': [
-                {'name': f'demo-host-01', 'has_vms': False, 'vm_count': 0, 'gpu_used': 0, 'gpu_capacity': 8, 'owner_group': 'Demo'},
-                {'name': f'demo-host-02', 'has_vms': True, 'vm_count': 2, 'gpu_used': 4, 'gpu_capacity': 8, 'owner_group': 'Demo'}
-            ],
-            'gpu_summary': {'gpu_used': 4, 'gpu_capacity': 16, 'gpu_usage_ratio': '25%'}
+                {
+                    'name': 'runpod-nx-01', 
+                    'has_vms': False, 
+                    'vm_count': 0, 
+                    'gpu_used': 0, 
+                    'gpu_capacity': 8,
+                    'gpu_usage_ratio': '0/8',
+                    'tenant': 'nexgen-cloud',
+                    'owner_group': 'Nexgen Cloud',
+                    'nvlinks': True
+                },
+                {
+                    'name': 'runpod-inv-01', 
+                    'has_vms': True, 
+                    'vm_count': 3, 
+                    'gpu_used': 0, 
+                    'gpu_capacity': 8,
+                    'gpu_usage_ratio': '0/8',
+                    'tenant': 'investor-tenant',
+                    'owner_group': 'Investors',
+                    'nvlinks': False
+                }
+            ]
         },
         'ondemand': {
             'name': f'{gpu_type}-ondemand',
             'hosts': [
-                {'name': f'demo-host-03', 'has_vms': True, 'vm_count': 1, 'gpu_used': 2, 'gpu_capacity': 8, 'owner_group': 'Demo'}
+                {
+                    'name': 'ondemand-nx-01', 
+                    'has_vms': True, 
+                    'vm_count': 1, 
+                    'gpu_used': 2, 
+                    'gpu_capacity': 8,
+                    'gpu_usage_ratio': '2/8',
+                    'tenant': 'nexgen-cloud',
+                    'owner_group': 'Nexgen Cloud',
+                    'nvlinks': True
+                },
+                {
+                    'name': 'ondemand-inv-01', 
+                    'has_vms': False, 
+                    'vm_count': 0, 
+                    'gpu_used': 0, 
+                    'gpu_capacity': 8,
+                    'gpu_usage_ratio': '0/8',
+                    'tenant': 'investor-tenant',
+                    'owner_group': 'Investors',
+                    'nvlinks': False
+                },
+                {
+                    'name': 'ondemand-inv-02', 
+                    'has_vms': True, 
+                    'vm_count': 2, 
+                    'gpu_used': 6, 
+                    'gpu_capacity': 8,
+                    'gpu_usage_ratio': '6/8',
+                    'tenant': 'investor-tenant',
+                    'owner_group': 'Investors',
+                    'nvlinks': True
+                }
             ],
-            'gpu_summary': {'gpu_used': 2, 'gpu_capacity': 8, 'gpu_usage_ratio': '25%'}
+            'gpu_summary': {'gpu_used': 8, 'gpu_capacity': 24, 'gpu_usage_ratio': '8/24'}
         },
-        'runpod': {
-            'name': f'{gpu_type}-runpod',
+        'spot': {
+            'name': f'{gpu_type}-spot',
             'hosts': [
-                {'name': f'demo-host-04', 'has_vms': False, 'vm_count': 0, 'gpu_used': 0, 'gpu_capacity': 8, 'owner_group': 'Demo'}
-            ]
+                {
+                    'name': 'spot-nx-01', 
+                    'has_vms': False, 
+                    'vm_count': 0, 
+                    'gpu_used': 0, 
+                    'gpu_capacity': 8,
+                    'gpu_usage_ratio': '0/8',
+                    'tenant': 'nexgen-cloud',
+                    'owner_group': 'Nexgen Cloud',
+                    'nvlinks': True
+                },
+                {
+                    'name': 'spot-inv-01', 
+                    'has_vms': True, 
+                    'vm_count': 2, 
+                    'gpu_used': 4, 
+                    'gpu_capacity': 8,
+                    'gpu_usage_ratio': '4/8',
+                    'tenant': 'investor-tenant',
+                    'owner_group': 'Investors',
+                    'nvlinks': False
+                }
+            ],
+            'gpu_summary': {'gpu_used': 4, 'gpu_capacity': 16, 'gpu_usage_ratio': '4/16'}
         }
     }
 
@@ -502,7 +575,7 @@ def dashboard():
                     'ERROR'
                 )
         
-        return render_template('dashboard.html', **context)
+        return render_template('index.html', **context)
         
     except Exception as e:
         logs_manager.add_to_debug_log(
@@ -510,7 +583,7 @@ def dashboard():
             f'Error rendering dashboard: {str(e)}', 
             'ERROR'
         )
-        return render_template('dashboard.html', 
+        return render_template('index.html', 
                              current_gpu_type='',
                              available_gpu_types=[],
                              cached_gpu_types=[],
