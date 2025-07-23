@@ -3,6 +3,8 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for, send_file
 import json
 import os
+import re
+import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
 import tempfile
@@ -39,6 +41,36 @@ HYPERSTACK_FIREWALL_CA1_ID = os.getenv('HYPERSTACK_FIREWALL_CA1_ID', '971')  # F
 # Cache for NetBox tenant lookups
 _tenant_cache = {}
 
+# Define aggregate pairs - multiple on-demand variants share one spot aggregate
+AGGREGATE_PAIRS = {
+    'L40': {
+        'spot': 'L40-n3-spot',
+        'ondemand_variants': [
+            {'aggregate': 'L40-n3', 'variant': 'L40-n3'}
+        ]
+    },
+    'RTX-A6000': {
+        'spot': 'RTX-A6000-n3-spot', 
+        'ondemand_variants': [
+            {'aggregate': 'RTX-A6000-n3', 'variant': 'RTX-A6000-n3'}
+        ]
+    },
+    'A100': {
+        'spot': 'A100-n3-spot',
+        'ondemand_variants': [
+            {'aggregate': 'A100-n3', 'variant': 'A100-n3'},
+            {'aggregate': 'A100-n3-NVLink', 'variant': 'A100-n3-NVLink'}
+        ]
+    },
+    'H100': {
+        'spot': 'H100-n3-spot',
+        'ondemand_variants': [
+            {'aggregate': 'H100-n3', 'variant': 'H100-n3'},
+            {'aggregate': 'H100-n3-NVLink', 'variant': 'H100-n3-NVLink'}
+        ]
+    }
+}
+
 def get_openstack_connection():
     """Get or create OpenStack connection - standalone implementation"""
     global _openstack_connection
@@ -51,7 +83,9 @@ def get_openstack_connection():
                 project_name=os.getenv('OS_PROJECT_NAME'),
                 user_domain_name=os.getenv('OS_USER_DOMAIN_NAME', 'Default'),
                 project_domain_name=os.getenv('OS_PROJECT_DOMAIN_NAME', 'Default'),
-                region_name=os.getenv('OS_REGION_NAME', 'RegionOne')
+                region_name=os.getenv('OS_REGION_NAME', 'RegionOne'),
+                interface=os.getenv('OS_INTERFACE', 'public'),
+                identity_api_version=os.getenv('OS_IDENTITY_API_VERSION', '3')
             )
             print("✅ OpenStack SDK connection established")
         except Exception as e:
@@ -59,6 +93,309 @@ def get_openstack_connection():
             _openstack_connection = None
     
     return _openstack_connection
+
+def get_netbox_tenants_bulk(hostnames):
+    """Get tenant information from NetBox for multiple hostnames at once"""
+    global _tenant_cache
+    
+    # Return default if NetBox is not configured
+    if not NETBOX_URL or not NETBOX_API_KEY:
+        print("⚠️ NetBox not configured - using default tenant")
+        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False}
+        return {hostname: default_result for hostname in hostnames}
+    
+    # Check cache first and separate cached vs uncached hostnames
+    cached_results = {}
+    uncached_hostnames = []
+    
+    for hostname in hostnames:
+        if hostname in _tenant_cache:
+            cached_results[hostname] = _tenant_cache[hostname]
+        else:
+            uncached_hostnames.append(hostname)
+    
+    # If all hostnames are cached, return cached results
+    if not uncached_hostnames:
+        return cached_results
+    
+    # Bulk query NetBox for uncached hostnames
+    bulk_results = {}
+    try:
+        url = f"{NETBOX_URL}/api/dcim/devices/"
+        headers = {
+            'Authorization': f'Token {NETBOX_API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        
+        # NetBox API supports filtering by multiple names using name__in
+        # But since that might not work, we'll paginate through all results
+        params = {'limit': 1000}  # Get up to 1000 devices per page
+        
+        all_devices = []
+        page = 1
+        
+        while True:
+            params['offset'] = (page - 1) * 1000
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                all_devices.extend(data['results'])
+                
+                # If we got less than 1000 results, we're done
+                if len(data['results']) < 1000:
+                    break
+                page += 1
+            else:
+                print(f"❌ NetBox API error: {response.status_code}")
+                break
+        
+        # Create a mapping of device name to tenant info
+        device_map = {}
+        for device in all_devices:
+            device_name = device.get('name')
+            if device_name in uncached_hostnames:
+                tenant_data = device.get('tenant', {})
+                tenant_name = tenant_data.get('name', 'Unknown') if tenant_data else 'Unknown'
+                owner_group = 'Nexgen Cloud' if tenant_name == 'Chris Starkey' else 'Investors'
+                
+                # Get NVLinks custom field
+                custom_fields = device.get('custom_fields', {})
+                nvlinks = custom_fields.get('NVLinks', False)
+                # Convert None to False for boolean consistency
+                if nvlinks is None:
+                    nvlinks = False
+                
+                result = {
+                    'tenant': tenant_name,
+                    'owner_group': owner_group,
+                    'nvlinks': nvlinks
+                }
+                
+                device_map[device_name] = result
+                _tenant_cache[device_name] = result
+        
+        # Fill in results for uncached hostnames
+        for hostname in uncached_hostnames:
+            if hostname in device_map:
+                bulk_results[hostname] = device_map[hostname]
+                print(f"✅ NetBox lookup for {hostname}: {device_map[hostname]['tenant']} -> {device_map[hostname]['owner_group']}")
+            else:
+                # Device not found in NetBox, use default
+                default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False}
+                bulk_results[hostname] = default_result
+                _tenant_cache[hostname] = default_result
+                print(f"⚠️ Device {hostname} not found in NetBox")
+        
+        print(f"📊 Bulk NetBox lookup completed: {len(bulk_results)} new devices processed")
+        
+    except Exception as e:
+        print(f"❌ NetBox bulk lookup failed: {e}")
+        # Fall back to default for all uncached hostnames
+        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False}
+        for hostname in uncached_hostnames:
+            bulk_results[hostname] = default_result
+            _tenant_cache[hostname] = default_result
+    
+    # Merge cached and bulk results
+    return {**cached_results, **bulk_results}
+
+def get_netbox_tenant(hostname):
+    """Get tenant information from NetBox for a single hostname (wrapper for backward compatibility)"""
+    return get_netbox_tenants_bulk([hostname])[hostname]
+
+def extract_gpu_count_from_flavor(flavor_name):
+    """Extract GPU count from VM flavor name using pattern matching"""
+    if not flavor_name:
+        return 0
+    
+    # Common patterns for GPU count in flavor names
+    patterns = [
+        r'(\d+)x?[gG][pP][uU]',  # "8GPU", "8xGPU", "8gpu"
+        r'[gG][pP][uU][-_]?(\d+)',  # "GPU-8", "GPU_8", "gpu8" 
+        r'(\d+)[gG]',  # "8G"
+        r'[vV](\d+)',   # "V8" for multi-GPU variants
+    ]
+    
+    import re
+    for pattern in patterns:
+        match = re.search(pattern, flavor_name)
+        if match:
+            gpu_count = int(match.group(1))
+            print(f"🔍 Extracted {gpu_count} GPUs from flavor: {flavor_name}")
+            return gpu_count
+    
+    # If no pattern matches, check for single GPU indicators
+    single_gpu_keywords = ['gpu', 'cuda', 'ml', 'ai']
+    flavor_lower = flavor_name.lower()
+    
+    for keyword in single_gpu_keywords:
+        if keyword in flavor_lower:
+            print(f"🔍 Detected single GPU from keyword '{keyword}' in flavor: {flavor_name}")
+            return 1
+    
+    print(f"⚠️ Could not determine GPU count from flavor: {flavor_name}")
+    return 0
+
+def get_host_gpu_info(hostname):
+    """Calculate GPU usage information for a specific host"""
+    try:
+        print(f"🔍 Getting GPU info for host: {hostname}")
+        
+        # Get VMs on this host using our existing API
+        response = requests.get(f'/api/host-vms/{hostname}', timeout=15)
+        
+        if response.status_code != 200:
+            print(f"❌ Failed to get VMs for {hostname}: HTTP {response.status_code}")
+            return {
+                'total_gpus': 0,
+                'used_gpus': 0,
+                'available_gpus': 0,
+                'vm_count': 0,
+                'vms': []
+            }
+        
+        data = response.json()
+        vms = data.get('vms', [])
+        
+        # Calculate GPU usage from VM flavors
+        total_used_gpus = 0
+        gpu_vms = []
+        
+        for vm in vms:
+            flavor_name = vm.get('flavor', '')
+            gpu_count = extract_gpu_count_from_flavor(flavor_name)
+            
+            if gpu_count > 0:
+                total_used_gpus += gpu_count
+                gpu_vms.append({
+                    'name': vm.get('name', ''),
+                    'id': vm.get('id', ''),
+                    'flavor': flavor_name,
+                    'gpu_count': gpu_count,
+                    'status': vm.get('status', 'unknown')
+                })
+        
+        # For most compute hosts, assume 8 GPUs total (can be configured)
+        total_gpus = 8  # This could be made configurable per host
+        available_gpus = max(0, total_gpus - total_used_gpus)
+        
+        result = {
+            'total_gpus': total_gpus,
+            'used_gpus': total_used_gpus,
+            'available_gpus': available_gpus,
+            'vm_count': len(vms),
+            'gpu_vm_count': len(gpu_vms),
+            'vms': gpu_vms
+        }
+        
+        print(f"✅ GPU info for {hostname}: {total_used_gpus}/{total_gpus} GPUs used")
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error getting GPU info for {hostname}: {e}")
+        return {
+            'total_gpus': 0,
+            'used_gpus': 0,
+            'available_gpus': 0,
+            'vm_count': 0,
+            'vms': []
+        }
+
+def get_bulk_gpu_info(hostnames, max_workers=10):
+    """Get GPU information for multiple hosts concurrently"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    print(f"🔍 Getting bulk GPU info for {len(hostnames)} hosts")
+    
+    results = {}
+    
+    def get_single_gpu_info(hostname):
+        return hostname, get_host_gpu_info(hostname)
+    
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_host = {
+                executor.submit(get_single_gpu_info, hostname): hostname 
+                for hostname in hostnames
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_host):
+                hostname = future_to_host[future]
+                try:
+                    host, gpu_info = future.result()
+                    results[host] = gpu_info
+                except Exception as e:
+                    print(f"❌ Error getting GPU info for {hostname}: {e}")
+                    results[hostname] = {
+                        'total_gpus': 0,
+                        'used_gpus': 0,
+                        'available_gpus': 0,
+                        'vm_count': 0,
+                        'vms': []
+                    }
+        
+        print(f"✅ Bulk GPU info completed for {len(results)} hosts")
+        return results
+        
+    except Exception as e:
+        print(f"❌ Bulk GPU info failed: {e}")
+        # Return empty results for all hostnames
+        return {hostname: {
+            'total_gpus': 0,
+            'used_gpus': 0,
+            'available_gpus': 0,
+            'vm_count': 0,
+            'vms': []
+        } for hostname in hostnames}
+
+def get_bulk_vm_counts(hostnames, max_workers=10):
+    """Get VM counts for multiple hosts concurrently - optimized version"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    print(f"🔍 Getting bulk VM counts for {len(hostnames)} hosts")
+    
+    results = {}
+    
+    def get_single_vm_count(hostname):
+        try:
+            response = requests.get(f'/api/host-vms/{hostname}', timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                vm_count = len(data.get('vms', []))
+                return hostname, vm_count
+            else:
+                return hostname, 0
+        except Exception as e:
+            print(f"❌ Error getting VM count for {hostname}: {e}")
+            return hostname, 0
+    
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_host = {
+                executor.submit(get_single_vm_count, hostname): hostname 
+                for hostname in hostnames
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_host):
+                hostname = future_to_host[future]
+                try:
+                    host, vm_count = future.result()
+                    results[host] = vm_count
+                except Exception as e:
+                    print(f"❌ Error processing VM count for {hostname}: {e}")
+                    results[hostname] = 0
+        
+        print(f"✅ Bulk VM count completed for {len(results)} hosts")
+        return results
+        
+    except Exception as e:
+        print(f"❌ Bulk VM count failed: {e}")
+        return {hostname: 0 for hostname in hostnames}
 
 def find_aggregate_by_name(conn, aggregate_name):
     """Helper function to find aggregate by name"""
@@ -256,6 +593,76 @@ def log_command(command, result, execution_type='executed'):
         command_log = command_log[-100:]
     
     return log_entry
+
+def run_openstack_command(command, log_execution=True):
+    """Execute OpenStack CLI command and return result"""
+    if log_execution:
+        print(f"\n🔄 EXECUTING: {command}")
+    
+    try:
+        result = subprocess.run(
+            command, 
+            shell=True, 
+            capture_output=True, 
+            text=True, 
+            timeout=30
+        )
+        
+        command_result = {
+            'success': result.returncode == 0,
+            'stdout': result.stdout.strip(),
+            'stderr': result.stderr.strip(),
+            'returncode': result.returncode
+        }
+        
+        if log_execution:
+            status = "✅ SUCCESS" if command_result['success'] else "❌ FAILED"
+            print(f"{status} (return code: {result.returncode})")
+            if command_result['stdout']:
+                print(f"📤 STDOUT:\n{command_result['stdout']}")
+            if command_result['stderr']:
+                print(f"📥 STDERR:\n{command_result['stderr']}")
+            print("-" * 60)
+            
+            log_command(command, command_result, 'executed')
+            
+        return command_result
+        
+    except subprocess.TimeoutExpired:
+        command_result = {
+            'success': False,
+            'stdout': '',
+            'stderr': 'Command timed out',
+            'returncode': -1
+        }
+        
+        if log_execution:
+            log_command(command, command_result, 'timeout')
+            
+        return command_result
+        
+    except Exception as e:
+        command_result = {
+            'success': False,
+            'stdout': '',
+            'stderr': str(e),
+            'returncode': -1
+        }
+        
+        if log_execution:
+            log_command(command, command_result, 'error')
+            
+        return command_result
+
+def get_gpu_type_from_aggregate(aggregate_name):
+    """Extract GPU type from aggregate name like 'RTX-A6000-n3-runpod' -> 'RTX-A6000'"""
+    if not aggregate_name:
+        return None
+    
+    match = re.match(r'^([A-Z0-9-]+)-n3', aggregate_name)
+    if match:
+        return match.group(1)
+    return None
 
 def get_host_vm_count(hostname):
     """Get VM count for a specific host using OpenStack SDK"""
@@ -531,6 +938,77 @@ def attach_firewall_to_vm(vm_id, vm_name, delay_seconds=180):
         print(f"⚠️ No CA1 firewall ID configured - firewall attachment will be skipped for {vm_name}")
     else:
         print(f"🌍 VM {vm_name} is not in Canada - firewall attachment will be skipped")
+
+def attach_runpod_storage_network(vm_name, delay_seconds=120):
+    """Attach RunPod Storage Network to VM after specified delay"""
+    def delayed_network_attach():
+        try:
+            print(f"⏳ Waiting {delay_seconds}s before attaching storage network to VM {vm_name}...")
+            time.sleep(delay_seconds)
+            
+            print(f"🌐 Starting storage network attachment for VM {vm_name}...")
+            
+            # Use the server add network endpoint
+            response = requests.post(
+                'http://localhost:6969/api/openstack/server/add-network',
+                json={
+                    'server_name': vm_name,
+                    'network_name': 'RunPod-Storage-Canada-1'
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success'):
+                    print(f"✅ Successfully attached storage network to VM {vm_name}")
+                    
+                    # Log the successful command
+                    log_command(f"attach storage network to VM {vm_name}", {
+                        'success': True,
+                        'stdout': f'Successfully attached RunPod-Storage-Canada-1 network to VM {vm_name}',
+                        'stderr': '',
+                        'returncode': 0
+                    }, 'executed')
+                else:
+                    error_msg = data.get('error', 'Unknown error')
+                    print(f"❌ Failed to attach storage network to VM {vm_name}: {error_msg}")
+                    
+                    # Log the failure
+                    log_command(f"attach storage network to VM {vm_name}", {
+                        'success': False,
+                        'stdout': '',
+                        'stderr': error_msg,
+                        'returncode': -1
+                    }, 'error')
+            else:
+                error_msg = f"HTTP {response.status_code}: {response.text}"
+                print(f"❌ Failed to attach storage network to VM {vm_name}: {error_msg}")
+                
+                # Log the failure
+                log_command(f"attach storage network to VM {vm_name}", {
+                    'success': False,
+                    'stdout': '',
+                    'stderr': error_msg,
+                    'returncode': response.status_code
+                }, 'error')
+                
+        except Exception as e:
+            error_msg = f"Failed to attach storage network to VM {vm_name}: {str(e)}"
+            print(f"❌ {error_msg}")
+            
+            # Log the failure
+            log_command(f"attach storage network to VM {vm_name}", {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': -1
+            }, 'error')
+    
+    # Start the delayed network attachment in a separate thread
+    thread = threading.Thread(target=delayed_network_attach, daemon=True)
+    thread.start()
+    print(f"🌐 Scheduled storage network attachment for VM {vm_name} in {delay_seconds} seconds")
 
 # Internal data loading functions - standalone Python implementation
 def load_gpu_types_internal():
@@ -1574,7 +2052,7 @@ power_state:
                 'returncode': 0
             }, 'executed')
             
-            # Schedule firewall attachment after 180 seconds (Hyperstack API) - Canada hosts only
+            # Schedule firewall attachment after 180 seconds (Hyperstack API) - Canada hosts only  
             firewall_scheduled = False
             if vm_id and hostname.startswith('CA1-') and HYPERSTACK_FIREWALL_CA1_ID:
                 attach_firewall_to_vm(vm_id, hostname, delay_seconds=180)
@@ -1585,6 +2063,9 @@ power_state:
                 print(f"🌍 VM {hostname} is not in Canada - firewall attachment will be skipped")
             else:
                 print(f"⚠️ No VM ID found in response - skipping firewall attachment for {hostname}")
+            
+            # Schedule storage network attachment after 120 seconds (OpenStack operation)
+            attach_runpod_storage_network(hostname, delay_seconds=120)
             
             return jsonify({
                 'success': True,
