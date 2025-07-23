@@ -58,7 +58,7 @@ def render_hosts_html(hosts, host_type):
                 </span>
                 <span class="text-muted small">
                     {host.get('vm_count', 0)} VMs
-                    {% if host.get('gpu_used') %}| {host['gpu_used']}/{host.get('gpu_capacity', 0)} GPUs{% endif %}
+                    {f"| {host['gpu_used']}/{host.get('gpu_capacity', 0)} GPUs" if host.get('gpu_used') else ""}
                 </span>
             </label>
         </div>
@@ -92,11 +92,16 @@ def render_pending_operations_html(operations):
                     </div>
                     <span class="badge bg-secondary">{op_type.title()}</span>
                 </div>
-                {% if op.get('commands') %}
+        ''')
+        
+        if op.get('commands'):
+            html.append(f'''
                 <div class="mt-2">
                     <small class="text-muted">Commands: {len(op.get('commands', []))}</small>
                 </div>
-                {% endif %}
+            ''')
+        
+        html.append('''
             </div>
         </div>
         ''')
