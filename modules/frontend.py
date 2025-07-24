@@ -1632,13 +1632,13 @@ class FrontendManager:
             </div>
             """
             
-            # Calculate column width based on available aggregates
+            # Calculate column width based on available aggregates (including empty ones)
             available_columns = []
-            if aggregate_data.get('runpod', {}).get('hosts'):
+            if aggregate_data.get('runpod'):
                 available_columns.append('runpod')
-            if aggregate_data.get('ondemand', {}).get('hosts'):
+            if aggregate_data.get('ondemand'):
                 available_columns.append('ondemand')
-            if aggregate_data.get('spot', {}).get('hosts'):
+            if aggregate_data.get('spot'):
                 available_columns.append('spot')
             
             col_width = 12 // max(len(available_columns), 1) if available_columns else 12
@@ -1646,9 +1646,9 @@ class FrontendManager:
             # Generate host columns
             columns_html = '<div class="row mt-3">'
             
-            # RunPod column
+            # RunPod column - show even if empty
             runpod_data = aggregate_data.get('runpod', {})
-            if runpod_data and runpod_data.get('hosts'):
+            if runpod_data:
                 runpod_hosts = runpod_data.get('hosts', [])
                 runpod_name = runpod_data.get('name', 'N/A')
                 vm_count = sum(host.get('vm_count', 0) for host in runpod_hosts)
@@ -1675,22 +1675,22 @@ class FrontendManager:
                 </div>
                 """
             
-            # On-Demand column(s) - handle variants
+            # On-Demand column(s) - handle variants, show even if empty
             ondemand_data = aggregate_data.get('ondemand', {})
-            if ondemand_data and ondemand_data.get('hosts'):
+            if ondemand_data:
                 variants = ondemand_data.get('variants', [])
                 if len(variants) > 1:
                     # Multiple variants - create separate columns
                     variant_col_width = col_width // len(variants) if len(variants) > 1 else col_width
                     for variant in variants:
                         variant_hosts = [h for h in ondemand_data.get('hosts', []) if h.get('variant') == variant.get('aggregate')]
-                        if variant_hosts:
-                            gpu_summary = {'gpu_used': sum(h.get('gpu_used', 0) for h in variant_hosts),
-                                         'gpu_capacity': sum(h.get('gpu_capacity', 0) for h in variant_hosts)}
-                            gpu_usage = f"{gpu_summary['gpu_used']}/{gpu_summary['gpu_capacity']}"
-                            gpu_percent = round((gpu_summary['gpu_used'] / gpu_summary['gpu_capacity']) * 100) if gpu_summary['gpu_capacity'] > 0 else 0
-                            
-                            columns_html += f"""
+                        # Show variant even if empty
+                        gpu_summary = {'gpu_used': sum(h.get('gpu_used', 0) for h in variant_hosts),
+                                     'gpu_capacity': sum(h.get('gpu_capacity', 0) for h in variant_hosts)}
+                        gpu_usage = f"{gpu_summary['gpu_used']}/{gpu_summary['gpu_capacity']}"
+                        gpu_percent = round((gpu_summary['gpu_used'] / gpu_summary['gpu_capacity']) * 100) if gpu_summary['gpu_capacity'] > 0 else 0
+                        
+                        columns_html += f"""
                             <div class="col-md-{variant_col_width}">
                                 <div class="aggregate-column">
                                     <div class="card">
@@ -1747,9 +1747,9 @@ class FrontendManager:
                     </div>
                     """
             
-            # Spot column  
+            # Spot column - show even if empty
             spot_data = aggregate_data.get('spot', {})
-            if spot_data and spot_data.get('hosts'):
+            if spot_data:
                 spot_hosts = spot_data.get('hosts', [])
                 spot_name = spot_data.get('name', 'N/A')
                 gpu_summary = spot_data.get('gpu_summary', {})
