@@ -729,14 +729,19 @@
                 let operation;
                 
                 if (targetType === 'runpod') {
-                    // Handle Runpod launch operation
-                    const response = await fetch('/api/preview-runpod-launch', {
+                    // Handle Runpod aggregate migration (move to runpod aggregate first, not launch)
+                    const sourceAggregate = `{{ current_gpu_type }}-${sourceType}`;
+                    const targetAggregate = `{{ current_gpu_type }}-runpod`;
+                    
+                    const response = await fetch('/api/preview-migration', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            hostname: hostname
+                            host: hostname,
+                            source_aggregate: sourceAggregate,
+                            target_aggregate: targetAggregate
                         })
                     });
                     
@@ -751,17 +756,14 @@
                             timestamp: new Date().toISOString(),
                             selected: true,
                             commands: data.commands || [],
-                            operationType: 'runpod-launch',
-                            flavorName: data.flavor_name,
-                            vmName: data.vm_name,
-                            totalSteps: data.total_steps,
-                            canadaHost: data.canada_host
+                            operationType: 'runpod-migration',
+                            commandOutputs: [] // Track command outputs
                         };
                         
-                        showToast(`Added ${hostname} Runpod launch`, 'success');
+                        showToast(`Added ${hostname} migration to runpod aggregate`, 'success');
                     } else {
-                        showToast(`Failed to preview Runpod launch for ${hostname}`, 'danger');
-                        console.error('Failed to preview Runpod launch:', response.statusText);
+                        showToast(`Failed to preview runpod migration for ${hostname}`, 'danger');
+                        console.error('Failed to preview runpod migration:', response.statusText);
                         return;
                     }
                 } else {
@@ -792,7 +794,8 @@
                             timestamp: new Date().toISOString(),
                             selected: true,
                             commands: data.commands || [],
-                            operationType: 'migration'
+                            operationType: 'migration',
+                            commandOutputs: [] // Track command outputs
                         };
                         
                         showToast(`Added ${hostname} migration from ${sourceType} to ${targetType}`, 'success');
@@ -810,6 +813,51 @@
             } catch (error) {
                 showToast(`Error adding operation for ${hostname}`, 'danger');
                 console.error('Error adding pending operation:', error);
+            }
+        }
+        
+        // Schedule a separate runpod launch operation (after host is in runpod aggregate)
+        async function scheduleRunpodLaunch(hostname) {
+            try {
+                const response = await fetch('/api/preview-runpod-launch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hostname: hostname
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const operation = {
+                        id: Date.now(),
+                        hostname: hostname,
+                        sourceType: 'runpod',
+                        targetType: 'runpod-launch',
+                        timestamp: new Date().toISOString(),
+                        selected: true,
+                        commands: data.commands || [],
+                        operationType: 'runpod-launch',
+                        flavorName: data.flavor_name,
+                        vmName: data.vm_name,
+                        totalSteps: data.total_steps,
+                        canadaHost: data.canada_host,
+                        commandOutputs: [] // Track command outputs
+                    };
+                    
+                    pendingOperations.push(operation);
+                    updatePendingOperationsUI();
+                    showToast(`🚀 Added ${hostname} VM launch to queue`, 'success');
+                    console.log('🚀 Added runpod launch operation:', operation);
+                } else {
+                    showToast(`Failed to schedule runpod launch for ${hostname}`, 'danger');
+                    console.error('Failed to schedule runpod launch:', response.statusText);
+                }
+            } catch (error) {
+                showToast(`Error scheduling launch for ${hostname}`, 'danger');
+                console.error('Error scheduling runpod launch:', error);
             }
         }
         
@@ -881,17 +929,21 @@
                     }
                     
                     // Different display for Runpod launches vs migrations
-                    const operationTitle = op.operationType === 'runpod-launch' 
-                        ? `🚀 Launch VM '${op.vmName || op.hostname}' on ${op.hostname}`
-                        : `🔄 Migration: ${op.hostname}`;
+                    let operationTitle, operationSubtitle, commandSectionTitle;
                     
-                    const operationSubtitle = op.operationType === 'runpod-launch'
-                        ? `Deploy new virtual machine with automated networking and security configuration${op.totalSteps ? ` (${op.totalSteps} steps)` : ''}${op.canadaHost ? ' - Canada Host' : ''}`
-                        : `${op.sourceType} → ${op.targetType}${op.targetVariant ? ` (${op.targetVariant})` : ''}`;
-                    
-                    const commandSectionTitle = op.operationType === 'runpod-launch'
-                        ? 'API Call to execute:'
-                        : 'Commands to execute:';
+                    if (op.operationType === 'runpod-launch') {
+                        operationTitle = `🚀 Launch VM '${op.vmName || op.hostname}' on ${op.hostname}`;
+                        operationSubtitle = `Deploy new virtual machine with automated networking and security configuration${op.totalSteps ? ` (${op.totalSteps} steps)` : ''}${op.canadaHost ? ' - Canada Host' : ''}`;
+                        commandSectionTitle = 'API Call to execute:';
+                    } else if (op.operationType === 'runpod-migration') {
+                        operationTitle = `🚀 Move to Runpod: ${op.hostname}`;
+                        operationSubtitle = `${op.sourceType} → runpod aggregate${op.targetVariant ? ` (${op.targetVariant})` : ''}`;
+                        commandSectionTitle = 'Commands to execute:';
+                    } else {
+                        operationTitle = `🔄 Migration: ${op.hostname}`;
+                        operationSubtitle = `${op.sourceType} → ${op.targetType}${op.targetVariant ? ` (${op.targetVariant})` : ''}`;
+                        commandSectionTitle = 'Commands to execute:';
+                    }
                     
                     return `
                         <div class="pending-operation card mb-3">
@@ -907,9 +959,16 @@
                                             </small>
                                         </div>
                                     </div>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="removeOperation(${op.id})">
-                                        <i class="fas fa-times"></i>
-                                    </button>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-success" onclick="executeIndividualOperation(${op.id})" 
+                                                title="Execute this operation">
+                                            <i class="fas fa-play"></i> Execute
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="removeOperation(${op.id})" 
+                                                title="Remove from queue">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="commands-section">
                                     <h6 class="mb-2 text-muted">
@@ -918,7 +977,38 @@
                                     <div class="bg-light p-2 rounded">
                                         ${commandsHtml}
                                     </div>
+                                    ${op.commandOutputs && op.commandOutputs.length > 0 ? `
+                                        <div class="mt-3">
+                                            <h6 class="mb-2 text-success">
+                                                <i class="fas fa-check-circle me-1"></i>Command Outputs:
+                                            </h6>
+                                            <div class="command-outputs">
+                                                ${op.commandOutputs.map((output, index) => `
+                                                    <div class="output-item mb-2 p-2 border rounded ${output.success ? 'border-success' : 'border-danger'}">
+                                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                                            <small class="text-muted">Command ${index + 1}</small>
+                                                            <span class="badge ${output.success ? 'bg-success' : 'bg-danger'}">
+                                                                ${output.success ? 'Success' : 'Failed'}
+                                                            </span>
+                                                        </div>
+                                                        <code class="d-block p-1 bg-dark text-light rounded mb-1">${output.command}</code>
+                                                        ${output.output ? `<pre class="mb-0 small">${output.output}</pre>` : ''}
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    ` : ''}
                                 </div>
+                                ${op.operationType === 'runpod-migration' ? `
+                                    <div class="mt-3 pt-2 border-top">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="text-muted">After migration:</span>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="scheduleRunpodLaunch('${op.hostname}')">
+                                                <i class="fas fa-rocket"></i> Schedule VM Launch
+                                            </button>
+                                        </div>
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                     `;
@@ -996,6 +1086,98 @@
                 updatePendingOperationsUI();
                 showToast(`Removed ${operation.hostname} operation`, 'success');
                 console.log('Removed operation:', operation);
+            }
+        }
+        
+        // Execute an individual operation
+        async function executeIndividualOperation(operationId) {
+            const operation = pendingOperations.find(op => op.id === operationId);
+            if (!operation) {
+                showToast('Operation not found', 'danger');
+                return;
+            }
+            
+            if (!confirm(`Execute operation for ${operation.hostname}?\n\nThis will run the commands immediately.`)) {
+                return;
+            }
+            
+            try {
+                // Disable the execute button to prevent double-clicks
+                const executeBtn = document.querySelector(`button[onclick="executeIndividualOperation(${operationId})"]`);
+                if (executeBtn) {
+                    executeBtn.disabled = true;
+                    executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
+                }
+                
+                let response, data;
+                
+                if (operation.operationType === 'runpod-launch') {
+                    // Execute runpod launch
+                    response = await fetch('/api/execute-runpod-launch', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            hostname: operation.hostname
+                        })
+                    });
+                } else {
+                    // Execute migration (including runpod-migration)
+                    const sourceAggregate = operation.operationType === 'runpod-migration' 
+                        ? `{{ current_gpu_type }}-${operation.sourceType}`
+                        : `{{ current_gpu_type }}-${operation.sourceType}`;
+                    const targetAggregate = operation.operationType === 'runpod-migration'
+                        ? `{{ current_gpu_type }}-runpod`
+                        : `{{ current_gpu_type }}-${operation.targetType}`;
+                    
+                    response = await fetch('/api/execute-migration', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            host: operation.hostname,
+                            source_aggregate: sourceAggregate,
+                            target_aggregate: targetAggregate
+                        })
+                    });
+                }
+                
+                if (response.ok) {
+                    data = await response.json();
+                    
+                    // Register command outputs
+                    operation.commandOutputs = data.results || [];
+                    
+                    // Update UI to show results
+                    updatePendingOperationsUI();
+                    
+                    if (data.results && data.results.every(r => r.success)) {
+                        showToast(`✅ Successfully executed operation for ${operation.hostname}`, 'success');
+                        
+                        // For successful runpod migrations, show option to schedule launch
+                        if (operation.operationType === 'runpod-migration') {
+                            showToast(`Host ${operation.hostname} moved to runpod aggregate. You can now schedule a VM launch.`, 'info');
+                        }
+                    } else {
+                        showToast(`⚠️ Operation completed with some errors for ${operation.hostname}`, 'warning');
+                    }
+                } else {
+                    const errorData = await response.json();
+                    showToast(`❌ Failed to execute operation: ${errorData.error || 'Unknown error'}`, 'danger');
+                }
+                
+            } catch (error) {
+                console.error('Error executing individual operation:', error);
+                showToast(`Error executing operation: ${error.message}`, 'danger');
+            } finally {
+                // Re-enable the execute button
+                const executeBtn = document.querySelector(`button[onclick="executeIndividualOperation(${operationId})"]`);
+                if (executeBtn) {
+                    executeBtn.disabled = false;
+                    executeBtn.innerHTML = '<i class="fas fa-play"></i> Execute';
+                }
             }
         }
         

@@ -322,7 +322,7 @@ class FrontendManager:
                 launch_button = (
                     '<div class="launch-runpod-info">'
                     '<button class="btn btn-sm btn-outline-primary launch-runpod-btn" '
-                    f'onclick="window.Hyperstack.scheduleRunpodLaunch(\'{host.name}\')" '
+                    f'onclick="scheduleRunpodLaunch(\'{host.name}\')" '
                     'title="Schedule VM launch on this host">'
                     '<i class="fas fa-rocket"></i> Launch into Runpod'
                     '</button>'
@@ -2278,7 +2278,8 @@ class FrontendManager:
             runpod_launch_info = f"""
             <div class="launch-runpod-info">
                 <button class="btn btn-sm btn-outline-primary launch-runpod-btn" 
-                        title="Launch VM on this host (not implemented in Python version)">
+                        onclick="scheduleRunpodLaunch('{hostname}')"
+                        title="Schedule VM launch on this host">
                     <i class="fas fa-rocket"></i> Launch into Runpod
                 </button>
             </div>
