@@ -1014,9 +1014,18 @@ def load_aggregate_data_internal(gpu_type):
             try:
                 spot_hosts = get_aggregate_hosts(config['spot'])
                 if spot_hosts:
+                    # Calculate GPU summary for spot
+                    total_gpu_used = sum(host.get('gpu_used', 0) for host in spot_hosts)
+                    total_gpu_capacity = sum(host.get('gpu_capacity', 0) for host in spot_hosts)
+                    
                     result['spot'] = {
                         'name': config['spot'],
-                        'hosts': spot_hosts
+                        'hosts': spot_hosts,
+                        'gpu_summary': {
+                            'gpu_used': total_gpu_used,
+                            'gpu_capacity': total_gpu_capacity,
+                            'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}"
+                        }
                     }
             except Exception as e:
                 logs_manager.add_to_debug_log('System', f'Error loading spot data: {str(e)}', 'ERROR')
@@ -1036,10 +1045,19 @@ def load_aggregate_data_internal(gpu_type):
                         all_ondemand_hosts.extend(variant_hosts)
                 
                 if all_ondemand_hosts:
+                    # Calculate GPU summary for ondemand
+                    total_gpu_used = sum(host.get('gpu_used', 0) for host in all_ondemand_hosts)
+                    total_gpu_capacity = sum(host.get('gpu_capacity', 0) for host in all_ondemand_hosts)
+                    
                     result['ondemand'] = {
                         'name': config['ondemand'],
                         'hosts': all_ondemand_hosts,
-                        'variants': config.get('ondemand_variants', [])
+                        'variants': config.get('ondemand_variants', []),
+                        'gpu_summary': {
+                            'gpu_used': total_gpu_used,
+                            'gpu_capacity': total_gpu_capacity,
+                            'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}"
+                        }
                     }
             except Exception as e:
                 logs_manager.add_to_debug_log('System', f'Error loading ondemand data: {str(e)}', 'ERROR')
@@ -1049,16 +1067,44 @@ def load_aggregate_data_internal(gpu_type):
             try:
                 runpod_hosts = get_aggregate_hosts(config['runpod'])
                 if runpod_hosts:
+                    # Calculate GPU summary for runpod
+                    total_gpu_used = sum(host.get('gpu_used', 0) for host in runpod_hosts)
+                    total_gpu_capacity = sum(host.get('gpu_capacity', 0) for host in runpod_hosts)
+                    
                     result['runpod'] = {
                         'name': config['runpod'], 
-                        'hosts': runpod_hosts
+                        'hosts': runpod_hosts,
+                        'gpu_summary': {
+                            'gpu_used': total_gpu_used,
+                            'gpu_capacity': total_gpu_capacity,
+                            'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}"
+                        }
                     }
             except Exception as e:
                 logs_manager.add_to_debug_log('System', f'Error loading runpod data: {str(e)}', 'ERROR')
         
-        # If we got real data, return it
+        # If we got real data, calculate overall GPU overview and return it
         if any([result['spot'], result['ondemand'], result['runpod']]):
-            logs_manager.add_to_debug_log('System', f'Successfully loaded real data for {gpu_type}', 'SUCCESS')
+            # Calculate overall GPU summary across all aggregates
+            total_gpu_used = 0
+            total_gpu_capacity = 0
+            
+            for section_name in ['spot', 'ondemand', 'runpod']:
+                section = result.get(section_name)
+                if section and section.get('gpu_summary'):
+                    total_gpu_used += section['gpu_summary'].get('gpu_used', 0)
+                    total_gpu_capacity += section['gpu_summary'].get('gpu_capacity', 0)
+            
+            gpu_usage_percentage = round((total_gpu_used / total_gpu_capacity) * 100) if total_gpu_capacity > 0 else 0
+            
+            result['gpu_overview'] = {
+                'gpu_used': total_gpu_used,
+                'gpu_capacity': total_gpu_capacity,
+                'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity} GPUs",
+                'gpu_usage_percentage': gpu_usage_percentage
+            }
+            
+            logs_manager.add_to_debug_log('System', f'Successfully loaded real data for {gpu_type} - Total GPU usage: {total_gpu_used}/{total_gpu_capacity} ({gpu_usage_percentage}%)', 'SUCCESS')
             return result
         else:
             # Fall back to demo data
@@ -1098,7 +1144,8 @@ def create_demo_data(gpu_type):
                     'owner_group': 'Investors',
                     'nvlinks': False
                 }
-            ]
+            ],
+            'gpu_summary': {'gpu_used': 0, 'gpu_capacity': 16, 'gpu_usage_ratio': '0/16'}
         },
         'ondemand': {
             'name': f'{gpu_type}-ondemand',
@@ -1166,6 +1213,12 @@ def create_demo_data(gpu_type):
                 }
             ],
             'gpu_summary': {'gpu_used': 4, 'gpu_capacity': 16, 'gpu_usage_ratio': '4/16'}
+        },
+        'gpu_overview': {
+            'gpu_used': 12,  # 0 (runpod) + 8 (ondemand) + 4 (spot)
+            'gpu_capacity': 56,  # 16 (runpod) + 24 (ondemand) + 16 (spot)
+            'gpu_usage_ratio': '12/56 GPUs',
+            'gpu_usage_percentage': 21  # round((12/56)*100)
         }
     }
 
