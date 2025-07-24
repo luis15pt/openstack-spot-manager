@@ -25,16 +25,21 @@
                                     <label for="gpuTypeSelect" class="form-label">
                                         Select GPU Type:
                                     </label>
-                                    <select id="gpuTypeSelect" name="gpu_type" class="form-select" onchange="this.form.submit()">
-                                        <option value="">Select GPU Type...</option>
-                                        {% for gpu_type in available_gpu_types %}
-                                        <option value="{{ gpu_type }}" 
-                                                {% if gpu_type == current_gpu_type %}selected{% endif %}
-                                                {% if gpu_type in cached_gpu_types %}title="⚡ Cached - loads instantly"{% endif %}>
-                                            {{ gpu_type }}{% if gpu_type in cached_gpu_types %} ⚡{% endif %}
-                                        </option>
-                                        {% endfor %}
-                                    </select>
+                                    <div class="d-flex gap-2">
+                                        <select id="gpuTypeSelect" name="gpu_type" class="form-select">
+                                            <option value="">Select GPU Type...</option>
+                                            {% for gpu_type in available_gpu_types %}
+                                            <option value="{{ gpu_type }}" 
+                                                    {% if gpu_type == current_gpu_type %}selected{% endif %}
+                                                    {% if gpu_type in cached_gpu_types %}title="⚡ Cached - loads instantly"{% endif %}>
+                                                {{ gpu_type }}{% if gpu_type in cached_gpu_types %} ⚡{% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-search"></i> Load
+                                        </button>
+                                    </div>
                                     <div class="d-flex justify-content-between align-items-center mt-2">
                                         <small class="form-text text-muted">
                                             <i class="fas fa-info-circle"></i> 
@@ -429,18 +434,20 @@
                                             </h5>
                                         </div>
                                         <div class="card-body text-center">
-                                            <button class="btn btn-primary me-2" onclick="exportCommandLog()">
+                                            <a href="/export_command_log" class="btn btn-primary me-2">
                                                 <i class="fas fa-file-export me-1"></i>
                                                 Export Command Log
-                                            </button>
-                                            <button class="btn btn-success me-2" onclick="exportAnalytics()">
+                                            </a>
+                                            <a href="/export_analytics" class="btn btn-success me-2">
                                                 <i class="fas fa-chart-bar me-1"></i>
                                                 Export Analytics
-                                            </button>
-                                            <button class="btn btn-secondary" onclick="resetSessionStats()">
-                                                <i class="fas fa-refresh me-1"></i>
-                                                Reset Session
-                                            </button>
+                                            </a>
+                                            <form method="POST" action="/reset_session" class="d-inline">
+                                                <button type="submit" class="btn btn-secondary">
+                                                    <i class="fas fa-refresh me-1"></i>
+                                                    Reset Session
+                                                </button>
+                                            </form>
                                         </div>
                                     </div>
                                 </div>
