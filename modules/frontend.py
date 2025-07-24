@@ -1555,6 +1555,258 @@ class FrontendManager:
             logger.error(f"Error updating operation progress for {hostname}: {e}")
             return False
 
+    def render_aggregate_data_html(self, aggregate_data: Dict[str, Any]) -> str:
+        """
+        Render aggregate data as HTML for server-side rendering.
+        
+        Args:
+            aggregate_data: Dictionary containing aggregate data with sections for spot, ondemand, runpod
+            
+        Returns:
+            HTML string containing the rendered host management interface
+        """
+        try:
+            # Overall summary banner
+            gpu_overview = aggregate_data.get('gpu_overview', {})
+            total_gpu_usage = gpu_overview.get('gpu_usage_ratio', '0/0 GPUs')
+            gpu_usage_percentage = gpu_overview.get('gpu_usage_percentage', 0)
+            
+            # Progress bar color
+            progress_class = get_progress_bar_class(gpu_usage_percentage)
+            
+            # Calculate host statistics
+            total_available_hosts = 0
+            total_in_use_hosts = 0
+            
+            for section_name in ['spot', 'ondemand', 'runpod']:
+                section = aggregate_data.get(section_name, {})
+                hosts = section.get('hosts', [])
+                for host in hosts:
+                    if host.get('has_vms', False):
+                        total_in_use_hosts += 1
+                    else:
+                        total_available_hosts += 1
+            
+            summary_html = f"""
+            <!-- Overall Summary Banner -->
+            <div class="row mt-3">
+                <div class="col-12">
+                    <div class="card bg-light">
+                        <div class="card-body py-3">
+                            <div class="row text-center">
+                                <div class="col-md-3">
+                                    <h6 class="mb-1">
+                                        <i class="fas fa-microchip text-info"></i> 
+                                        Total GPU Usage
+                                    </h6>
+                                    <div class="gpu-overview-stats">
+                                        <span class="badge bg-primary fs-6">{total_gpu_usage}</span>
+                                        <span class="badge bg-success fs-6 ms-2">{gpu_usage_percentage}%</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="mb-1">
+                                        <i class="fas fa-server text-success"></i> 
+                                        Available Hosts
+                                    </h6>
+                                    <span class="badge bg-success fs-6">{total_available_hosts}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="mb-1">
+                                        <i class="fas fa-exclamation-triangle text-warning"></i> 
+                                        Hosts in Use
+                                    </h6>
+                                    <span class="badge bg-warning fs-6">{total_in_use_hosts}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="progress mt-2" style="height: 20px;">
+                                        <div class="progress-bar {progress_class}" role="progressbar" style="width: {gpu_usage_percentage}%">
+                                            <span>{gpu_usage_percentage}%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """
+            
+            # Generate host columns
+            columns_html = '<div class="row mt-3">'
+            
+            # RunPod column
+            runpod_data = aggregate_data.get('runpod', {})
+            if runpod_data:
+                runpod_hosts = runpod_data.get('hosts', [])
+                runpod_name = runpod_data.get('name', 'N/A')
+                vm_count = sum(host.get('vm_count', 0) for host in runpod_hosts)
+                
+                columns_html += f"""
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-purple text-white">
+                            <h4 class="mb-0">
+                                <i class="fas fa-rocket"></i> 
+                                Runpod {runpod_name}
+                                <span class="badge bg-light text-dark ms-2">{len(runpod_hosts)}</span>
+                            </h4>
+                            <div class="mt-2">
+                                <small class="text-light">VM Usage: {vm_count} VMs</small>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {self._render_hosts_simple(runpod_hosts, 'runpod')}
+                        </div>
+                    </div>
+                </div>
+                """
+            
+            # On-Demand column
+            ondemand_data = aggregate_data.get('ondemand', {})
+            if ondemand_data:
+                ondemand_hosts = ondemand_data.get('hosts', [])
+                ondemand_name = ondemand_data.get('name', 'N/A')
+                gpu_summary = ondemand_data.get('gpu_summary', {})
+                gpu_usage = gpu_summary.get('gpu_usage_ratio', '0/0')
+                gpu_percent = round((gpu_summary.get('gpu_used', 0) / gpu_summary.get('gpu_capacity', 1)) * 100) if gpu_summary.get('gpu_capacity', 0) > 0 else 0
+                
+                columns_html += f"""
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0">
+                                <i class="fas fa-server"></i> 
+                                On-Demand {ondemand_name}
+                                <span class="badge bg-light text-dark ms-2">{len(ondemand_hosts)}</span>
+                            </h4>
+                            <div class="mt-2">
+                                <small class="text-light">GPU Usage: {gpu_usage} ({gpu_percent}%)</small>
+                                <div class="progress mt-1" style="height: 6px;">
+                                    <div class="progress-bar bg-light" role="progressbar" style="width: {gpu_percent}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {self._render_hosts_simple(ondemand_hosts, 'ondemand')}
+                        </div>
+                    </div>
+                </div>
+                """
+            
+            # Spot column  
+            spot_data = aggregate_data.get('spot', {})
+            if spot_data:
+                spot_hosts = spot_data.get('hosts', [])
+                spot_name = spot_data.get('name', 'N/A')
+                gpu_summary = spot_data.get('gpu_summary', {})
+                gpu_usage = gpu_summary.get('gpu_usage_ratio', '0/0')
+                gpu_percent = round((gpu_summary.get('gpu_used', 0) / gpu_summary.get('gpu_capacity', 1)) * 100) if gpu_summary.get('gpu_capacity', 0) > 0 else 0
+                
+                columns_html += f"""
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-warning text-dark">
+                            <h4 class="mb-0">
+                                <i class="fas fa-flash"></i> 
+                                Spot {spot_name}
+                                <span class="badge bg-light text-dark ms-2">{len(spot_hosts)}</span>
+                            </h4>
+                            <div class="mt-2">
+                                <small class="text-dark">GPU Usage: {gpu_usage} ({gpu_percent}%)</small>
+                                <div class="progress mt-1" style="height: 6px;">
+                                    <div class="progress-bar bg-dark" role="progressbar" style="width: {gpu_percent}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {self._render_hosts_simple(spot_hosts, 'spot')}
+                        </div>
+                    </div>
+                </div>
+                """
+            
+            columns_html += '</div>'
+            
+            return summary_html + columns_html
+            
+        except Exception as e:
+            logger.error(f"Error rendering aggregate data HTML: {e}")
+            return f'<div class="alert alert-danger">Error rendering data: {str(e)}</div>'
+    
+    def _render_hosts_simple(self, hosts: List[Dict[str, Any]], host_type: str) -> str:
+        """
+        Render a simple list of hosts as HTML cards.
+        
+        Args:
+            hosts: List of host dictionaries
+            host_type: Type of hosts (spot, ondemand, runpod)
+            
+        Returns:
+            HTML string containing host cards
+        """
+        if not hosts:
+            return f"""
+            <div class="empty-state text-center py-4">
+                <i class="fas fa-server text-muted fa-2x mb-2"></i>
+                <p class="text-muted">No hosts in this aggregate</p>
+            </div>
+            """
+        
+        host_cards = []
+        for host in hosts:
+            # Determine status and styling
+            has_vms = host.get('has_vms', False)
+            vm_count = host.get('vm_count', 0)
+            gpu_used = host.get('gpu_used', 0)
+            gpu_capacity = host.get('gpu_capacity', 0)
+            owner_group = host.get('owner_group', 'Investors')
+            
+            # Status indicators
+            if has_vms:
+                status_class = 'text-warning'
+                status_icon = 'fas fa-exclamation-triangle'
+                card_class = 'border-warning'
+            else:
+                status_class = 'text-success'
+                status_icon = 'fas fa-check-circle'
+                card_class = 'border-success'
+            
+            # Owner badge
+            owner_class = 'badge-info' if owner_group == 'Nexgen Cloud' else 'badge-secondary'
+            owner_icon = 'fas fa-cloud' if owner_group == 'Nexgen Cloud' else 'fas fa-users'
+            
+            # VM/GPU info
+            if host_type == 'runpod':
+                info_text = f"{vm_count} VM{'s' if vm_count != 1 else ''}"
+                info_link = f'<a href="/host-vms/{host["name"]}" class="text-decoration-none">{info_text}</a>' if vm_count > 0 else info_text
+            else:
+                info_text = f"{gpu_used}/{gpu_capacity} GPUs"
+                info_link = f'<a href="/host-vms/{host["name"]}" class="text-decoration-none">{info_text}</a>' if vm_count > 0 else info_text
+            
+            host_cards.append(f"""
+            <div class="card mb-2 {card_class}">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{host['name']}</strong>
+                            <div class="small">
+                                <i class="{status_icon} {status_class} me-1"></i>
+                                {info_link}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge {owner_class}">
+                                <i class="{owner_icon}"></i> {owner_group[:6]}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """)
+        
+        return ''.join(host_cards)
+
 
 # Utility functions for template filters and helpers
 def get_progress_bar_class(percentage: int) -> str:

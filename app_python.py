@@ -1309,6 +1309,14 @@ def dashboard():
                         (total_used / total_capacity * 100) if total_capacity > 0 else 0
                     )
                     
+                    # Generate HTML content using frontend manager
+                    try:
+                        hosts_html = frontend_manager.render_aggregate_data_html(aggregate_data)
+                        context['hosts_html'] = hosts_html
+                    except Exception as e:
+                        logs_manager.add_to_debug_log('Frontend', f'Error generating hosts HTML: {str(e)}', 'ERROR')
+                        context['hosts_html'] = '<div class="alert alert-warning">Error rendering host data</div>'
+                    
                     # Log the data load
                     logs_manager.add_to_debug_log(
                         'Dashboard', 

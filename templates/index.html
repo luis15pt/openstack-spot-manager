@@ -21,47 +21,76 @@
                     <div class="col-md-6 offset-md-3">
                         <div class="card">
                             <div class="card-body">
-                                <label for="gpuTypeSelect" class="form-label">
-                                    Select GPU Type:
-                                    <small class="text-muted ms-2" id="backgroundLoadingStatus" style="display: none;">
-                                        <i class="fas fa-spinner fa-spin"></i> Loading other types...
-                                    </small>
-                                </label>
-                                <select id="gpuTypeSelect" class="form-select">
-                                    <option value="">Select GPU Type...</option>
-                                </select>
-                                <div class="d-flex justify-content-between align-items-center mt-2">
-                                    <small class="form-text text-muted">
-                                        <i class="fas fa-info-circle"></i> 
-                                        Types marked with ⚡ are cached and will load instantly
-                                    </small>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" id="preloadAllBtn" style="display: none;">
-                                        <i class="fas fa-download"></i> Preload All
-                                    </button>
-                                </div>
+                                <form method="GET" action="/dashboard">
+                                    <label for="gpuTypeSelect" class="form-label">
+                                        Select GPU Type:
+                                    </label>
+                                    <select id="gpuTypeSelect" name="gpu_type" class="form-select" onchange="this.form.submit()">
+                                        <option value="">Select GPU Type...</option>
+                                        {% for gpu_type in available_gpu_types %}
+                                        <option value="{{ gpu_type }}" 
+                                                {% if gpu_type == current_gpu_type %}selected{% endif %}
+                                                {% if gpu_type in cached_gpu_types %}title="⚡ Cached - loads instantly"{% endif %}>
+                                            {{ gpu_type }}{% if gpu_type in cached_gpu_types %} ⚡{% endif %}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <small class="form-text text-muted">
+                                            <i class="fas fa-info-circle"></i> 
+                                            Types marked with ⚡ are cached and load instantly
+                                        </small>
+                                        {% if available_gpu_types %}
+                                        <small class="text-success">
+                                            <i class="fas fa-check-circle"></i> 
+                                            {{ available_gpu_types|length }} GPU types available
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Loading Indicator -->
-                <div id="loadingIndicator" class="text-center d-none">
+                {% if not current_gpu_type %}
+                <!-- Instructions when no GPU type selected -->
+                <div class="text-center mt-5">
+                    <div class="card">
+                        <div class="card-body">
+                            <i class="fas fa-arrow-up fa-3x text-muted mb-3"></i>
+                            <h4 class="text-muted">Select a GPU Type</h4>
+                            <p class="text-muted">Choose a GPU type from the dropdown above to view host management options.</p>
+                            {% if available_gpu_types %}
+                            <p class="text-success">
+                                <i class="fas fa-check-circle"></i> 
+                                {{ available_gpu_types|length }} GPU types discovered
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% elif not aggregate_data %}
+                <!-- Loading state when GPU type selected but data not loaded -->
+                <div class="text-center mt-5">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
-                    <p class="mt-2" id="loadingMessage">Loading aggregate data...</p>
-                    <div class="progress mt-2" style="height: 8px; max-width: 400px; margin: 0 auto;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" 
-                             style="width: 0%" 
-                             id="loadingProgress">
-                        </div>
-                    </div>
-                    <small class="text-muted mt-2 d-block" id="loadingStep">Initializing...</small>
+                    <p class="mt-2">Loading {{ current_gpu_type }} aggregate data...</p>
                 </div>
-                
-                <!-- Main Content -->
-                <div id="mainContent" class="d-none">
+                {% else %}
+                <!-- Main Content - Show when data is loaded -->
+                <div id="mainContent">
+                    <!-- Display rendered aggregate data -->
+                    {% if hosts_html %}
+                        {{ hosts_html|safe }}
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            No host data available for {{ current_gpu_type }}.
+                        </div>
+                    {% endif %}
+
                     <!-- Tab Navigation -->
                     <ul class="nav nav-tabs" id="mainTabs" role="tablist">
                         <li class="nav-item" role="presentation">
@@ -492,6 +521,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
