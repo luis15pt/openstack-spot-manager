@@ -2202,3 +2202,28 @@ body {
 .pending-operation:hover {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
+
+.command-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 4px 0;
+}
+
+.command-item code {
+    background-color: transparent;
+    font-size: 0.85em;
+    flex: 1;
+    margin-left: 8px;
+    word-break: break-all;
+}
+
+.commands-section {
+    border-top: 1px solid #e9ecef;
+    padding-top: 12px;
+    margin-top: 8px;
+}
+
+.commands-section h6 {
+    font-size: 0.9em;
+    margin-bottom: 8px;
+}
