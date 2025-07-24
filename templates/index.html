@@ -769,43 +769,85 @@
         // Add operation to pending queue
         async function addToPendingOperations(hostname, sourceType, targetType, targetVariant = null) {
             try {
-                // Get the actual commands from the preview API
-                const sourceAggregate = `{{ current_gpu_type }}-${sourceType}`;
-                const targetAggregate = `{{ current_gpu_type }}-${targetType}`;
+                let operation;
                 
-                const response = await fetch('/api/preview-migration', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        host: hostname,
-                        source_aggregate: sourceAggregate,
-                        target_aggregate: targetAggregate
-                    })
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const operation = {
-                        id: Date.now(),
-                        hostname: hostname,
-                        sourceType: sourceType,
-                        targetType: targetType,
-                        targetVariant: targetVariant,
-                        timestamp: new Date().toISOString(),
-                        selected: true,
-                        commands: data.commands || []
-                    };
+                if (targetType === 'runpod') {
+                    // Handle Runpod launch operation
+                    const response = await fetch('/api/preview-runpod-launch', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            hostname: hostname
+                        })
+                    });
                     
-                    pendingOperations.push(operation);
-                    updatePendingOperationsUI();
-                    showToast(`Added ${hostname} migration from ${sourceType} to ${targetType}`, 'success');
-                    console.log('📝 Added pending operation:', operation);
+                    if (response.ok) {
+                        const data = await response.json();
+                        operation = {
+                            id: Date.now(),
+                            hostname: hostname,
+                            sourceType: sourceType,
+                            targetType: targetType,
+                            targetVariant: targetVariant,
+                            timestamp: new Date().toISOString(),
+                            selected: true,
+                            commands: data.command ? [data.command] : [],
+                            operationType: 'runpod-launch',
+                            flavorName: data.flavor_name,
+                            vmName: data.vm_name
+                        };
+                        
+                        showToast(`Added ${hostname} Runpod launch`, 'success');
+                    } else {
+                        showToast(`Failed to preview Runpod launch for ${hostname}`, 'danger');
+                        console.error('Failed to preview Runpod launch:', response.statusText);
+                        return;
+                    }
                 } else {
-                    showToast(`Failed to preview migration for ${hostname}`, 'danger');
-                    console.error('Failed to preview migration:', response.statusText);
+                    // Handle aggregate migration operation
+                    const sourceAggregate = `{{ current_gpu_type }}-${sourceType}`;
+                    const targetAggregate = `{{ current_gpu_type }}-${targetType}`;
+                    
+                    const response = await fetch('/api/preview-migration', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            host: hostname,
+                            source_aggregate: sourceAggregate,
+                            target_aggregate: targetAggregate
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        operation = {
+                            id: Date.now(),
+                            hostname: hostname,
+                            sourceType: sourceType,
+                            targetType: targetType,
+                            targetVariant: targetVariant,
+                            timestamp: new Date().toISOString(),
+                            selected: true,
+                            commands: data.commands || [],
+                            operationType: 'migration'
+                        };
+                        
+                        showToast(`Added ${hostname} migration from ${sourceType} to ${targetType}`, 'success');
+                    } else {
+                        showToast(`Failed to preview migration for ${hostname}`, 'danger');
+                        console.error('Failed to preview migration:', response.statusText);
+                        return;
+                    }
                 }
+                
+                pendingOperations.push(operation);
+                updatePendingOperationsUI();
+                console.log('📝 Added pending operation:', operation);
+                
             } catch (error) {
                 showToast(`Error adding operation for ${hostname}`, 'danger');
                 console.error('Error adding pending operation:', error);
@@ -845,6 +887,19 @@
                         `).join('')
                         : `<div class="text-muted">No commands available</div>`;
                     
+                    // Different display for Runpod launches vs migrations
+                    const operationTitle = op.operationType === 'runpod-launch' 
+                        ? `🚀 Launch VM: ${op.vmName || op.hostname}`
+                        : `🔄 Migration: ${op.hostname}`;
+                    
+                    const operationSubtitle = op.operationType === 'runpod-launch'
+                        ? `Runpod Launch${op.flavorName ? ` (${op.flavorName})` : ''}`
+                        : `${op.sourceType} → ${op.targetType}${op.targetVariant ? ` (${op.targetVariant})` : ''}`;
+                    
+                    const commandSectionTitle = op.operationType === 'runpod-launch'
+                        ? 'API Call to execute:'
+                        : 'Commands to execute:';
+                    
                     return `
                         <div class="pending-operation card mb-3">
                             <div class="card-body">
@@ -853,9 +908,9 @@
                                         <input type="checkbox" class="form-check-input me-2" ${op.selected ? 'checked' : ''} 
                                                onchange="toggleOperationSelection(${op.id})">
                                         <div>
-                                            <strong>${op.hostname}</strong>
+                                            <strong>${operationTitle}</strong>
                                             <small class="text-muted d-block">
-                                                ${op.sourceType} → ${op.targetType}${op.targetVariant ? ` (${op.targetVariant})` : ''}
+                                                ${operationSubtitle}
                                             </small>
                                         </div>
                                     </div>
@@ -865,7 +920,7 @@
                                 </div>
                                 <div class="commands-section">
                                     <h6 class="mb-2 text-muted">
-                                        <i class="fas fa-terminal me-1"></i>Commands to execute:
+                                        <i class="fas fa-terminal me-1"></i>${commandSectionTitle}
                                     </h6>
                                     <div class="bg-light p-2 rounded">
                                         ${commandsHtml}
