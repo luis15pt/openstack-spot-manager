@@ -947,6 +947,58 @@
             }
         }
         
+        // Toggle operation selection (called from checkbox onchange)
+        function toggleOperationSelection(operationId) {
+            const operation = pendingOperations.find(op => op.id === operationId);
+            if (operation) {
+                operation.selected = !operation.selected;
+                updatePendingOperationsUI();
+                console.log(`Toggled operation ${operationId} selection:`, operation.selected);
+            }
+        }
+        
+        // Select all pending operations
+        function selectAllPendingOperations() {
+            pendingOperations.forEach(op => op.selected = true);
+            updatePendingOperationsUI();
+            showToast('Selected all pending operations', 'success');
+            console.log('Selected all pending operations');
+        }
+        
+        // Deselect all pending operations
+        function deselectAllPendingOperations() {
+            pendingOperations.forEach(op => op.selected = false);
+            updatePendingOperationsUI();
+            showToast('Deselected all pending operations', 'info');
+            console.log('Deselected all pending operations');
+        }
+        
+        // Clear all pending operations
+        function clearAllPendingOperations() {
+            if (pendingOperations.length === 0) {
+                showToast('No pending operations to clear', 'info');
+                return;
+            }
+            
+            const count = pendingOperations.length;
+            pendingOperations.length = 0; // Clear the array
+            updatePendingOperationsUI();
+            showToast(`Cleared ${count} pending operations`, 'success');
+            console.log(`Cleared ${count} pending operations`);
+        }
+        
+        // Remove a specific operation
+        function removeOperation(operationId) {
+            const index = pendingOperations.findIndex(op => op.id === operationId);
+            if (index !== -1) {
+                const operation = pendingOperations[index];
+                pendingOperations.splice(index, 1);
+                updatePendingOperationsUI();
+                showToast(`Removed ${operation.hostname} operation`, 'success');
+                console.log('Removed operation:', operation);
+            }
+        }
+        
         // Move selected hosts to target
         function moveSelectedHosts(targetType) {
             selectedHosts.forEach(hostname => {
@@ -991,6 +1043,21 @@
                 refreshBtn.addEventListener('click', () => {
                     window.location.reload();
                 });
+            }
+            
+            // Pending operations button listeners
+            const selectAllPendingBtn = document.getElementById('selectAllPendingBtn');
+            const deselectAllPendingBtn = document.getElementById('deselectAllPendingBtn');
+            const clearPendingBtn = document.getElementById('clearPendingBtn');
+            
+            if (selectAllPendingBtn) {
+                selectAllPendingBtn.addEventListener('click', selectAllPendingOperations);
+            }
+            if (deselectAllPendingBtn) {
+                deselectAllPendingBtn.addEventListener('click', deselectAllPendingOperations);
+            }
+            if (clearPendingBtn) {
+                clearPendingBtn.addEventListener('click', clearAllPendingOperations);
             }
             
             console.log('🔧 Drag & Drop system initialized');
