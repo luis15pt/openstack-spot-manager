@@ -513,7 +513,7 @@ def get_aggregate_hosts(aggregate_name):
         
     except Exception as e:
         print(f"❌ Error getting aggregate hosts for {aggregate_name}: {e}")
-        return None
+        return []
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
@@ -1013,20 +1013,19 @@ def load_aggregate_data_internal(gpu_type):
         if config.get('spot'):
             try:
                 spot_hosts = get_aggregate_hosts(config['spot'])
-                if spot_hosts:
-                    # Calculate GPU summary for spot
-                    total_gpu_used = sum(host.get('gpu_used', 0) for host in spot_hosts)
-                    total_gpu_capacity = sum(host.get('gpu_capacity', 0) for host in spot_hosts)
-                    
-                    result['spot'] = {
-                        'name': config['spot'],
-                        'hosts': spot_hosts,
-                        'gpu_summary': {
-                            'gpu_used': total_gpu_used,
-                            'gpu_capacity': total_gpu_capacity,
-                            'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}"
-                        }
+                # Always create spot structure, even if no hosts
+                total_gpu_used = sum(host.get('gpu_used', 0) for host in spot_hosts) if spot_hosts else 0
+                total_gpu_capacity = sum(host.get('gpu_capacity', 0) for host in spot_hosts) if spot_hosts else 0
+                
+                result['spot'] = {
+                    'name': config['spot'],
+                    'hosts': spot_hosts or [],
+                    'gpu_summary': {
+                        'gpu_used': total_gpu_used,
+                        'gpu_capacity': total_gpu_capacity,
+                        'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}"
                     }
+                }
             except Exception as e:
                 logs_manager.add_to_debug_log('System', f'Error loading spot data: {str(e)}', 'ERROR')
         
@@ -1044,21 +1043,20 @@ def load_aggregate_data_internal(gpu_type):
                             host['variant'] = variant['variant']
                         all_ondemand_hosts.extend(variant_hosts)
                 
-                if all_ondemand_hosts:
-                    # Calculate GPU summary for ondemand
-                    total_gpu_used = sum(host.get('gpu_used', 0) for host in all_ondemand_hosts)
-                    total_gpu_capacity = sum(host.get('gpu_capacity', 0) for host in all_ondemand_hosts)
-                    
-                    result['ondemand'] = {
-                        'name': config['ondemand'],
-                        'hosts': all_ondemand_hosts,
-                        'variants': config.get('ondemand_variants', []),
-                        'gpu_summary': {
-                            'gpu_used': total_gpu_used,
-                            'gpu_capacity': total_gpu_capacity,
-                            'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}"
-                        }
+                # Always create ondemand structure, even if no hosts
+                total_gpu_used = sum(host.get('gpu_used', 0) for host in all_ondemand_hosts) if all_ondemand_hosts else 0
+                total_gpu_capacity = sum(host.get('gpu_capacity', 0) for host in all_ondemand_hosts) if all_ondemand_hosts else 0
+                
+                result['ondemand'] = {
+                    'name': config.get('ondemand', 'N/A'),
+                    'hosts': all_ondemand_hosts or [],
+                    'variants': config.get('ondemand_variants', []),
+                    'gpu_summary': {
+                        'gpu_used': total_gpu_used,
+                        'gpu_capacity': total_gpu_capacity,
+                        'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}"
                     }
+                }
             except Exception as e:
                 logs_manager.add_to_debug_log('System', f'Error loading ondemand data: {str(e)}', 'ERROR')
         
@@ -1066,20 +1064,19 @@ def load_aggregate_data_internal(gpu_type):
         if config.get('runpod'):
             try:
                 runpod_hosts = get_aggregate_hosts(config['runpod'])
-                if runpod_hosts:
-                    # Calculate GPU summary for runpod
-                    total_gpu_used = sum(host.get('gpu_used', 0) for host in runpod_hosts)
-                    total_gpu_capacity = sum(host.get('gpu_capacity', 0) for host in runpod_hosts)
-                    
-                    result['runpod'] = {
-                        'name': config['runpod'], 
-                        'hosts': runpod_hosts,
-                        'gpu_summary': {
-                            'gpu_used': total_gpu_used,
-                            'gpu_capacity': total_gpu_capacity,
-                            'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}"
-                        }
+                # Always create runpod structure, even if no hosts
+                total_gpu_used = sum(host.get('gpu_used', 0) for host in runpod_hosts) if runpod_hosts else 0
+                total_gpu_capacity = sum(host.get('gpu_capacity', 0) for host in runpod_hosts) if runpod_hosts else 0
+                
+                result['runpod'] = {
+                    'name': config['runpod'], 
+                    'hosts': runpod_hosts or [],
+                    'gpu_summary': {
+                        'gpu_used': total_gpu_used,
+                        'gpu_capacity': total_gpu_capacity,
+                        'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}"
                     }
+                }
             except Exception as e:
                 logs_manager.add_to_debug_log('System', f'Error loading runpod data: {str(e)}', 'ERROR')
         
