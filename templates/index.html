@@ -86,15 +86,6 @@
                 {% else %}
                 <!-- Main Content - Show when data is loaded -->
                 <div id="mainContent">
-                    <!-- Display rendered aggregate data -->
-                    {% if hosts_html %}
-                        {{ hosts_html|safe }}
-                    {% else %}
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i>
-                            No host data available for {{ current_gpu_type }}.
-                        </div>
-                    {% endif %}
                     <!-- Tab Navigation -->
                     <ul class="nav nav-tabs" id="mainTabs" role="tablist">
                         <li class="nav-item" role="presentation">
@@ -173,6 +164,16 @@
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Display rendered aggregate data -->
+                            {% if hosts_html %}
+                                {{ hosts_html|safe }}
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    No host data available for {{ current_gpu_type }}.
+                                </div>
+                            {% endif %}
                             
                             <div class="row mt-3">
                                 <!-- Runpod Column -->
