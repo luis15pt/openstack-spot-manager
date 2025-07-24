@@ -2098,3 +2098,49 @@ body {
         transform: translateY(0);
     }
 }
+
+/* Collapsible card styling */
+.collapse-icon {
+    transition: transform 0.3s ease;
+}
+
+.collapse-icon[aria-expanded="false"] {
+    transform: rotate(0deg);
+}
+
+.collapsed .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+/* Host card group styling for better organization */
+.host-group {
+    border-left: 3px solid #e9ecef;
+    padding-left: 12px;
+    margin-bottom: 16px;
+}
+
+.host-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.host-subgroup {
+    margin-bottom: 12px;
+}
+
+.host-subgroup-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.host-subgroup-content {
+    padding-left: 16px;
+}

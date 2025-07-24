@@ -640,6 +640,32 @@
                     modalBody.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Failed to load VM details: ${error.message}</div>`;
                 });
         });
+        
+        // Handle collapse icon rotation
+        document.addEventListener('DOMContentLoaded', function() {
+            const collapseElements = document.querySelectorAll('.collapse');
+            collapseElements.forEach(function(collapse) {
+                collapse.addEventListener('show.bs.collapse', function() {
+                    const trigger = document.querySelector(`[data-bs-target="#${this.id}"]`);
+                    if (trigger) {
+                        const icon = trigger.querySelector('.collapse-icon');
+                        if (icon) {
+                            icon.style.transform = 'rotate(180deg)';
+                        }
+                    }
+                });
+                
+                collapse.addEventListener('hide.bs.collapse', function() {
+                    const trigger = document.querySelector(`[data-bs-target="#${this.id}"]`);
+                    if (trigger) {
+                        const icon = trigger.querySelector('.collapse-icon');
+                        if (icon) {
+                            icon.style.transform = 'rotate(0deg)';
+                        }
+                    }
+                });
+            });
+        });
     </script>
 </body>
 </html>

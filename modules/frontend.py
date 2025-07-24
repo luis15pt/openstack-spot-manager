@@ -1884,14 +1884,14 @@ class FrontendManager:
 
     def _render_hosts_detailed(self, hosts: List[Dict[str, Any]], host_type: str) -> str:
         """
-        Render a detailed list of hosts as HTML cards with proper structure for the main interface.
+        Render a detailed list of hosts as HTML cards with collapsible sections grouped by card count.
         
         Args:
             hosts: List of host dictionaries
             host_type: Type of hosts (spot, ondemand, runpod)
             
         Returns:
-            HTML string containing detailed host cards
+            HTML string containing detailed host cards in collapsible groups
         """
         if not hosts:
             return f"""
@@ -1901,6 +1901,111 @@ class FrontendManager:
             </div>
             """
         
+        # Group hosts by card count (GPU capacity)
+        def get_host_card_count(host):
+            hostname = host.get('name', '')
+            if 'A4000' in hostname:
+                return 10
+            return 8
+        
+        # Separate hosts by card count
+        card_8_hosts = [host for host in hosts if get_host_card_count(host) == 8]
+        card_10_hosts = [host for host in hosts if get_host_card_count(host) == 10]
+        
+        sections_html = []
+        
+        # 8-Card hosts section
+        if card_8_hosts:
+            collapse_id_8 = f"collapse-8card-{host_type}"
+            
+            # Further separate by availability
+            available_8 = [host for host in card_8_hosts if not host.get('has_vms', False)]
+            in_use_8 = [host for host in card_8_hosts if host.get('has_vms', False)]
+            
+            # Calculate GPU usage for this group
+            total_gpu_used_8 = sum(host.get('gpu_used', 0) for host in card_8_hosts)
+            total_gpu_capacity_8 = len(card_8_hosts) * 8
+            gpu_percent_8 = round((total_gpu_used_8 / total_gpu_capacity_8) * 100) if total_gpu_capacity_8 > 0 else 0
+            
+            sections_html.append(f"""
+            <div class="card mb-2">
+                <div class="card-header py-2" data-bs-toggle="collapse" data-bs-target="#{collapse_id_8}" style="cursor: pointer;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-microchip text-primary me-2"></i>
+                            <strong>8-Card Hosts ({len(card_8_hosts)})</strong>
+                            <small class="text-muted ms-2">
+                                Available: {len(available_8)} | In Use: {len(in_use_8)}
+                            </small>
+                        </div>
+                        <div>
+                            <span class="badge bg-primary me-2">{total_gpu_used_8}/{total_gpu_capacity_8} GPUs</span>
+                            <span class="badge bg-secondary">{gpu_percent_8}%</span>
+                            <i class="fas fa-chevron-down collapse-icon"></i>
+                        </div>
+                    </div>
+                </div>
+                <div id="{collapse_id_8}" class="collapse show">
+                    <div class="card-body p-2">
+                        {self._render_hosts_by_availability(card_8_hosts, host_type, "8card")}
+                    </div>
+                </div>
+            </div>
+            """)
+        
+        # 10-Card hosts section (A4000)
+        if card_10_hosts:
+            collapse_id_10 = f"collapse-10card-{host_type}"
+            
+            # Further separate by availability
+            available_10 = [host for host in card_10_hosts if not host.get('has_vms', False)]
+            in_use_10 = [host for host in card_10_hosts if host.get('has_vms', False)]
+            
+            # Calculate GPU usage for this group
+            total_gpu_used_10 = sum(host.get('gpu_used', 0) for host in card_10_hosts)
+            total_gpu_capacity_10 = len(card_10_hosts) * 10
+            gpu_percent_10 = round((total_gpu_used_10 / total_gpu_capacity_10) * 100) if total_gpu_capacity_10 > 0 else 0
+            
+            sections_html.append(f"""
+            <div class="card mb-2">
+                <div class="card-header py-2" data-bs-toggle="collapse" data-bs-target="#{collapse_id_10}" style="cursor: pointer;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-microchip text-success me-2"></i>
+                            <strong>10-Card Hosts ({len(card_10_hosts)})</strong>
+                            <small class="text-muted ms-2">
+                                Available: {len(available_10)} | In Use: {len(in_use_10)}
+                            </small>
+                        </div>
+                        <div>
+                            <span class="badge bg-primary me-2">{total_gpu_used_10}/{total_gpu_capacity_10} GPUs</span>
+                            <span class="badge bg-secondary">{gpu_percent_10}%</span>
+                            <i class="fas fa-chevron-down collapse-icon"></i>
+                        </div>
+                    </div>
+                </div>
+                <div id="{collapse_id_10}" class="collapse show">
+                    <div class="card-body p-2">
+                        {self._render_hosts_by_availability(card_10_hosts, host_type, "10card")}
+                    </div>
+                </div>
+            </div>
+            """)
+        
+        return ''.join(sections_html)
+
+    def _render_hosts_by_availability(self, hosts: List[Dict[str, Any]], host_type: str, card_type: str) -> str:
+        """
+        Render hosts grouped by availability (Available/In Use) within a card count group.
+        
+        Args:
+            hosts: List of host dictionaries
+            host_type: Type of hosts (spot, ondemand, runpod) 
+            card_type: Card type identifier (8card, 10card)
+            
+        Returns:
+            HTML string containing hosts grouped by availability
+        """
         # Separate hosts into groups
         available_hosts = [host for host in hosts if not host.get('has_vms', False)]
         in_use_hosts = [host for host in hosts if host.get('has_vms', False)]
@@ -1913,16 +2018,14 @@ class FrontendManager:
             nexgen_hosts = [host for host in available_hosts if host.get('owner_group') == 'Nexgen Cloud']
             investor_hosts = [host for host in available_hosts if host.get('owner_group') == 'Investors']
             
-            available_id = f"available-{host_type}"
             available_subgroups = []
             
             # Nexgen Cloud devices sub-group
             if nexgen_hosts:
                 nexgen_cards = [self._create_detailed_host_card(host, host_type) for host in nexgen_hosts]
-                nexgen_subgroup_id = f"available-nexgen-{host_type}"
                 
                 available_subgroups.append(f"""
-                <div class="host-subgroup nexgen-group">
+                <div class="host-subgroup nexgen-group mb-3">
                     <div class="host-subgroup-header">
                         <i class="fas fa-cloud text-info"></i>
                         <span class="subgroup-title">Nexgen Cloud ({len(nexgen_hosts)})</span>
@@ -1936,10 +2039,9 @@ class FrontendManager:
             # Investor devices sub-group
             if investor_hosts:
                 investor_cards = [self._create_detailed_host_card(host, host_type) for host in investor_hosts]
-                investor_subgroup_id = f"available-investors-{host_type}"
                 
                 available_subgroups.append(f"""
-                <div class="host-subgroup investors-group">
+                <div class="host-subgroup investors-group mb-3">
                     <div class="host-subgroup-header">
                         <i class="fas fa-users text-warning"></i>
                         <span class="subgroup-title">Investors ({len(investor_hosts)})</span>
@@ -1951,7 +2053,7 @@ class FrontendManager:
                 """)
             
             sections_html.append(f"""
-            <div class="host-group">
+            <div class="host-group mb-3">
                 <div class="host-group-header">
                     <i class="fas fa-circle-check text-success"></i>
                     <h6 class="mb-0">Available ({len(available_hosts)})</h6>
@@ -1966,10 +2068,9 @@ class FrontendManager:
         # In-use hosts section
         if in_use_hosts:
             in_use_cards = [self._create_detailed_host_card(host, host_type) for host in in_use_hosts]
-            in_use_id = f"inuse-{host_type}"
             
             sections_html.append(f"""
-            <div class="host-group">
+            <div class="host-group mb-2">
                 <div class="host-group-header">
                     <i class="fas fa-exclamation-triangle text-warning"></i>
                     <h6 class="mb-0">In Use ({len(in_use_hosts)})</h6>
