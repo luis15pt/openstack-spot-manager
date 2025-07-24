@@ -696,20 +696,20 @@ def get_gpu_type_from_hostname_context(hostname):
             # Check runpod aggregate
             if config.get('runpod'):
                 runpod_data = get_aggregate_hosts(config['runpod'])
-                if runpod_data and any(host['name'] == hostname for host in runpod_data['hosts']):
+                if runpod_data and any(host['name'] == hostname for host in runpod_data):
                     return gpu_type
                     
             # Check on-demand variants
             if config.get('ondemand_variants'):
                 for variant in config['ondemand_variants']:
                     variant_data = get_aggregate_hosts(variant['aggregate'])
-                    if variant_data and any(host['name'] == hostname for host in variant_data['hosts']):
+                    if variant_data and any(host['name'] == hostname for host in variant_data):
                         return gpu_type
                         
             # Check spot aggregate
             if config.get('spot'):
                 spot_data = get_aggregate_hosts(config['spot'])
-                if spot_data and any(host['name'] == hostname for host in spot_data['hosts']):
+                if spot_data and any(host['name'] == hostname for host in spot_data):
                     return gpu_type
         
         return None
@@ -1564,13 +1564,19 @@ def api_pending_operations():
 
 @app.route('/api/host-vms/<hostname>')
 def get_host_vm_details(hostname):
-    """Get detailed VM information for a host"""
+    """Get detailed VM information for a host (JSON API)"""
     vms = get_host_vms(hostname)
     return jsonify({
         'hostname': hostname,
         'vms': vms,
         'count': len(vms)
     })
+
+@app.route('/host-vms/<hostname>')
+def show_host_vm_details(hostname):
+    """Show VM details page for a host (HTML)"""
+    vms = get_host_vms(hostname)
+    return render_template('vm_details.html', hostname=hostname, vms=vms)
 
 @app.route('/api/preview-migration', methods=['POST'])
 def preview_migration():

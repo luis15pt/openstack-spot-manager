@@ -329,12 +329,21 @@ class FrontendManager:
                     '</div>'
                 )
             
-            # Build onclick attribute
-            onclick_attr = f'onclick="showVmDetails(\'{host.name}\')"' if host.vm_count > 0 else ''
-            
             # Build status class
             status_class = 'active' if host.has_vms else 'inactive'
             vm_class = 'clickable-vm-count' if host.vm_count > 0 else ''
+            
+            # Generate VM element (clickable link if VMs exist, div otherwise)
+            if host.vm_count > 0:
+                vm_element = f'''<a class="vm-info {vm_class}" href="/host-vms/{host.name}" style="text-decoration: none; color: inherit;">
+                            <i class="fas fa-circle status-dot {status_class}"></i>
+                            {vm_info}
+                        </a>'''
+            else:
+                vm_element = f'''<div class="vm-info {vm_class}">
+                            <i class="fas fa-circle status-dot {status_class}"></i>
+                            {vm_info}
+                        </div>'''
             
             # Build nvlinks classes
             nvlinks_class = 'enabled' if host.nvlinks else 'disabled'
@@ -356,10 +365,7 @@ class FrontendManager:
                         {warning_icon}
                     </div>
                     <div class="machine-status">
-                        <div class="vm-info {vm_class}" {onclick_attr}>
-                            <i class="fas fa-circle status-dot {status_class}"></i>
-                            {vm_info}
-                        </div>
+                        {vm_element}
                         <div class="tenant-info">
                             <span class="{tenant_badge_class}" title="{host.tenant}">
                                 <i class="{tenant_icon}"></i>

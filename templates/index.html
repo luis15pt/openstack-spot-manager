@@ -496,20 +496,6 @@
         </div>
     </div>
 
-    <!-- VM Details Modal -->
-    <div class="modal fade" id="vmDetailsModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">VMs on Host</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="vmDetailsBody">
-                    <!-- VM details will be loaded here -->
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Migration Preview Modal -->
     <div class="modal fade" id="migrationModal" tabindex="-1">
@@ -552,9 +538,5 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Core frontend functions -->
-    <script src="{{ url_for('static', filename='frontend.js') }}"></script>
-    <!-- Simple initialization script -->
-    <script src="{{ url_for('static', filename='app_init.js') }}"></script>
 </body>
 </html>
