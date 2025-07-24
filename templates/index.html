@@ -36,29 +36,21 @@
                                             </option>
                                             {% endfor %}
                                         </select>
-                                        <button type="submit" class="btn btn-primary btn-lg pulse-on-hover">
+                                        <button type="submit" class="btn btn-primary">
                                             <i class="fas fa-search"></i> Load Data
                                         </button>
                                     </div>
-                                    <div class="mt-2">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <small class="form-text text-muted">
-                                                <i class="fas fa-info-circle"></i> 
-                                                Types marked with ⚡ are cached and load instantly
-                                            </small>
-                                            {% if available_gpu_types %}
-                                            <small class="text-success">
-                                                <i class="fas fa-check-circle"></i> 
-                                                {{ available_gpu_types|length }} GPU types available
-                                            </small>
-                                            {% endif %}
-                                        </div>
-                                        <div class="text-center mt-2">
-                                            <small class="text-primary">
-                                                <i class="fas fa-hand-pointer"></i>
-                                                <strong>Select a GPU type above, then click "Load Data" to continue</strong>
-                                            </small>
-                                        </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <small class="form-text text-muted">
+                                            <i class="fas fa-info-circle"></i> 
+                                            Types marked with ⚡ are cached and load instantly
+                                        </small>
+                                        {% if available_gpu_types %}
+                                        <small class="text-success">
+                                            <i class="fas fa-check-circle"></i> 
+                                            {{ available_gpu_types|length }} GPU types available
+                                        </small>
+                                        {% endif %}
                                     </div>
                                 </form>
                             </div>
@@ -73,7 +65,7 @@
                         <div class="card-body">
                             <i class="fas fa-arrow-up fa-3x text-muted mb-3"></i>
                             <h4 class="text-muted">Select a GPU Type</h4>
-                            <p class="text-muted">Choose a GPU type from the dropdown above to view host management options.</p>
+                            <p class="text-muted">Choose a GPU type from the dropdown above and click "Load Data" to view host management options.</p>
                             {% if available_gpu_types %}
                             <p class="text-success">
                                 <i class="fas fa-check-circle"></i> 
@@ -103,7 +95,6 @@
                             No host data available for {{ current_gpu_type }}.
                         </div>
                     {% endif %}
-
                     <!-- Tab Navigation -->
                     <ul class="nav nav-tabs" id="mainTabs" role="tablist">
                         <li class="nav-item" role="presentation">
@@ -442,7 +433,7 @@
                                             </h5>
                                         </div>
                                         <div class="card-body text-center">
-                                            <a href="/export_command_log" class="btn btn-primary me-2">
+                                            <a href="/export_debug_log" class="btn btn-primary me-2">
                                                 <i class="fas fa-file-export me-1"></i>
                                                 Export Command Log
                                             </a>
@@ -541,6 +532,20 @@
         </div>
     </div>
 
+    <!-- VM Details Modal -->
+    <div class="modal fade" id="vmDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">VMs on Host</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="vmDetailsBody">
+                    <!-- VM details will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Migration Preview Modal -->
     <div class="modal fade" id="migrationModal" tabindex="-1">
@@ -583,5 +588,60 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Minimal JavaScript for VM details modal only
+        function showVmDetails(hostname) {
+            fetch(`/api/host-vms/${hostname}`)
+                .then(response => response.json())
+                .then(data => {
+                    const modal = new bootstrap.Modal(document.getElementById('vmDetailsModal'));
+                    const modalBody = document.getElementById('vmDetailsBody');
+                    const modalTitle = document.querySelector('#vmDetailsModal .modal-title');
+                    
+                    modalTitle.textContent = `VMs on Host: ${hostname}`;
+                    
+                    if (data.error) {
+                        modalBody.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Error: ${data.error}</div>`;
+                    } else if (!data.vms || data.vms.length === 0) {
+                        modalBody.innerHTML = `<div class="alert alert-info"><i class="fas fa-info-circle"></i> No VMs found on this host.</div>`;
+                    } else {
+                        const vmRows = data.vms.map(vm => {
+                            const statusClass = vm.Status === 'ACTIVE' ? 'success' : vm.Status === 'ERROR' ? 'danger' : 'warning';
+                            const statusIcon = vm.Status === 'ACTIVE' ? 'fa-check-circle' : vm.Status === 'ERROR' ? 'fa-times-circle' : 'fa-clock';
+                            const created = new Date(vm.Created).toLocaleString();
+                            
+                            return `
+                                <tr>
+                                    <td><div class="d-flex align-items-center"><i class="fas ${statusIcon} me-2 text-${statusClass}"></i><div><strong>${vm.Name}</strong><br><small class="text-muted">${vm.ID}</small></div></div></td>
+                                    <td><span class="badge bg-${statusClass}">${vm.Status}</span></td>
+                                    <td><div><strong>${vm.Flavor}</strong>${vm.Image ? `<br><small class="text-muted">${vm.Image}</small>` : ''}</div></td>
+                                    <td><small>${created}</small></td>
+                                </tr>
+                            `;
+                        }).join('');
+                        
+                        modalBody.innerHTML = `
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead><tr><th>VM Details</th><th>Status</th><th>Flavor & Image</th><th>Created</th></tr></thead>
+                                    <tbody>${vmRows}</tbody>
+                                </table>
+                            </div>
+                            <div class="mt-3"><small class="text-muted"><i class="fas fa-info-circle"></i> Total VMs: ${data.vms.length}</small></div>
+                        `;
+                    }
+                    modal.show();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    const modal = new bootstrap.Modal(document.getElementById('vmDetailsModal'));
+                    const modalBody = document.getElementById('vmDetailsBody');
+                    const modalTitle = document.querySelector('#vmDetailsModal .modal-title');
+                    modalTitle.textContent = `Error - ${hostname}`;
+                    modalBody.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Failed to load VM details: ${error.message}</div>`;
+                    modal.show();
+                });
+        }
+    </script>
 </body>
 </html>

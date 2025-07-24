@@ -1632,71 +1632,124 @@ class FrontendManager:
             </div>
             """
             
+            # Calculate column width based on available aggregates
+            available_columns = []
+            if aggregate_data.get('runpod', {}).get('hosts'):
+                available_columns.append('runpod')
+            if aggregate_data.get('ondemand', {}).get('hosts'):
+                available_columns.append('ondemand')
+            if aggregate_data.get('spot', {}).get('hosts'):
+                available_columns.append('spot')
+            
+            col_width = 12 // max(len(available_columns), 1) if available_columns else 12
+            
             # Generate host columns
             columns_html = '<div class="row mt-3">'
             
             # RunPod column
             runpod_data = aggregate_data.get('runpod', {})
-            if runpod_data:
+            if runpod_data and runpod_data.get('hosts'):
                 runpod_hosts = runpod_data.get('hosts', [])
                 runpod_name = runpod_data.get('name', 'N/A')
                 vm_count = sum(host.get('vm_count', 0) for host in runpod_hosts)
                 
                 columns_html += f"""
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-header bg-purple text-white">
-                            <h4 class="mb-0">
-                                <i class="fas fa-rocket"></i> 
-                                Runpod {runpod_name}
-                                <span class="badge bg-light text-dark ms-2">{len(runpod_hosts)}</span>
-                            </h4>
-                            <div class="mt-2">
-                                <small class="text-light">VM Usage: {vm_count} VMs</small>
+                <div class="col-md-{col_width}">
+                    <div class="aggregate-column" id="runpodColumn">
+                        <div class="card">
+                            <div class="card-header bg-purple text-white">
+                                <h4 class="mb-0">
+                                    <i class="fas fa-rocket"></i> 
+                                    Runpod {runpod_name}
+                                    <span class="badge bg-light text-dark ms-2">{len(runpod_hosts)}</span>
+                                </h4>
+                                <div class="mt-2">
+                                    <small class="text-light">VM Usage: <span id="runpodVmUsage">{vm_count} VMs</span></small>
+                                </div>
                             </div>
-                        </div>
-                        <div class="card-body">
-                            {self._render_hosts_simple(runpod_hosts, 'runpod')}
+                            <div class="card-body drop-zone" id="runpodHosts" data-type="runpod">
+                                {self._render_hosts_detailed(runpod_hosts, 'runpod')}
+                            </div>
                         </div>
                     </div>
                 </div>
                 """
             
-            # On-Demand column
+            # On-Demand column(s) - handle variants
             ondemand_data = aggregate_data.get('ondemand', {})
-            if ondemand_data:
-                ondemand_hosts = ondemand_data.get('hosts', [])
-                ondemand_name = ondemand_data.get('name', 'N/A')
-                gpu_summary = ondemand_data.get('gpu_summary', {})
-                gpu_usage = gpu_summary.get('gpu_usage_ratio', '0/0')
-                gpu_percent = round((gpu_summary.get('gpu_used', 0) / gpu_summary.get('gpu_capacity', 1)) * 100) if gpu_summary.get('gpu_capacity', 0) > 0 else 0
-                
-                columns_html += f"""
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-header bg-primary text-white">
-                            <h4 class="mb-0">
-                                <i class="fas fa-server"></i> 
-                                On-Demand {ondemand_name}
-                                <span class="badge bg-light text-dark ms-2">{len(ondemand_hosts)}</span>
-                            </h4>
-                            <div class="mt-2">
-                                <small class="text-light">GPU Usage: {gpu_usage} ({gpu_percent}%)</small>
-                                <div class="progress mt-1" style="height: 6px;">
-                                    <div class="progress-bar bg-light" role="progressbar" style="width: {gpu_percent}%"></div>
+            if ondemand_data and ondemand_data.get('hosts'):
+                variants = ondemand_data.get('variants', [])
+                if len(variants) > 1:
+                    # Multiple variants - create separate columns
+                    variant_col_width = col_width // len(variants) if len(variants) > 1 else col_width
+                    for variant in variants:
+                        variant_hosts = [h for h in ondemand_data.get('hosts', []) if h.get('variant') == variant.get('aggregate')]
+                        if variant_hosts:
+                            gpu_summary = {'gpu_used': sum(h.get('gpu_used', 0) for h in variant_hosts),
+                                         'gpu_capacity': sum(h.get('gpu_capacity', 0) for h in variant_hosts)}
+                            gpu_usage = f"{gpu_summary['gpu_used']}/{gpu_summary['gpu_capacity']}"
+                            gpu_percent = round((gpu_summary['gpu_used'] / gpu_summary['gpu_capacity']) * 100) if gpu_summary['gpu_capacity'] > 0 else 0
+                            
+                            columns_html += f"""
+                            <div class="col-md-{variant_col_width}">
+                                <div class="aggregate-column">
+                                    <div class="card">
+                                        <div class="card-header bg-primary text-white">
+                                            <h4 class="mb-0">
+                                                <i class="fas fa-server"></i> 
+                                                {variant.get('variant', 'On-Demand')}
+                                                <span class="badge bg-light text-dark ms-2">{len(variant_hosts)}</span>
+                                            </h4>
+                                            <div class="mt-2">
+                                                <small class="text-light">GPU Usage: {gpu_usage} ({gpu_percent}%)</small>
+                                                <div class="progress mt-1" style="height: 6px;">
+                                                    <div class="progress-bar bg-light" role="progressbar" style="width: {gpu_percent}%"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card-body drop-zone" data-type="ondemand" data-variant="{variant.get('aggregate', '')}">
+                                            {self._render_hosts_detailed(variant_hosts, 'ondemand')}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            """
+                else:
+                    # Single variant
+                    ondemand_hosts = ondemand_data.get('hosts', [])
+                    ondemand_name = ondemand_data.get('name', 'N/A')
+                    gpu_summary = ondemand_data.get('gpu_summary', {})
+                    gpu_usage = gpu_summary.get('gpu_usage_ratio', '0/0')
+                    gpu_percent = round((gpu_summary.get('gpu_used', 0) / gpu_summary.get('gpu_capacity', 1)) * 100) if gpu_summary.get('gpu_capacity', 0) > 0 else 0
+                    
+                    columns_html += f"""
+                    <div class="col-md-{col_width}">
+                        <div class="aggregate-column" id="ondemandColumn">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h4 class="mb-0">
+                                        <i class="fas fa-server"></i> 
+                                        On-Demand {ondemand_name}
+                                        <span class="badge bg-light text-dark ms-2">{len(ondemand_hosts)}</span>
+                                    </h4>
+                                    <div class="mt-2">
+                                        <small class="text-light">GPU Usage: <span id="ondemandGpuUsage">{gpu_usage}</span> (<span id="ondemandGpuPercent">{gpu_percent}%</span>)</small>
+                                        <div class="progress mt-1" style="height: 6px;">
+                                            <div class="progress-bar bg-light" role="progressbar" style="width: {gpu_percent}%" id="ondemandGpuProgressBar"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body drop-zone" id="ondemandHosts" data-type="ondemand">
+                                    {self._render_hosts_detailed(ondemand_hosts, 'ondemand')}
                                 </div>
                             </div>
                         </div>
-                        <div class="card-body">
-                            {self._render_hosts_simple(ondemand_hosts, 'ondemand')}
-                        </div>
                     </div>
-                </div>
-                """
+                    """
             
             # Spot column  
             spot_data = aggregate_data.get('spot', {})
-            if spot_data:
+            if spot_data and spot_data.get('hosts'):
                 spot_hosts = spot_data.get('hosts', [])
                 spot_name = spot_data.get('name', 'N/A')
                 gpu_summary = spot_data.get('gpu_summary', {})
@@ -1704,23 +1757,25 @@ class FrontendManager:
                 gpu_percent = round((gpu_summary.get('gpu_used', 0) / gpu_summary.get('gpu_capacity', 1)) * 100) if gpu_summary.get('gpu_capacity', 0) > 0 else 0
                 
                 columns_html += f"""
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-header bg-warning text-dark">
-                            <h4 class="mb-0">
-                                <i class="fas fa-flash"></i> 
-                                Spot {spot_name}
-                                <span class="badge bg-light text-dark ms-2">{len(spot_hosts)}</span>
-                            </h4>
-                            <div class="mt-2">
-                                <small class="text-dark">GPU Usage: {gpu_usage} ({gpu_percent}%)</small>
-                                <div class="progress mt-1" style="height: 6px;">
-                                    <div class="progress-bar bg-dark" role="progressbar" style="width: {gpu_percent}%"></div>
+                <div class="col-md-{col_width}">
+                    <div class="aggregate-column" id="spotColumn">
+                        <div class="card">
+                            <div class="card-header bg-warning text-dark">
+                                <h4 class="mb-0">
+                                    <i class="fas fa-flash"></i> 
+                                    Spot {spot_name}
+                                    <span class="badge bg-light text-dark ms-2">{len(spot_hosts)}</span>
+                                </h4>
+                                <div class="mt-2">
+                                    <small class="text-dark">GPU Usage: <span id="spotGpuUsage">{gpu_usage}</span> (<span id="spotGpuPercent">{gpu_percent}%</span>)</small>
+                                    <div class="progress mt-1" style="height: 6px;">
+                                        <div class="progress-bar bg-dark" role="progressbar" style="width: {gpu_percent}%" id="spotGpuProgressBar"></div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="card-body">
-                            {self._render_hosts_simple(spot_hosts, 'spot')}
+                            <div class="card-body drop-zone" id="spotHosts" data-type="spot">
+                                {self._render_hosts_detailed(spot_hosts, 'spot')}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1728,7 +1783,27 @@ class FrontendManager:
             
             columns_html += '</div>'
             
-            return summary_html + columns_html
+            # Add control buttons
+            control_buttons_html = f"""
+            <div class="row mt-4">
+                <div class="col-md-12 text-center">
+                    <button id="moveToOndemandBtn" class="btn btn-primary me-2" disabled>
+                        <i class="fas fa-arrow-left"></i> Move to On-Demand
+                    </button>
+                    <button id="moveToRunpodBtn" class="btn btn-purple me-2" disabled>
+                        <i class="fas fa-rocket"></i> Move to Runpod
+                    </button>
+                    <button id="moveToSpotBtn" class="btn btn-warning me-2" disabled>
+                        <i class="fas fa-arrow-right"></i> Move to Spot
+                    </button>
+                    <button id="refreshBtn" class="btn btn-secondary">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            """
+            
+            return summary_html + columns_html + control_buttons_html
             
         except Exception as e:
             logger.error(f"Error rendering aggregate data HTML: {e}")
@@ -1806,6 +1881,218 @@ class FrontendManager:
             """)
         
         return ''.join(host_cards)
+
+    def _render_hosts_detailed(self, hosts: List[Dict[str, Any]], host_type: str) -> str:
+        """
+        Render a detailed list of hosts as HTML cards with proper structure for the main interface.
+        
+        Args:
+            hosts: List of host dictionaries
+            host_type: Type of hosts (spot, ondemand, runpod)
+            
+        Returns:
+            HTML string containing detailed host cards
+        """
+        if not hosts:
+            return f"""
+            <div class="empty-state text-center py-4">
+                <i class="fas fa-server text-muted fa-2x mb-2"></i>
+                <p class="text-muted">No hosts in this aggregate</p>
+            </div>
+            """
+        
+        # Separate hosts into groups
+        available_hosts = [host for host in hosts if not host.get('has_vms', False)]
+        in_use_hosts = [host for host in hosts if host.get('has_vms', False)]
+        
+        sections_html = []
+        
+        # Available hosts section (shown first - most likely to be moved)
+        if available_hosts:
+            # Group available hosts by owner
+            nexgen_hosts = [host for host in available_hosts if host.get('owner_group') == 'Nexgen Cloud']
+            investor_hosts = [host for host in available_hosts if host.get('owner_group') == 'Investors']
+            
+            available_id = f"available-{host_type}"
+            available_subgroups = []
+            
+            # Nexgen Cloud devices sub-group
+            if nexgen_hosts:
+                nexgen_cards = [self._create_detailed_host_card(host, host_type) for host in nexgen_hosts]
+                nexgen_subgroup_id = f"available-nexgen-{host_type}"
+                
+                available_subgroups.append(f"""
+                <div class="host-subgroup nexgen-group">
+                    <div class="host-subgroup-header">
+                        <i class="fas fa-cloud text-info"></i>
+                        <span class="subgroup-title">Nexgen Cloud ({len(nexgen_hosts)})</span>
+                    </div>
+                    <div class="host-subgroup-content">
+                        {''.join(nexgen_cards)}
+                    </div>
+                </div>
+                """)
+            
+            # Investor devices sub-group
+            if investor_hosts:
+                investor_cards = [self._create_detailed_host_card(host, host_type) for host in investor_hosts]
+                investor_subgroup_id = f"available-investors-{host_type}"
+                
+                available_subgroups.append(f"""
+                <div class="host-subgroup investors-group">
+                    <div class="host-subgroup-header">
+                        <i class="fas fa-users text-warning"></i>
+                        <span class="subgroup-title">Investors ({len(investor_hosts)})</span>
+                    </div>
+                    <div class="host-subgroup-content">
+                        {''.join(investor_cards)}
+                    </div>
+                </div>
+                """)
+            
+            sections_html.append(f"""
+            <div class="host-group">
+                <div class="host-group-header">
+                    <i class="fas fa-circle-check text-success"></i>
+                    <h6 class="mb-0">Available ({len(available_hosts)})</h6>
+                    <small class="text-muted">No VMs - Ready to move</small>
+                </div>
+                <div class="host-group-content">
+                    {''.join(available_subgroups)}
+                </div>
+            </div>
+            """)
+        
+        # In-use hosts section
+        if in_use_hosts:
+            in_use_cards = [self._create_detailed_host_card(host, host_type) for host in in_use_hosts]
+            in_use_id = f"inuse-{host_type}"
+            
+            sections_html.append(f"""
+            <div class="host-group">
+                <div class="host-group-header">
+                    <i class="fas fa-exclamation-triangle text-warning"></i>
+                    <h6 class="mb-0">In Use ({len(in_use_hosts)})</h6>
+                    <small class="text-muted">Has VMs - Move carefully</small>
+                </div>
+                <div class="host-group-content">
+                    {''.join(in_use_cards)}
+                </div>
+            </div>
+            """)
+        
+        return ''.join(sections_html)
+
+    def _create_detailed_host_card(self, host: Dict[str, Any], host_type: str) -> str:
+        """
+        Create a detailed host card with all the features from the original interface.
+        
+        Args:
+            host: Host dictionary
+            host_type: Type of host (spot, ondemand, runpod)
+            
+        Returns:
+            HTML string for a detailed host card
+        """
+        has_vms = host.get('has_vms', False)
+        vm_count = host.get('vm_count', 0)
+        gpu_used = host.get('gpu_used', 0)
+        gpu_capacity = host.get('gpu_capacity', 0)
+        owner_group = host.get('owner_group', 'Investors')
+        nvlinks = host.get('nvlinks', False)
+        tenant = host.get('tenant', 'Unknown')
+        
+        # Warning icon for hosts with VMs
+        warning_icon = '<i class="fas fa-exclamation-triangle warning-icon"></i>' if has_vms else ''
+        
+        # Card class based on VM status
+        card_class = 'machine-card has-vms' if has_vms else 'machine-card'
+        
+        # Tenant/owner badge
+        tenant_badge_class = 'tenant-badge nexgen' if owner_group == 'Nexgen Cloud' else 'tenant-badge investors'
+        tenant_icon = 'fas fa-cloud' if owner_group == 'Nexgen Cloud' else 'fas fa-users'
+        
+        # VM/GPU info section
+        if host_type == 'runpod':
+            vm_badge_class = 'vm-badge active' if vm_count > 0 else 'vm-badge zero'
+            vm_info = f"""
+            <span class="{vm_badge_class}">{vm_count}</span>
+            <span class="vm-label">{'VMs' if vm_count > 0 else 'No VMs'}</span>
+            """
+            vm_click_attr = f'onclick="showVmDetails(\'{host["name"]}\')"' if vm_count > 0 else ''
+        else:
+            gpu_badge_class = 'gpu-badge active' if gpu_used > 0 else 'gpu-badge zero'
+            gpu_usage_ratio = f"{gpu_used}/{gpu_capacity}"
+            vm_info = f"""
+            <span class="{gpu_badge_class}">{gpu_usage_ratio}</span>
+            <span class="gpu-label">GPUs</span>
+            """
+            vm_click_attr = f'onclick="showVmDetails(\'{host["name"]}\')"' if vm_count > 0 else ''
+        
+        # NVLinks info
+        nvlinks_class = 'enabled' if nvlinks else 'disabled'
+        nvlinks_text = 'Yes' if nvlinks else 'No'
+        
+        # Variant info
+        variant_info = ''
+        if host.get('variant'):
+            variant_info = f"""
+            <div class="variant-info">
+                <span class="variant-badge" title="Aggregate: {host['variant']}">
+                    <i class="fas fa-tag"></i>
+                    {host['variant']}
+                </span>
+            </div>
+            """
+        
+        # RunPod launch button for available RunPod hosts
+        runpod_launch_info = ''
+        if host_type == 'runpod' and not has_vms:
+            runpod_launch_info = f"""
+            <div class="launch-runpod-info">
+                <button class="btn btn-sm btn-outline-primary launch-runpod-btn" 
+                        title="Launch VM on this host (not implemented in Python version)">
+                    <i class="fas fa-rocket"></i> Launch into Runpod
+                </button>
+            </div>
+            """
+        
+        return f"""
+        <div class="{card_class}" 
+             draggable="false" 
+             data-host="{host['name']}" 
+             data-type="{host_type}"
+             data-aggregate="{host.get('variant', '')}"
+             data-has-vms="{str(has_vms).lower()}"
+             data-owner-group="{owner_group}"
+             data-nvlinks="{str(nvlinks).lower()}">
+            <div class="machine-card-header">
+                <i class="fas fa-grip-vertical drag-handle"></i>
+                <div class="machine-name">{host['name']}</div>
+                {warning_icon}
+            </div>
+            <div class="machine-status">
+                <div class="vm-info {'clickable-vm-count' if vm_count > 0 else ''}" {vm_click_attr}>
+                    <i class="fas fa-circle status-dot {'active' if has_vms else 'inactive'}"></i>
+                    {vm_info}
+                </div>
+                <div class="tenant-info">
+                    <span class="{tenant_badge_class}" title="{tenant}">
+                        <i class="{tenant_icon}"></i>
+                        {owner_group}
+                    </span>
+                </div>
+                <div class="nvlinks-info">
+                    <span class="nvlinks-badge {nvlinks_class}" title="NVLinks {'Enabled' if nvlinks else 'Disabled'}">
+                        <i class="fas fa-link"></i>
+                        NVLinks: {nvlinks_text}
+                    </span>
+                </div>
+                {variant_info}
+                {runpod_launch_info}
+            </div>
+        </div>
+        """
 
 
 # Utility functions for template filters and helpers
