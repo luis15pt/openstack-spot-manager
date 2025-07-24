@@ -2170,11 +2170,10 @@ body {
 }
 
 .drop-zone {
-    min-height: 400px;
-    padding: 20px;
+    min-height: 500px;
     transition: all 0.3s ease;
-    border: 2px solid transparent;
     border-radius: 8px;
+    position: relative;
 }
 
 .drop-zone:hover {
@@ -2189,25 +2188,29 @@ body {
     box-shadow: 0 0 20px rgba(13, 110, 253, 0.3);
 }
 
-/* Add drop zone indicator when dragging */
+/* Add drop zone indicator when dragging - covers entire column */
 .drop-zone.drag-over::before {
     content: "Drop here";
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 1.2em;
     font-weight: bold;
     color: #0d6efd;
-    background: rgba(255, 255, 255, 0.9);
-    padding: 8px 16px;
-    border-radius: 4px;
+    background: rgba(13, 110, 253, 0.1);
+    border: 3px dashed #0d6efd;
+    border-radius: 8px;
     pointer-events: none;
     z-index: 1000;
 }
 
-/* Make sure card body is positioned for absolute positioning */
-.card-body.drop-zone {
+/* Ensure aggregate column drop zones are positioned */
+.aggregate-column.drop-zone {
     position: relative;
 }
 

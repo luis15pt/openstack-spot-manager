@@ -1641,25 +1641,24 @@ class FrontendManager:
             if aggregate_data.get('spot'):
                 available_columns.append('spot')
             
-            # Custom column widths: on-demand gets more space, runpod/spot get less
-            num_columns = len(available_columns)
-            if num_columns == 3:  # All three columns present
-                runpod_width = 2
-                ondemand_width = 6
-                spot_width = 4
-            elif num_columns == 2:
-                if 'ondemand' in available_columns:
-                    runpod_width = 3 if 'runpod' in available_columns else 0
-                    ondemand_width = 9 if 'runpod' in available_columns else 8
-                    spot_width = 4 if 'spot' in available_columns else 0
-                else:
-                    runpod_width = 6 if 'runpod' in available_columns else 0
-                    ondemand_width = 0
-                    spot_width = 6 if 'spot' in available_columns else 0
-            else:  # Single column
-                runpod_width = 12 if 'runpod' in available_columns else 0
-                ondemand_width = 12 if 'ondemand' in available_columns else 0
-                spot_width = 12 if 'spot' in available_columns else 0
+            # Equal column widths like main branch
+            # Main branch logic: equal width columns that sum to 12
+            # For typical setup with 3 columns (RunPod + On-Demand + Spot) = col-md-4 each
+            
+            if len(available_columns) == 3:
+                # Standard case: RunPod + On-Demand + Spot = 4 + 4 + 4 = 12
+                col_width = 4
+            elif len(available_columns) == 2:
+                # Two columns: 6 + 6 = 12
+                col_width = 6
+            else:
+                # Single column: 12
+                col_width = 12
+            
+            # Set equal widths for all columns (matching main branch behavior)
+            runpod_width = col_width if 'runpod' in available_columns else 0
+            ondemand_width = col_width if 'ondemand' in available_columns else 0
+            spot_width = col_width if 'spot' in available_columns else 0
             
             # Generate host columns
             columns_html = '<div class="row mt-3">'
@@ -1673,7 +1672,7 @@ class FrontendManager:
                 
                 columns_html += f"""
                 <div class="col-md-{runpod_width}">
-                    <div class="aggregate-column" id="runpodColumn">
+                    <div class="aggregate-column drop-zone" id="runpodColumn" data-type="runpod">
                         <div class="card">
                             <div class="card-header bg-purple text-white">
                                 <h4 class="mb-0">
@@ -1685,7 +1684,7 @@ class FrontendManager:
                                     <small class="text-light">VM Usage: <span id="runpodVmUsage">{vm_count} VMs</span></small>
                                 </div>
                             </div>
-                            <div class="card-body drop-zone" id="runpodHosts" data-type="runpod">
+                            <div class="card-body" id="runpodHosts">
                                 {self._render_hosts_detailed(runpod_hosts, 'runpod')}
                             </div>
                         </div>
@@ -1710,7 +1709,7 @@ class FrontendManager:
                         
                         columns_html += f"""
                             <div class="col-md-{variant_col_width}">
-                                <div class="aggregate-column">
+                                <div class="aggregate-column drop-zone" data-type="ondemand" data-variant="{variant.get('aggregate', '')}">
                                     <div class="card">
                                         <div class="card-header bg-primary text-white">
                                             <h4 class="mb-0">
@@ -1725,7 +1724,7 @@ class FrontendManager:
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="card-body drop-zone" data-type="ondemand" data-variant="{variant.get('aggregate', '')}">
+                                        <div class="card-body">
                                             {self._render_hosts_detailed(variant_hosts, 'ondemand')}
                                         </div>
                                     </div>
@@ -1742,7 +1741,7 @@ class FrontendManager:
                     
                     columns_html += f"""
                     <div class="col-md-{ondemand_width}">
-                        <div class="aggregate-column" id="ondemandColumn">
+                        <div class="aggregate-column drop-zone" id="ondemandColumn" data-type="ondemand">
                             <div class="card">
                                 <div class="card-header bg-primary text-white">
                                     <h4 class="mb-0">
@@ -1757,7 +1756,7 @@ class FrontendManager:
                                         </div>
                                     </div>
                                 </div>
-                                <div class="card-body drop-zone" id="ondemandHosts" data-type="ondemand">
+                                <div class="card-body" id="ondemandHosts">
                                     {self._render_hosts_detailed(ondemand_hosts, 'ondemand')}
                                 </div>
                             </div>
@@ -1776,7 +1775,7 @@ class FrontendManager:
                 
                 columns_html += f"""
                 <div class="col-md-{spot_width}">
-                    <div class="aggregate-column" id="spotColumn">
+                    <div class="aggregate-column drop-zone" id="spotColumn" data-type="spot">
                         <div class="card">
                             <div class="card-header bg-warning text-dark">
                                 <h4 class="mb-0">
@@ -1791,7 +1790,7 @@ class FrontendManager:
                                     </div>
                                 </div>
                             </div>
-                            <div class="card-body drop-zone" id="spotHosts" data-type="spot">
+                            <div class="card-body" id="spotHosts">
                                 {self._render_hosts_detailed(spot_hosts, 'spot')}
                             </div>
                         </div>
