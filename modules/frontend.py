@@ -2019,7 +2019,7 @@ class FrontendManager:
             <span class="{vm_badge_class}">{vm_count}</span>
             <span class="vm-label">{'VMs' if vm_count > 0 else 'No VMs'}</span>
             """
-            vm_click_attr = f'onclick="showVmDetails(\'{host["name"]}\')"' if vm_count > 0 else ''
+            vm_click_attr = f'style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#vmDetailsModal" data-hostname="{host["name"]}"' if vm_count > 0 else ''
         else:
             gpu_badge_class = 'gpu-badge active' if gpu_used > 0 else 'gpu-badge zero'
             gpu_usage_ratio = f"{gpu_used}/{gpu_capacity}"
@@ -2027,7 +2027,7 @@ class FrontendManager:
             <span class="{gpu_badge_class}">{gpu_usage_ratio}</span>
             <span class="gpu-label">GPUs</span>
             """
-            vm_click_attr = f'onclick="showVmDetails(\'{host["name"]}\')"' if vm_count > 0 else ''
+            vm_click_attr = f'style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#vmDetailsModal" data-hostname="{host["name"]}"' if vm_count > 0 else ''
         
         # NVLinks info
         nvlinks_class = 'enabled' if nvlinks else 'disabled'
