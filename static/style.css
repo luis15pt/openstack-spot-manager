@@ -2168,14 +2168,45 @@ body {
 }
 
 .drop-zone {
-    min-height: 200px;
+    min-height: 400px;
+    padding: 20px;
     transition: all 0.3s ease;
+    border: 2px solid transparent;
+    border-radius: 8px;
+}
+
+.drop-zone:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+    border: 2px dashed rgba(13, 110, 253, 0.3);
 }
 
 .drop-zone.drag-over {
-    background-color: rgba(13, 110, 253, 0.1);
-    border: 2px dashed #0d6efd;
+    background-color: rgba(13, 110, 253, 0.15);
+    border: 3px dashed #0d6efd;
     transform: scale(1.02);
+    box-shadow: 0 0 20px rgba(13, 110, 253, 0.3);
+}
+
+/* Add drop zone indicator when dragging */
+.drop-zone.drag-over::before {
+    content: "Drop here";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #0d6efd;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 8px 16px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Make sure card body is positioned for absolute positioning */
+.card-body.drop-zone {
+    position: relative;
 }
 
 .drag-handle {
