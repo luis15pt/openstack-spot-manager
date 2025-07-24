@@ -1917,13 +1917,75 @@ def preview_runpod_launch():
     # Log the preview (but don't execute)
     log_command(curl_command, {'success': None, 'stdout': '', 'stderr': '', 'returncode': None}, 'preview')
     
+    # Build detailed command breakdown like the main branch
+    is_canada_host = hostname.startswith('CA1-')
+    
+    commands = [
+        {
+            'title': 'Hyperstack Launch',
+            'description': 'Deploy new virtual machine via Hyperstack API',
+            'command': curl_command,
+            'purpose': 'Create VM instance with specified configuration and networking',
+            'expected_output': 'VM creation response with instance ID and details'
+        }
+    ]
+    
+    if is_canada_host:
+        commands.append({
+            'title': 'Storage Wait',
+            'description': 'Wait 120 seconds for VM initialization and storage setup',
+            'command': 'sleep 120',
+            'purpose': 'Allow VM to fully initialize before network configuration',
+            'expected_output': 'Wait completion after 120 seconds'
+        })
+    
+    commands.extend([
+        {
+            'title': 'Server UUID Retrieval',
+            'description': 'Get OpenStack server ID for network operations',
+            'command': f'openstack server show {hostname} -f json | jq -r .id',
+            'purpose': 'Retrieve server UUID needed for network attachment',
+            'expected_output': 'OpenStack server UUID string'
+        },
+        {
+            'title': 'Storage Network Attachment',
+            'description': 'Connect VM to RunPod storage network',
+            'command': f'openstack server add network {hostname} RunPod-Storage-Canada-1',
+            'purpose': 'Attach storage network for RunPod functionality',
+            'expected_output': 'Network attachment confirmation'
+        },
+        {
+            'title': 'Firewall Wait',
+            'description': 'Brief wait before firewall configuration',
+            'command': 'sleep 10',
+            'purpose': 'Ensure network is ready before firewall updates',
+            'expected_output': 'Wait completion after 10 seconds'
+        },
+        {
+            'title': 'Firewall Attachments',
+            'description': 'Get current VM attachments for firewall',
+            'command': f'curl -X GET {HYPERSTACK_API_URL}/core/firewalls/{{firewall_id}} -H "api_key: {mask_api_key(HYPERSTACK_API_KEY)}"',
+            'purpose': 'Retrieve existing firewall configuration to preserve settings',
+            'expected_output': 'Current firewall attachment list'
+        },
+        {
+            'title': 'Firewall Update',
+            'description': 'Update firewall with new VM attachment',
+            'command': f'curl -X PUT {HYPERSTACK_API_URL}/core/firewalls/{{firewall_id}}/attachments -H "api_key: {mask_api_key(HYPERSTACK_API_KEY)}" -d \'{{"vm_ids": ["{{server_uuid}}", "existing_vm_ids"]}}\'',
+            'purpose': 'Add new VM to firewall rules while preserving existing VMs',
+            'expected_output': 'Firewall update confirmation'
+        }
+    ])
+    
     return jsonify({
-        'command': curl_command,
+        'commands': commands,
         'hostname': hostname,
         'vm_name': hostname,
         'flavor_name': flavor_name,
         'gpu_type': gpu_type,
-        'api_url': HYPERSTACK_API_URL
+        'api_url': HYPERSTACK_API_URL,
+        'total_steps': len(commands),
+        'canada_host': is_canada_host
     })
 
 @app.route('/api/execute-runpod-launch', methods=['POST'])

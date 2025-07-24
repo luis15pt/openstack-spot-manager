@@ -793,10 +793,12 @@
                             targetVariant: targetVariant,
                             timestamp: new Date().toISOString(),
                             selected: true,
-                            commands: data.command ? [data.command] : [],
+                            commands: data.commands || [],
                             operationType: 'runpod-launch',
                             flavorName: data.flavor_name,
-                            vmName: data.vm_name
+                            vmName: data.vm_name,
+                            totalSteps: data.total_steps,
+                            canadaHost: data.canada_host
                         };
                         
                         showToast(`Added ${hostname} Runpod launch`, 'success');
@@ -878,22 +880,56 @@
             
             if (pendingList && pendingOperations.length > 0) {
                 const operationsHtml = pendingOperations.map(op => {
-                    const commandsHtml = op.commands && op.commands.length > 0 
-                        ? op.commands.map((cmd, index) => `
+                    let commandsHtml;
+                    
+                    if (op.operationType === 'runpod-launch' && op.commands && op.commands.length > 0) {
+                        // Detailed display for Runpod launches like main branch
+                        commandsHtml = op.commands.map((cmd, index) => `
+                            <div class="command-detail mb-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge bg-secondary me-2">${index + 1}</span>
+                                    <strong class="text-primary">${cmd.title}</strong>
+                                    ${cmd.title.includes('Wait') ? '<i class="fas fa-clock ms-2 text-warning"></i>' : ''}
+                                </div>
+                                <div class="mb-2">
+                                    <small class="text-muted">${cmd.description}</small>
+                                </div>
+                                <div class="command-code mb-2">
+                                    <code class="d-block p-2 bg-dark text-light rounded">${cmd.command}</code>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <small class="text-muted">
+                                            <strong>Purpose:</strong> ${cmd.purpose}
+                                        </small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <small class="text-muted">
+                                            <strong>Expected:</strong> ${cmd.expected_output}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else if (op.commands && op.commands.length > 0) {
+                        // Simple display for migrations
+                        commandsHtml = op.commands.map((cmd, index) => `
                             <div class="command-item mb-1">
                                 <small class="text-muted">${index + 1}.</small>
                                 <code class="text-dark">${cmd}</code>
                             </div>
-                        `).join('')
-                        : `<div class="text-muted">No commands available</div>`;
+                        `).join('');
+                    } else {
+                        commandsHtml = `<div class="text-muted">No commands available</div>`;
+                    }
                     
                     // Different display for Runpod launches vs migrations
                     const operationTitle = op.operationType === 'runpod-launch' 
-                        ? `🚀 Launch VM: ${op.vmName || op.hostname}`
+                        ? `🚀 Launch VM '${op.vmName || op.hostname}' on ${op.hostname}`
                         : `🔄 Migration: ${op.hostname}`;
                     
                     const operationSubtitle = op.operationType === 'runpod-launch'
-                        ? `Runpod Launch${op.flavorName ? ` (${op.flavorName})` : ''}`
+                        ? `Deploy new virtual machine with automated networking and security configuration${op.totalSteps ? ` (${op.totalSteps} steps)` : ''}${op.canadaHost ? ' - Canada Host' : ''}`
                         : `${op.sourceType} → ${op.targetType}${op.targetVariant ? ` (${op.targetVariant})` : ''}`;
                     
                     const commandSectionTitle = op.operationType === 'runpod-launch'
