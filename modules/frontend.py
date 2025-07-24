@@ -1995,7 +1995,7 @@ class FrontendManager:
 
     def _render_hosts_by_card_count(self, hosts: List[Dict[str, Any]], host_type: str, availability_type: str) -> str:
         """
-        Render hosts grouped by card count (GPU capacity) within an availability group.
+        Render hosts grouped by actual GPU usage (from VM flavors) within an availability group.
         
         Args:
             hosts: List of host dictionaries
@@ -2003,83 +2003,66 @@ class FrontendManager:
             availability_type: Availability type (available, inuse)
             
         Returns:
-            HTML string containing hosts grouped by card count
+            HTML string containing hosts grouped by GPU usage
         """
         if not hosts:
             return '<div class="text-center text-muted py-2">No hosts in this group</div>'
         
-        # Group hosts by card count (GPU capacity)
-        def get_host_card_count(host):
-            hostname = host.get('name', '')
-            if 'A4000' in hostname:
-                return 10
-            return 8
+        # Group hosts by actual GPU usage from VM flavors
+        from collections import defaultdict
+        gpu_usage_groups = defaultdict(list)
         
-        # Separate hosts by card count
-        card_8_hosts = [host for host in hosts if get_host_card_count(host) == 8]
-        card_10_hosts = [host for host in hosts if get_host_card_count(host) == 10]
+        for host in hosts:
+            gpu_used = host.get('gpu_used', 0)
+            gpu_usage_groups[gpu_used].append(host)
         
         sections_html = []
         
-        # 8-Card hosts subsection
-        if card_8_hosts:
-            collapse_id_8 = f"collapse-8card-{availability_type}-{host_type}"
+        # Sort by GPU usage (ascending: 0, 1, 2, 4, 6, 8, etc.)
+        for gpu_used in sorted(gpu_usage_groups.keys()):
+            hosts_in_group = gpu_usage_groups[gpu_used]
+            collapse_id = f"collapse-{gpu_used}gpu-{availability_type}-{host_type}"
             
-            # Calculate GPU usage for this group
-            total_gpu_used_8 = sum(host.get('gpu_used', 0) for host in card_8_hosts)
-            total_gpu_capacity_8 = len(card_8_hosts) * 8
-            gpu_percent_8 = round((total_gpu_used_8 / total_gpu_capacity_8) * 100) if total_gpu_capacity_8 > 0 else 0
+            # Calculate total capacity for this group
+            total_gpu_capacity = sum(host.get('gpu_capacity', 8) for host in hosts_in_group)
+            total_gpu_used = gpu_used * len(hosts_in_group)  # Each host in this group uses the same amount
+            gpu_percent = round((total_gpu_used / total_gpu_capacity) * 100) if total_gpu_capacity > 0 else 0
+            
+            # Choose appropriate icon and color based on usage
+            if gpu_used == 0:
+                icon_class = "fas fa-circle text-success"
+                gpu_label = f"0 GPUs"
+            elif gpu_used <= 2:
+                icon_class = "fas fa-microchip text-info"
+                gpu_label = f"{gpu_used} GPU{'s' if gpu_used != 1 else ''}"
+            elif gpu_used <= 4:
+                icon_class = "fas fa-microchip text-primary"
+                gpu_label = f"{gpu_used} GPUs"
+            elif gpu_used <= 6:
+                icon_class = "fas fa-microchip text-warning"
+                gpu_label = f"{gpu_used} GPUs"
+            else:
+                icon_class = "fas fa-microchip text-danger"
+                gpu_label = f"{gpu_used} GPUs"
             
             sections_html.append(f"""
             <div class="card mb-2 border-light">
-                <div class="card-header py-1 bg-light" data-bs-toggle="collapse" data-bs-target="#{collapse_id_8}" style="cursor: pointer;">
+                <div class="card-header py-1 bg-light" data-bs-toggle="collapse" data-bs-target="#{collapse_id}" style="cursor: pointer;">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <i class="fas fa-microchip text-primary me-2" style="font-size: 0.9rem;"></i>
-                            <span><strong>8-Card ({len(card_8_hosts)})</strong></span>
+                            <i class="{icon_class} me-2" style="font-size: 0.9rem;"></i>
+                            <span><strong>{gpu_label} ({len(hosts_in_group)} host{'s' if len(hosts_in_group) != 1 else ''})</strong></span>
                         </div>
                         <div>
-                            <span class="badge bg-primary me-1" style="font-size: 0.75rem;">{total_gpu_used_8}/{total_gpu_capacity_8}</span>
-                            <span class="badge bg-secondary" style="font-size: 0.75rem;">{gpu_percent_8}%</span>
+                            <span class="badge bg-primary me-1" style="font-size: 0.75rem;">{total_gpu_used}/{total_gpu_capacity}</span>
+                            <span class="badge bg-secondary" style="font-size: 0.75rem;">{gpu_percent}%</span>
                             <i class="fas fa-chevron-down collapse-icon" style="font-size: 0.8rem;"></i>
                         </div>
                     </div>
                 </div>
-                <div id="{collapse_id_8}" class="collapse show">
+                <div id="{collapse_id}" class="collapse show">
                     <div class="card-body p-2">
-                        {self._render_hosts_by_owner(card_8_hosts, host_type)}
-                    </div>
-                </div>
-            </div>
-            """)
-        
-        # 10-Card hosts subsection (A4000)
-        if card_10_hosts:
-            collapse_id_10 = f"collapse-10card-{availability_type}-{host_type}"
-            
-            # Calculate GPU usage for this group
-            total_gpu_used_10 = sum(host.get('gpu_used', 0) for host in card_10_hosts)
-            total_gpu_capacity_10 = len(card_10_hosts) * 10
-            gpu_percent_10 = round((total_gpu_used_10 / total_gpu_capacity_10) * 100) if total_gpu_capacity_10 > 0 else 0
-            
-            sections_html.append(f"""
-            <div class="card mb-2 border-light">
-                <div class="card-header py-1 bg-light" data-bs-toggle="collapse" data-bs-target="#{collapse_id_10}" style="cursor: pointer;">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="fas fa-microchip text-success me-2" style="font-size: 0.9rem;"></i>
-                            <span><strong>10-Card ({len(card_10_hosts)})</strong></span>
-                        </div>
-                        <div>
-                            <span class="badge bg-primary me-1" style="font-size: 0.75rem;">{total_gpu_used_10}/{total_gpu_capacity_10}</span>
-                            <span class="badge bg-secondary" style="font-size: 0.75rem;">{gpu_percent_10}%</span>
-                            <i class="fas fa-chevron-down collapse-icon" style="font-size: 0.8rem;"></i>
-                        </div>
-                    </div>
-                </div>
-                <div id="{collapse_id_10}" class="collapse show">
-                    <div class="card-body p-2">
-                        {self._render_hosts_by_owner(card_10_hosts, host_type)}
+                        {self._render_hosts_by_owner(hosts_in_group, host_type)}
                     </div>
                 </div>
             </div>
