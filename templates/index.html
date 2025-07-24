@@ -666,6 +666,230 @@
                 });
             });
         });
+        
+        // Drag and Drop + Host Management System
+        let selectedHosts = new Set();
+        let pendingOperations = [];
+        
+        // Setup drag and drop functionality
+        function setupDragAndDrop() {
+            // Remove existing event listeners to prevent duplicates
+            document.querySelectorAll('.host-card, .machine-card').forEach(card => {
+                card.removeEventListener('dragstart', handleDragStart);
+                card.removeEventListener('dragend', handleDragEnd);
+                card.removeEventListener('click', handleHostClick);
+            });
+            
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                zone.removeEventListener('dragover', handleDragOver);
+                zone.removeEventListener('drop', handleDrop);
+                zone.removeEventListener('dragenter', handleDragEnter);
+                zone.removeEventListener('dragleave', handleDragLeave);
+            });
+            
+            // Add event listeners to host cards
+            document.querySelectorAll('.host-card, .machine-card').forEach(card => {
+                card.addEventListener('dragstart', handleDragStart);
+                card.addEventListener('dragend', handleDragEnd);
+                card.addEventListener('click', handleHostClick);
+            });
+            
+            // Add event listeners to drop zones
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                zone.addEventListener('dragover', handleDragOver);
+                zone.addEventListener('drop', handleDrop);
+                zone.addEventListener('dragenter', handleDragEnter);
+                zone.addEventListener('dragleave', handleDragLeave);
+            });
+        }
+        
+        // Drag event handlers
+        function handleDragStart(e) {
+            this.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', this.dataset.host);
+            e.dataTransfer.setData('source-type', this.dataset.type);
+            console.log('🚀 Dragging host:', this.dataset.host, 'from', this.dataset.type);
+        }
+        
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+        }
+        
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+        
+        function handleDragEnter(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+        
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+        
+        async function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            
+            const hostname = e.dataTransfer.getData('text/plain');
+            const sourceType = e.dataTransfer.getData('source-type');
+            const targetType = e.currentTarget.dataset.type;
+            const targetVariant = e.currentTarget.dataset.variant;
+            
+            console.log('🎯 Dropped', hostname, 'from', sourceType, 'to', targetType, targetVariant ? `(${targetVariant})` : '');
+            
+            if (sourceType !== targetType) {
+                await addToPendingOperations(hostname, sourceType, targetType, targetVariant);
+            }
+        }
+        
+        // Host selection handler
+        function handleHostClick(e) {
+            if (e.target.closest('button') || e.target.closest('.clickable-vm-count')) {
+                return; // Don't handle clicks on buttons or VM counts
+            }
+            
+            const card = e.currentTarget;
+            const hostname = card.dataset.host;
+            
+            if (card.classList.contains('selected')) {
+                card.classList.remove('selected');
+                selectedHosts.delete(hostname);
+            } else {
+                card.classList.add('selected');
+                selectedHosts.add(hostname);
+            }
+            
+            updateActionButtons();
+            console.log('🔘 Selected hosts:', Array.from(selectedHosts));
+        }
+        
+        // Add operation to pending queue
+        async function addToPendingOperations(hostname, sourceType, targetType, targetVariant = null) {
+            const operation = {
+                id: Date.now(),
+                hostname: hostname,
+                sourceType: sourceType,
+                targetType: targetType,
+                targetVariant: targetVariant,
+                timestamp: new Date().toISOString(),
+                selected: true
+            };
+            
+            pendingOperations.push(operation);
+            updatePendingOperationsUI();
+            showToast(`Added ${hostname} migration from ${sourceType} to ${targetType}`, 'success');
+            console.log('📝 Added pending operation:', operation);
+        }
+        
+        // Update action buttons based on selection
+        function updateActionButtons() {
+            const moveToOndemandBtn = document.getElementById('moveToOndemandBtn');
+            const moveToRunpodBtn = document.getElementById('moveToRunpodBtn');
+            const moveToSpotBtn = document.getElementById('moveToSpotBtn');
+            
+            const hasSelection = selectedHosts.size > 0;
+            
+            if (moveToOndemandBtn) moveToOndemandBtn.disabled = !hasSelection;
+            if (moveToRunpodBtn) moveToRunpodBtn.disabled = !hasSelection;
+            if (moveToSpotBtn) moveToSpotBtn.disabled = !hasSelection;
+        }
+        
+        // Update pending operations UI
+        function updatePendingOperationsUI() {
+            const pendingCount = document.getElementById('pendingTabCount');
+            const pendingList = document.getElementById('pendingOperationsList');
+            
+            if (pendingCount) {
+                pendingCount.textContent = pendingOperations.length;
+            }
+            
+            if (pendingList && pendingOperations.length > 0) {
+                const operationsHtml = pendingOperations.map(op => `
+                    <div class="pending-operation card mb-2">
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <input type="checkbox" class="form-check-input me-2" ${op.selected ? 'checked' : ''} 
+                                           onchange="toggleOperationSelection(${op.id})">
+                                    <strong>${op.hostname}</strong>
+                                    <small class="text-muted ms-2">
+                                        ${op.sourceType} → ${op.targetType}${op.targetVariant ? ` (${op.targetVariant})` : ''}
+                                    </small>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger" onclick="removeOperation(${op.id})">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                pendingList.innerHTML = operationsHtml;
+            }
+        }
+        
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('notificationToast');
+            const toastBody = document.getElementById('toastBody');
+            
+            if (toast && toastBody) {
+                toastBody.textContent = message;
+                const bsToast = new bootstrap.Toast(toast);
+                bsToast.show();
+            }
+        }
+        
+        // Move selected hosts to target
+        function moveSelectedHosts(targetType) {
+            selectedHosts.forEach(hostname => {
+                const hostCard = document.querySelector(`[data-host="${hostname}"]`);
+                if (hostCard) {
+                    const sourceType = hostCard.dataset.type;
+                    if (sourceType !== targetType) {
+                        addToPendingOperations(hostname, sourceType, targetType);
+                    }
+                }
+            });
+            
+            // Clear selection
+            selectedHosts.clear();
+            document.querySelectorAll('.host-card.selected, .machine-card.selected').forEach(card => {
+                card.classList.remove('selected');
+            });
+            updateActionButtons();
+        }
+        
+        // Action button event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Setup drag and drop
+            setupDragAndDrop();
+            
+            // Action button listeners
+            const moveToOndemandBtn = document.getElementById('moveToOndemandBtn');
+            const moveToRunpodBtn = document.getElementById('moveToRunpodBtn');
+            const moveToSpotBtn = document.getElementById('moveToSpotBtn');
+            const refreshBtn = document.getElementById('refreshBtn');
+            
+            if (moveToOndemandBtn) {
+                moveToOndemandBtn.addEventListener('click', () => moveSelectedHosts('ondemand'));
+            }
+            if (moveToRunpodBtn) {
+                moveToRunpodBtn.addEventListener('click', () => moveSelectedHosts('runpod'));
+            }
+            if (moveToSpotBtn) {
+                moveToSpotBtn.addEventListener('click', () => moveSelectedHosts('spot'));
+            }
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', () => {
+                    window.location.reload();
+                });
+            }
+            
+            console.log('🔧 Drag & Drop system initialized');
+        });
     </script>
 </body>
 </html>

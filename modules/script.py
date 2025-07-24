@@ -497,6 +497,10 @@ class OpenStackSpotManagerCoordinator:
         # This would typically update UI state
         logger.debug('Deselecting all pending operations')
     
+    def get_pending_operations(self) -> List[Dict[str, Any]]:
+        """Get all pending operations"""
+        return self.state.pending_operations.copy()
+    
     def clear_pending_operations(self) -> bool:
         """
         Clear all pending operations

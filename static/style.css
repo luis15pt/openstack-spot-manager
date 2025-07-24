@@ -2144,3 +2144,61 @@ body {
 .host-subgroup-content {
     padding-left: 16px;
 }
+
+/* Drag and Drop Styling */
+.host-card, .machine-card {
+    transition: all 0.2s ease;
+    cursor: grab;
+}
+
+.host-card:hover, .machine-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.host-card.dragging, .machine-card.dragging {
+    opacity: 0.6;
+    transform: rotate(5deg);
+    cursor: grabbing;
+}
+
+.host-card.selected, .machine-card.selected {
+    border: 2px solid #0d6efd;
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+.drop-zone {
+    min-height: 200px;
+    transition: all 0.3s ease;
+}
+
+.drop-zone.drag-over {
+    background-color: rgba(13, 110, 253, 0.1);
+    border: 2px dashed #0d6efd;
+    transform: scale(1.02);
+}
+
+.drag-handle {
+    color: #ccc;
+    cursor: grab;
+    margin-right: 8px;
+}
+
+.drag-handle:hover {
+    color: #666;
+}
+
+/* Selection feedback */
+.host-card.selected .drag-handle, 
+.machine-card.selected .drag-handle {
+    color: #0d6efd;
+}
+
+/* Pending operations styling */
+.pending-operation {
+    transition: all 0.3s ease;
+}
+
+.pending-operation:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}

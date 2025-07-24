@@ -2286,8 +2286,8 @@ class FrontendManager:
             """
         
         return f"""
-        <div class="{card_class}" 
-             draggable="false" 
+        <div class="{card_class} host-card" 
+             draggable="true" 
              data-host="{host['name']}" 
              data-type="{host_type}"
              data-aggregate="{host.get('variant', '')}"
