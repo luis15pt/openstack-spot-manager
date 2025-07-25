@@ -687,17 +687,82 @@ def get_specific_aggregate_data(gpu_type, aggregate_type):
     all_hostnames = []
     result_data = {}
     
+    # Initialize variables
+    runpod_hosts = []
+    spot_hosts = []
+    ondemand_hosts = []
+    
     # Get hosts for the specific aggregate type
     if aggregate_type == 'runpod' and config.get('runpod'):
         runpod_hosts = get_aggregate_hosts(config['runpod'])
         all_hostnames.extend(runpod_hosts)
         
-        # Get bulk data
-        tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
-        vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
+    elif aggregate_type == 'spot' and config.get('spot'):
+        spot_hosts = get_aggregate_hosts(config['spot'])
+        all_hostnames.extend(spot_hosts)
         
-        # Process runpod hosts
-        processed_hosts = process_aggregate_hosts(runpod_hosts, 'runpod', tenant_info_bulk, vm_counts_bulk)
+    elif aggregate_type == 'ondemand':
+        if config.get('ondemand_variants'):
+            for variant in config['ondemand_variants']:
+                variant_hosts = get_aggregate_hosts(variant['aggregate'])
+                ondemand_hosts.extend(variant_hosts)
+                all_hostnames.extend(variant_hosts)
+        elif config.get('ondemand'):
+            ondemand_hosts = get_aggregate_hosts(config['ondemand'])
+            all_hostnames.extend(ondemand_hosts)
+    
+    # Get bulk data for all hosts
+    tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
+    vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
+    
+    # Get GPU info for spot and ondemand only
+    gpu_hosts = spot_hosts if aggregate_type == 'spot' else (ondemand_hosts if aggregate_type == 'ondemand' else [])
+    gpu_info_bulk = get_bulk_gpu_info(gpu_hosts) if gpu_hosts else {}
+    
+    # Helper function to process hosts with consistent data structure (same as main function)
+    def process_hosts(hosts, aggregate_type):
+        processed = []
+        for host in hosts:
+            vm_count = vm_counts_bulk.get(host, 0)
+            tenant_info = tenant_info_bulk[host]
+            
+            # Get GPU information for Spot and On-Demand only
+            if aggregate_type in ['spot', 'ondemand']:
+                gpu_info = gpu_info_bulk.get(host, {'gpu_used': 0, 'gpu_capacity': 8, 'gpu_usage_ratio': '0/8'})
+                host_data = {
+                    'name': host,
+                    'vm_count': vm_count,
+                    'has_vms': vm_count > 0,
+                    'tenant': tenant_info['tenant'],
+                    'owner_group': tenant_info['owner_group'],
+                    'nvlinks': tenant_info['nvlinks'],
+                    'gpu_used': gpu_info['gpu_used'],
+                    'gpu_capacity': gpu_info['gpu_capacity'],
+                    'gpu_usage_ratio': gpu_info['gpu_usage_ratio']
+                }
+                
+                # Add variant info for ondemand hosts
+                if aggregate_type == 'ondemand' and 'ondemand_host_variants' in locals():
+                    host_data['variant'] = ondemand_host_variants.get(host, '')
+                    
+            else:
+                # RunPod hosts (no GPU info needed)
+                host_data = {
+                    'name': host,
+                    'vm_count': vm_count,
+                    'has_vms': vm_count > 0,
+                    'tenant': tenant_info['tenant'],
+                    'owner_group': tenant_info['owner_group'],
+                    'nvlinks': tenant_info['nvlinks']
+                }
+            
+            processed.append(host_data)
+        
+        return processed
+    
+    # Process hosts for the specific aggregate type
+    if aggregate_type == 'runpod' and config.get('runpod'):
+        processed_hosts = process_hosts(runpod_hosts, 'runpod')
         
         result_data = {
             'type': 'runpod',
@@ -706,15 +771,7 @@ def get_specific_aggregate_data(gpu_type, aggregate_type):
         }
         
     elif aggregate_type == 'spot' and config.get('spot'):
-        spot_hosts = get_aggregate_hosts(config['spot'])
-        all_hostnames.extend(spot_hosts)
-        
-        # Get bulk data
-        tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
-        vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
-        
-        # Process spot hosts
-        processed_hosts = process_aggregate_hosts(spot_hosts, 'spot', tenant_info_bulk, vm_counts_bulk)
+        processed_hosts = process_hosts(spot_hosts, 'spot')
         
         result_data = {
             'type': 'spot',
@@ -732,7 +789,6 @@ def get_specific_aggregate_data(gpu_type, aggregate_type):
             for variant in config['ondemand_variants']:
                 variant_hosts = get_aggregate_hosts(variant['aggregate'])
                 ondemand_hosts.extend(variant_hosts)
-                all_hostnames.extend(variant_hosts)
                 # Track which variant each host belongs to
                 for host in variant_hosts:
                     ondemand_host_variants[host] = variant['aggregate']
@@ -745,7 +801,6 @@ def get_specific_aggregate_data(gpu_type, aggregate_type):
         elif config.get('ondemand'):
             # Fallback for single on-demand aggregate
             ondemand_hosts = get_aggregate_hosts(config['ondemand'])
-            all_hostnames.extend(ondemand_hosts)
             for host in ondemand_hosts:
                 ondemand_host_variants[host] = config['ondemand']
                 
@@ -754,12 +809,7 @@ def get_specific_aggregate_data(gpu_type, aggregate_type):
                 'aggregate': config['ondemand']
             })
         
-        # Get bulk data
-        tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
-        vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
-        
-        # Process ondemand hosts
-        processed_hosts = process_aggregate_hosts(ondemand_hosts, 'ondemand', tenant_info_bulk, vm_counts_bulk, ondemand_host_variants)
+        processed_hosts = process_hosts(ondemand_hosts, 'ondemand')
         
         result_data = {
             'type': 'ondemand',
