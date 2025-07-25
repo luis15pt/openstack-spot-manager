@@ -16,12 +16,28 @@
                     <i class="fas fa-server"></i> OpenStack Spot Manager
                 </h1>
                 
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endwith %}
+                
                 <!-- GPU Type Selector -->
                 <div class="row mb-4">
                     <div class="col-md-6 offset-md-3">
                         <div class="card">
                             <div class="card-body">
-                                <form method="GET" action="/dashboard">
+                                <form method="GET" action="{{ url_for('dashboard') }}">
                                     <label for="gpuTypeSelect" class="form-label">
                                         Select GPU Type:
                                     </label>
@@ -29,9 +45,8 @@
                                         <option value="">Select GPU Type...</option>
                                         {% for gpu_type in available_gpu_types %}
                                         <option value="{{ gpu_type }}" 
-                                                {% if gpu_type == current_gpu_type %}selected{% endif %}
-                                                {% if gpu_type in cached_gpu_types %}title="⚡ Cached - loads instantly"{% endif %}>
-                                            {{ gpu_type }}{% if gpu_type in cached_gpu_types %} ⚡{% endif %}
+                                                {% if gpu_type == current_gpu_type %}selected{% endif %}>
+                                            {{ gpu_type }}
                                         </option>
                                         {% endfor %}
                                     </select>
@@ -43,7 +58,7 @@
                                     <div class="d-flex justify-content-between align-items-center mt-2">
                                         <small class="form-text text-muted">
                                             <i class="fas fa-info-circle"></i> 
-                                            Types marked with ⚡ are cached and load instantly
+                                            Select a GPU type to view host management options
                                         </small>
                                         {% if available_gpu_types %}
                                         <small class="text-success">
@@ -82,6 +97,7 @@
                         <span class="visually-hidden">Loading...</span>
                     </div>
                     <p class="mt-2">Loading {{ current_gpu_type }} aggregate data...</p>
+                    <meta http-equiv="refresh" content="2">
                 </div>
                 {% else %}
                 <!-- Main Content - Show when data is loaded -->
@@ -89,40 +105,83 @@
                     <!-- Tab Navigation -->
                     <ul class="nav nav-tabs" id="mainTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="hosts-tab" data-bs-toggle="tab" data-bs-target="#hosts" type="button" role="tab">
+                            <button class="nav-link {% if not active_tab or active_tab == 'hosts' %}active{% endif %}" 
+                                    onclick="location.href='{{ url_for('dashboard', gpu_type=current_gpu_type, tab='hosts') }}'">
                                 <i class="fas fa-server"></i> Host Management
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab">
+                            <button class="nav-link {% if active_tab == 'pending' %}active{% endif %}" 
+                                    onclick="location.href='{{ url_for('dashboard', gpu_type=current_gpu_type, tab='pending') }}'">
                                 <i class="fas fa-clock"></i> Pending Operations
-                                <span class="badge bg-warning ms-1" id="pendingTabCount">0</span>
+                                <span class="badge bg-warning ms-1">{{ pending_operations|length if pending_operations else 0 }}</span>
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="commands-tab" data-bs-toggle="tab" data-bs-target="#commands" type="button" role="tab">
+                            <button class="nav-link {% if active_tab == 'commands' %}active{% endif %}" 
+                                    onclick="location.href='{{ url_for('dashboard', gpu_type=current_gpu_type, tab='commands') }}'">
                                 <i class="fas fa-terminal"></i> Command Log
-                                <span class="badge bg-secondary ms-1" id="commandCount">0</span>
+                                <span class="badge bg-secondary ms-1">{{ command_log|length if command_log else 0 }}</span>
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="results-tab" data-bs-toggle="tab" data-bs-target="#results" type="button" role="tab">
+                            <button class="nav-link {% if active_tab == 'results' %}active{% endif %}" 
+                                    onclick="location.href='{{ url_for('dashboard', gpu_type=current_gpu_type, tab='results') }}'">
                                 <i class="fas fa-chart-pie"></i> Analytics
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="debug-tab" data-bs-toggle="tab" data-bs-target="#debug" type="button" role="tab">
-                                <i class="fas fa-bug"></i> Debug
-                                <span class="badge bg-info ms-1" id="debugTabCount">0</span>
                             </button>
                         </li>
                     </ul>
 
                     <!-- Tab Content -->
                     <div class="tab-content" id="mainTabContent">
+                        {% if not active_tab or active_tab == 'hosts' %}
                         <!-- Hosts Tab -->
                         <div class="tab-pane fade show active" id="hosts" role="tabpanel">
-                            <!-- Display rendered aggregate data -->
+                            <!-- Overall Summary Banner -->
+                            {% if aggregate_data.gpu_overview %}
+                            <div class="row mt-3 mb-4">
+                                <div class="col-12">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <div class="row align-items-center">
+                                                <div class="col-md-8">
+                                                    <h5 class="mb-1">
+                                                        <i class="fas fa-tachometer-alt text-primary"></i>
+                                                        GPU Usage Overview
+                                                    </h5>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="me-3">
+                                                            <strong>{{ aggregate_data.gpu_overview.gpu_usage_ratio }} GPUs</strong>
+                                                        </span>
+                                                        <div class="progress flex-grow-1 me-3" style="height: 20px;">
+                                                            <div class="progress-bar {% if aggregate_data.gpu_overview.gpu_usage_percentage < 50 %}bg-success{% elif aggregate_data.gpu_overview.gpu_usage_percentage < 80 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                                 role="progressbar" style="width: {{ aggregate_data.gpu_overview.gpu_usage_percentage }}%">
+                                                                <span>{{ aggregate_data.gpu_overview.gpu_usage_percentage }}%</span>
+                                                            </div>
+                                                        </div>
+                                                        <span class="badge bg-primary fs-6">{{ aggregate_data.gpu_overview.gpu_usage_percentage }}%</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4 text-end">
+                                                    <div class="row">
+                                                        <div class="col-6">
+                                                            <div class="text-success fs-4 fw-bold">{{ available_hosts_count }}</div>
+                                                            <small class="text-muted">Available</small>
+                                                        </div>
+                                                        <div class="col-6">
+                                                            <div class="text-warning fs-4 fw-bold">{{ in_use_hosts_count }}</div>
+                                                            <small class="text-muted">In Use</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Server-side rendered aggregate data -->
                             {% if hosts_html %}
                                 {{ hosts_html|safe }}
                             {% else %}
@@ -132,138 +191,105 @@
                                 </div>
                             {% endif %}
                             
-                            <div class="row mt-3">
-                                <!-- Runpod Column -->
-                                <div class="col-md-2">
-                                    <div class="aggregate-column" id="runpodColumn">
-                                        <div class="card">
-                                            <div class="card-header bg-purple text-white">
-                                                <h4 class="mb-0">
-                                                    <i class="fas fa-rocket"></i> 
-                                                    Runpod <span id="runpodName"></span>
-                                                    <span class="badge bg-light text-dark ms-2" id="runpodCount">0</span>
-                                                </h4>
-                                                <div class="mt-2">
-                                                    <small class="text-light">VM Usage: <span id="runpodVmUsage">0 VMs</span></small>
-                                                </div>
-                                            </div>
-                                            <div class="card-body drop-zone" id="runpodHosts" data-type="runpod">
-                                                <!-- RunPod hosts will be dynamically inserted here -->
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- On-Demand Columns will be dynamically inserted here -->
-                                
-                                <!-- Fallback On-Demand Column (for compatibility) -->
-                                <div class="col-md-4" id="ondemandColumnFallback" style="display: none;">
-                                    <div class="aggregate-column" id="ondemandColumn">
-                                        <div class="card">
-                                            <div class="card-header bg-primary text-white">
-                                                <h4 class="mb-0">
-                                                    <i class="fas fa-server"></i> 
-                                                    On-Demand <span id="ondemandName"></span>
-                                                    <span class="badge bg-light text-dark ms-2" id="ondemandCount">0</span>
-                                                </h4>
-                                                <div class="mt-2">
-                                                    <small class="text-light">GPU Usage: <span id="ondemandGpuUsage">0/0</span> (<span id="ondemandGpuPercent">0%</span>)</small>
-                                                    <div class="progress mt-1" style="height: 6px;">
-                                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="ondemandGpuProgressBar"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="card-body drop-zone" id="ondemandHosts" data-type="ondemand">
-                                                <!-- On-demand hosts will be dynamically inserted here -->
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Spot Column -->
-                                <div class="col-md-2">
-                                    <div class="aggregate-column" id="spotColumn">
-                                        <div class="card">
-                                            <div class="card-header bg-warning text-dark">
-                                                <h4 class="mb-0">
-                                                    <i class="fas fa-flash"></i> 
-                                                    Spot <span id="spotName"></span>
-                                                    <span class="badge bg-light text-dark ms-2" id="spotCount">0</span>
-                                                </h4>
-                                                <div class="mt-2">
-                                                    <small class="text-dark">GPU Usage: <span id="spotGpuUsage">0/0</span> (<span id="spotGpuPercent">0%</span>)</small>
-                                                    <div class="progress mt-1" style="height: 6px;">
-                                                        <div class="progress-bar bg-dark" role="progressbar" style="width: 0%" id="spotGpuProgressBar"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="card-body drop-zone" id="spotHosts" data-type="spot">
-                                                <!-- Spot hosts will be dynamically inserted here -->
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
                             <!-- Control Buttons -->
                             <div class="row mt-4">
                                 <div class="col-md-12 text-center">
-                                    <button id="moveToOndemandBtn" class="btn btn-primary me-2" disabled>
-                                        <i class="fas fa-arrow-left"></i> Move to On-Demand
-                                    </button>
-                                    <button id="moveToRunpodBtn" class="btn btn-purple me-2" disabled>
-                                        <i class="fas fa-rocket"></i> Move to Runpod
-                                    </button>
-                                    <button id="moveToSpotBtn" class="btn btn-warning me-2" disabled>
-                                        <i class="fas fa-arrow-right"></i> Move to Spot
-                                    </button>
-                                    <button id="refreshBtn" class="btn btn-secondary">
-                                        <i class="fas fa-sync"></i> Refresh
-                                    </button>
+                                    <form method="POST" action="{{ url_for('bulk_migrate') }}" class="d-inline">
+                                        <input type="hidden" name="gpu_type" value="{{ current_gpu_type }}">
+                                        <input type="hidden" name="target_type" value="ondemand">
+                                        <button type="submit" class="btn btn-primary me-2">
+                                            <i class="fas fa-arrow-left"></i> Move Selected to On-Demand
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('bulk_migrate') }}" class="d-inline">
+                                        <input type="hidden" name="gpu_type" value="{{ current_gpu_type }}">
+                                        <input type="hidden" name="target_type" value="runpod">
+                                        <button type="submit" class="btn btn-purple me-2">
+                                            <i class="fas fa-rocket"></i> Move Selected to Runpod
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('bulk_migrate') }}" class="d-inline">
+                                        <input type="hidden" name="gpu_type" value="{{ current_gpu_type }}">
+                                        <input type="hidden" name="target_type" value="spot">
+                                        <button type="submit" class="btn btn-warning me-2">
+                                            <i class="fas fa-arrow-right"></i> Move Selected to Spot
+                                        </button>
+                                    </form>
+                                    <form method="GET" action="{{ url_for('dashboard') }}" class="d-inline">
+                                        <input type="hidden" name="gpu_type" value="{{ current_gpu_type }}">
+                                        <button type="submit" class="btn btn-secondary">
+                                            <i class="fas fa-sync"></i> Refresh
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
                         </div>
+                        {% endif %}
 
+                        {% if active_tab == 'pending' %}
                         <!-- Pending Operations Tab -->
-                        <div class="tab-pane fade" id="pending" role="tabpanel">
+                        <div class="tab-pane fade show active" id="pending" role="tabpanel">
                             <div class="row mt-3">
                                 <div class="col-12">
                                     <div class="card">
                                         <div class="card-header bg-warning text-dark">
                                             <h5 class="mb-0">
                                                 <i class="fas fa-clock"></i> Pending Operations
-                                                <span class="badge bg-dark ms-2" id="pendingCount">0</span>
+                                                <span class="badge bg-dark ms-2">{{ pending_operations|length if pending_operations else 0 }}</span>
                                             </h5>
                                         </div>
                                         <div class="card-body">
-                                            <div id="pendingOperationsList" class="mb-3">
+                                            {% if pending_operations %}
+                                                <form method="POST" action="{{ url_for('execute_pending_operations') }}">
+                                                    {% for operation in pending_operations %}
+                                                    <div class="card mb-3">
+                                                        <div class="card-body">
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" name="selected_operations" 
+                                                                       value="{{ operation.id }}" id="op_{{ operation.id }}" checked>
+                                                                <label class="form-check-label" for="op_{{ operation.id }}">
+                                                                    <strong>{{ operation.hostname }}</strong>: 
+                                                                    {{ operation.source_type }} → {{ operation.target_type }}
+                                                                    <small class="text-muted d-block">{{ operation.timestamp }}</small>
+                                                                </label>
+                                                            </div>
+                                                            {% if operation.commands %}
+                                                            <div class="mt-2">
+                                                                <small class="text-muted">Commands:</small>
+                                                                {% for command in operation.commands %}
+                                                                <div><code>{{ command }}</code></div>
+                                                                {% endfor %}
+                                                            </div>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                    {% endfor %}
+                                                    
+                                                    <div class="text-center">
+                                                        <button type="submit" class="btn btn-success me-2">
+                                                            <i class="fas fa-check"></i> Execute Selected Operations
+                                                        </button>
+                                                        <a href="{{ url_for('clear_pending_operations') }}" class="btn btn-outline-danger me-2">
+                                                            <i class="fas fa-times"></i> Clear All
+                                                        </a>
+                                                    </div>
+                                                </form>
+                                            {% else %}
                                                 <div class="text-center text-muted">
                                                     <i class="fas fa-clock fa-3x mb-3"></i>
-                                                    <p>No pending operations. Select hosts and add operations to see them here.</p>
+                                                    <p>No pending operations. Select hosts and migrate them to see operations here.</p>
                                                 </div>
-                                            </div>
-                                            <div class="text-center">
-                                                <button id="commitBtn" class="btn btn-success me-2">
-                                                    <i class="fas fa-check"></i> Commit Selected Operations
-                                                </button>
-                                                <button id="clearPendingBtn" class="btn btn-outline-danger me-2">
-                                                    <i class="fas fa-times"></i> Clear All
-                                                </button>
-                                                <button id="selectAllPendingBtn" class="btn btn-outline-primary me-2">
-                                                    <i class="fas fa-check-square"></i> Select All
-                                                </button>
-                                                <button id="deselectAllPendingBtn" class="btn btn-outline-secondary">
-                                                    <i class="fas fa-square"></i> Deselect All
-                                                </button>
-                                            </div>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        {% endif %}
 
+                        {% if active_tab == 'commands' %}
                         <!-- Commands Tab -->
-                        <div class="tab-pane fade" id="commands" role="tabpanel">
+                        <div class="tab-pane fade show active" id="commands" role="tabpanel">
                             <div class="row mt-3">
                                 <div class="col-12">
                                     <div class="card">
@@ -272,29 +298,53 @@
                                                 <i class="fas fa-terminal"></i> Command Execution Log
                                             </h5>
                                             <div>
-                                                <button id="refreshLogBtn" class="btn btn-sm btn-outline-secondary me-2">
+                                                <a href="{{ url_for('dashboard', gpu_type=current_gpu_type, tab='commands') }}" class="btn btn-sm btn-outline-secondary me-2">
                                                     <i class="fas fa-sync"></i> Refresh
-                                                </button>
-                                                <button id="clearLogBtn" class="btn btn-sm btn-outline-danger">
+                                                </a>
+                                                <a href="{{ url_for('clear_command_log') }}" class="btn btn-sm btn-outline-danger">
                                                     <i class="fas fa-trash"></i> Clear Log
-                                                </button>
+                                                </a>
                                             </div>
                                         </div>
                                         <div class="card-body">
-                                            <div id="commandLogContainer">
+                                            {% if command_log %}
+                                                {% for entry in command_log %}
+                                                <div class="command-entry mb-3 p-3 border rounded">
+                                                    <div class="d-flex justify-content-between align-items-start">
+                                                        <div>
+                                                            <strong>{{ entry.hostname if entry.hostname else 'System' }}</strong>
+                                                            <span class="badge bg-{{ 'success' if entry.success else 'danger' }} ms-2">
+                                                                {{ 'Success' if entry.success else 'Failed' }}
+                                                            </span>
+                                                        </div>
+                                                        <small class="text-muted">{{ entry.timestamp }}</small>
+                                                    </div>
+                                                    <div class="mt-2">
+                                                        <code class="d-block p-2 bg-dark text-light rounded">{{ entry.command }}</code>
+                                                    </div>
+                                                    {% if entry.output %}
+                                                    <div class="mt-2">
+                                                        <pre class="small">{{ entry.output }}</pre>
+                                                    </div>
+                                                    {% endif %}
+                                                </div>
+                                                {% endfor %}
+                                            {% else %}
                                                 <div class="text-center text-muted">
                                                     <i class="fas fa-terminal fa-3x mb-3"></i>
                                                     <p>No commands executed yet. Commands will appear here when you perform migrations.</p>
                                                 </div>
-                                            </div>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        {% endif %}
 
+                        {% if active_tab == 'results' %}
                         <!-- Analytics Tab -->
-                        <div class="tab-pane fade" id="results" role="tabpanel">
+                        <div class="tab-pane fade show active" id="results" role="tabpanel">
                             <div class="row mt-3">
                                 <!-- Execution Statistics -->
                                 <div class="col-md-6">
@@ -305,31 +355,29 @@
                                             </h5>
                                         </div>
                                         <div class="card-body">
-                                            <div id="resultsSummary">
-                                                <div class="row">
-                                                    <div class="col-6 mb-3">
-                                                        <div class="stat-card success">
-                                                            <div class="stat-value" id="successCount">0</div>
-                                                            <div class="stat-label">Successful</div>
-                                                        </div>
+                                            <div class="row">
+                                                <div class="col-6 mb-3">
+                                                    <div class="stat-card success">
+                                                        <div class="stat-value">{{ session_stats.successful_operations if session_stats else 0 }}</div>
+                                                        <div class="stat-label">Successful</div>
                                                     </div>
-                                                    <div class="col-6 mb-3">
-                                                        <div class="stat-card error">
-                                                            <div class="stat-value" id="errorCount">0</div>
-                                                            <div class="stat-label">Failed</div>
-                                                        </div>
+                                                </div>
+                                                <div class="col-6 mb-3">
+                                                    <div class="stat-card error">
+                                                        <div class="stat-value">{{ session_stats.failed_operations if session_stats else 0 }}</div>
+                                                        <div class="stat-label">Failed</div>
                                                     </div>
-                                                    <div class="col-6">
-                                                        <div class="stat-card preview">
-                                                            <div class="stat-value" id="previewCount">0</div>
-                                                            <div class="stat-label">Previewed</div>
-                                                        </div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="stat-card preview">
+                                                        <div class="stat-value">{{ session_stats.total_commands if session_stats else 0 }}</div>
+                                                        <div class="stat-label">Commands</div>
                                                     </div>
-                                                    <div class="col-6">
-                                                        <div class="stat-card total">
-                                                            <div class="stat-value" id="totalCount">0</div>
-                                                            <div class="stat-label">Total</div>
-                                                        </div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="stat-card total">
+                                                        <div class="stat-value">{{ session_stats.total_operations if session_stats else 0 }}</div>
+                                                        <div class="stat-label">Total</div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -351,28 +399,28 @@
                                                     <div class="analytics-item">
                                                         <i class="fas fa-play-circle text-primary me-2"></i>
                                                         <strong>Session Started:</strong>
-                                                        <span id="sessionStartTime">Loading...</span>
+                                                        <span>{{ session_stats.session_start if session_stats else 'Not available' }}</span>
                                                     </div>
                                                 </div>
                                                 <div class="col-12 mb-3">
                                                     <div class="analytics-item">
                                                         <i class="fas fa-server text-success me-2"></i>
                                                         <strong>Operations Executed:</strong>
-                                                        <span id="operationsCount">0</span>
+                                                        <span>{{ session_stats.total_operations if session_stats else 0 }}</span>
                                                     </div>
                                                 </div>
                                                 <div class="col-12 mb-3">
                                                     <div class="analytics-item">
                                                         <i class="fas fa-terminal text-info me-2"></i>
                                                         <strong>Commands Run:</strong>
-                                                        <span id="commandsExecuted">0</span>
+                                                        <span>{{ session_stats.total_commands if session_stats else 0 }}</span>
                                                     </div>
                                                 </div>
                                                 <div class="col-12">
                                                     <div class="analytics-item">
                                                         <i class="fas fa-exclamation-triangle text-warning me-2"></i>
                                                         <strong>Error Rate:</strong>
-                                                        <span id="errorRate">0%</span>
+                                                        <span>{{ session_stats.error_rate if session_stats else '0%' }}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -391,15 +439,15 @@
                                             </h5>
                                         </div>
                                         <div class="card-body text-center">
-                                            <a href="/export_debug_log" class="btn btn-primary me-2">
+                                            <a href="{{ url_for('export_command_log') }}" class="btn btn-primary me-2">
                                                 <i class="fas fa-file-export me-1"></i>
                                                 Export Command Log
                                             </a>
-                                            <a href="/export_analytics" class="btn btn-success me-2">
+                                            <a href="{{ url_for('export_analytics') }}" class="btn btn-success me-2">
                                                 <i class="fas fa-chart-bar me-1"></i>
                                                 Export Analytics
                                             </a>
-                                            <form method="POST" action="/reset_session" class="d-inline">
+                                            <form method="POST" action="{{ url_for('reset_session') }}" class="d-inline">
                                                 <button type="submit" class="btn btn-secondary">
                                                     <i class="fas fa-refresh me-1"></i>
                                                     Reset Session
@@ -410,79 +458,7 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Debug Tab -->
-                        <div class="tab-pane fade" id="debug" role="tabpanel">
-                            <div class="row mt-3">
-                                <div class="col-12">
-                                    <div class="card">
-                                        <div class="card-header d-flex justify-content-between align-items-center">
-                                            <h5 class="mb-0">
-                                                <i class="fas fa-bug"></i> Debug Information
-                                            </h5>
-                                            <div>
-                                                <button id="clearDebugBtn" class="btn btn-sm btn-outline-danger me-2">
-                                                    <i class="fas fa-trash"></i> Clear Debug
-                                                </button>
-                                                <button id="exportDebugBtn" class="btn btn-sm btn-outline-primary">
-                                                    <i class="fas fa-download"></i> Export Debug
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="card-body">
-                                            <div class="row">
-                                                <div class="col-md-4">
-                                                    <div class="card">
-                                                        <div class="card-header">
-                                                            <h6 class="mb-0">
-                                                                <i class="fas fa-info-circle text-info"></i> System Info
-                                                            </h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div id="systemDebugInfo">
-                                                                <div class="debug-item">
-                                                                    <strong>Session Started:</strong>
-                                                                    <span id="sessionStartTime"></span>
-                                                                </div>
-                                                                <div class="debug-item">
-                                                                    <strong>Operations Count:</strong>
-                                                                    <span id="operationsCount">0</span>
-                                                                </div>
-                                                                <div class="debug-item">
-                                                                    <strong>Commands Executed:</strong>
-                                                                    <span id="commandsExecuted">0</span>
-                                                                </div>
-                                                                <div class="debug-item">
-                                                                    <strong>Errors:</strong>
-                                                                    <span id="errorsCount">0</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-8">
-                                                    <div class="card">
-                                                        <div class="card-header">
-                                                            <h6 class="mb-0">
-                                                                <i class="fas fa-stream text-primary"></i> Debug Log
-                                                            </h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div id="debugLogContainer" style="height: 400px; overflow-y: auto;">
-                                                                <div class="text-center text-muted">
-                                                                    <i class="fas fa-bug fa-3x mb-3"></i>
-                                                                    <p>Debug information will appear here during operations.</p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
@@ -499,751 +475,13 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body" id="vmDetailsBody">
-                    <!-- VM details will be loaded here -->
+                    <!-- VM details will be loaded via server-side -->
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Migration Preview Modal -->
-    <div class="modal fade" id="migrationModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Confirm Migration</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="migrationWarning" class="alert alert-warning d-none">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <strong>Warning:</strong> This host has running VMs!
-                    </div>
-                    <p>The following OpenStack commands will be executed:</p>
-                    <div id="commandPreview" class="bg-light p-3 rounded">
-                        <!-- Commands will be shown here -->
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="confirmMigrationBtn">Execute Migration</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Success/Error Toast -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="notificationToast" class="toast" role="alert">
-            <div class="toast-header">
-                <i class="fas fa-info-circle me-2"></i>
-                <strong class="me-auto">Notification</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body" id="toastBody">
-                <!-- Notification message -->
-            </div>
-        </div>
-    </div>
-
+    <!-- Bootstrap JS (minimal - no custom JavaScript) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Pure Bootstrap modal with data loading - no custom functions
-        document.getElementById('vmDetailsModal').addEventListener('show.bs.modal', function (event) {
-            const trigger = event.relatedTarget;
-            const hostname = trigger.getAttribute('data-hostname');
-            
-            if (!hostname) return;
-            
-            const modalTitle = this.querySelector('.modal-title');
-            const modalBody = this.querySelector('#vmDetailsBody');
-            
-            modalTitle.textContent = `VMs on Host: ${hostname}`;
-            modalBody.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
-            
-            fetch(`/api/host-vms/${hostname}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        modalBody.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Error: ${data.error}</div>`;
-                    } else if (!data.vms || data.vms.length === 0) {
-                        modalBody.innerHTML = `<div class="alert alert-info"><i class="fas fa-info-circle"></i> No VMs found on this host.</div>`;
-                    } else {
-                        const vmRows = data.vms.map(vm => {
-                            const statusClass = vm.Status === 'ACTIVE' ? 'success' : vm.Status === 'ERROR' ? 'danger' : 'warning';
-                            const statusIcon = vm.Status === 'ACTIVE' ? 'fa-check-circle' : vm.Status === 'ERROR' ? 'fa-times-circle' : 'fa-clock';
-                            const created = new Date(vm.Created).toLocaleString();
-                            
-                            return `
-                                <tr>
-                                    <td><div class="d-flex align-items-center"><i class="fas ${statusIcon} me-2 text-${statusClass}"></i><div><strong>${vm.Name}</strong><br><small class="text-muted">${vm.ID}</small></div></div></td>
-                                    <td><span class="badge bg-${statusClass}">${vm.Status}</span></td>
-                                    <td><div><strong>${vm.Flavor}</strong>${vm.Image ? `<br><small class="text-muted">${vm.Image}</small>` : ''}</div></td>
-                                    <td><small>${created}</small></td>
-                                </tr>
-                            `;
-                        }).join('');
-                        
-                        modalBody.innerHTML = `
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead><tr><th>VM Details</th><th>Status</th><th>Flavor & Image</th><th>Created</th></tr></thead>
-                                    <tbody>${vmRows}</tbody>
-                                </table>
-                            </div>
-                            <div class="mt-3"><small class="text-muted"><i class="fas fa-info-circle"></i> Total VMs: ${data.vms.length}</small></div>
-                        `;
-                    }
-                })
-                .catch(error => {
-                    modalBody.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Failed to load VM details: ${error.message}</div>`;
-                });
-        });
-        
-        // Handle collapse icon rotation
-        document.addEventListener('DOMContentLoaded', function() {
-            const collapseElements = document.querySelectorAll('.collapse');
-            collapseElements.forEach(function(collapse) {
-                collapse.addEventListener('show.bs.collapse', function() {
-                    const trigger = document.querySelector(`[data-bs-target="#${this.id}"]`);
-                    if (trigger) {
-                        const icon = trigger.querySelector('.collapse-icon');
-                        if (icon) {
-                            icon.style.transform = 'rotate(180deg)';
-                        }
-                    }
-                });
-                
-                collapse.addEventListener('hide.bs.collapse', function() {
-                    const trigger = document.querySelector(`[data-bs-target="#${this.id}"]`);
-                    if (trigger) {
-                        const icon = trigger.querySelector('.collapse-icon');
-                        if (icon) {
-                            icon.style.transform = 'rotate(0deg)';
-                        }
-                    }
-                });
-            });
-        });
-        
-        // Drag and Drop + Host Management System
-        let selectedHosts = new Set();
-        let pendingOperations = [];
-        
-        // Setup drag and drop functionality
-        function setupDragAndDrop() {
-            // Remove existing event listeners to prevent duplicates
-            document.querySelectorAll('.host-card, .machine-card').forEach(card => {
-                card.removeEventListener('dragstart', handleDragStart);
-                card.removeEventListener('dragend', handleDragEnd);
-                card.removeEventListener('click', handleHostClick);
-            });
-            
-            document.querySelectorAll('.drop-zone').forEach(zone => {
-                zone.removeEventListener('dragover', handleDragOver);
-                zone.removeEventListener('drop', handleDrop);
-                zone.removeEventListener('dragenter', handleDragEnter);
-                zone.removeEventListener('dragleave', handleDragLeave);
-            });
-            
-            // Add event listeners to host cards
-            document.querySelectorAll('.host-card, .machine-card').forEach(card => {
-                card.addEventListener('dragstart', handleDragStart);
-                card.addEventListener('dragend', handleDragEnd);
-                card.addEventListener('click', handleHostClick);
-            });
-            
-            // Add event listeners to drop zones
-            document.querySelectorAll('.drop-zone').forEach(zone => {
-                zone.addEventListener('dragover', handleDragOver);
-                zone.addEventListener('drop', handleDrop);
-                zone.addEventListener('dragenter', handleDragEnter);
-                zone.addEventListener('dragleave', handleDragLeave);
-            });
-        }
-        
-        // Drag event handlers
-        function handleDragStart(e) {
-            this.classList.add('dragging');
-            e.dataTransfer.setData('text/plain', this.dataset.host);
-            e.dataTransfer.setData('source-type', this.dataset.type);
-            console.log('🚀 Dragging host:', this.dataset.host, 'from', this.dataset.type);
-        }
-        
-        function handleDragEnd(e) {
-            this.classList.remove('dragging');
-        }
-        
-        function handleDragOver(e) {
-            e.preventDefault();
-        }
-        
-        function handleDragEnter(e) {
-            e.preventDefault();
-            e.currentTarget.classList.add('drag-over');
-        }
-        
-        function handleDragLeave(e) {
-            e.currentTarget.classList.remove('drag-over');
-        }
-        
-        async function handleDrop(e) {
-            e.preventDefault();
-            e.currentTarget.classList.remove('drag-over');
-            
-            const hostname = e.dataTransfer.getData('text/plain');
-            const sourceType = e.dataTransfer.getData('source-type');
-            const targetType = e.currentTarget.dataset.type;
-            const targetVariant = e.currentTarget.dataset.variant;
-            
-            console.log('🎯 Dropped', hostname, 'from', sourceType, 'to', targetType, targetVariant ? `(${targetVariant})` : '');
-            
-            if (sourceType !== targetType) {
-                await addToPendingOperations(hostname, sourceType, targetType, targetVariant);
-            }
-        }
-        
-        // Host selection handler
-        function handleHostClick(e) {
-            if (e.target.closest('button') || e.target.closest('.clickable-vm-count')) {
-                return; // Don't handle clicks on buttons or VM counts
-            }
-            
-            const card = e.currentTarget;
-            const hostname = card.dataset.host;
-            
-            if (card.classList.contains('selected')) {
-                card.classList.remove('selected');
-                selectedHosts.delete(hostname);
-            } else {
-                card.classList.add('selected');
-                selectedHosts.add(hostname);
-            }
-            
-            updateActionButtons();
-            console.log('🔘 Selected hosts:', Array.from(selectedHosts));
-        }
-        
-        // Add operation to pending queue
-        async function addToPendingOperations(hostname, sourceType, targetType, targetVariant = null) {
-            try {
-                let operation;
-                
-                if (targetType === 'runpod') {
-                    // Handle Runpod aggregate migration (move to runpod aggregate first, not launch)
-                    const sourceAggregate = `{{ current_gpu_type }}-${sourceType}`;
-                    const targetAggregate = `{{ current_gpu_type }}-runpod`;
-                    
-                    const response = await fetch('/api/preview-migration', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            host: hostname,
-                            source_aggregate: sourceAggregate,
-                            target_aggregate: targetAggregate
-                        })
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        operation = {
-                            id: Date.now(),
-                            hostname: hostname,
-                            sourceType: sourceType,
-                            targetType: targetType,
-                            targetVariant: targetVariant,
-                            timestamp: new Date().toISOString(),
-                            selected: true,
-                            commands: data.commands || [],
-                            operationType: 'runpod-migration',
-                            commandOutputs: [] // Track command outputs
-                        };
-                        
-                        showToast(`Added ${hostname} migration to runpod aggregate`, 'success');
-                    } else {
-                        showToast(`Failed to preview runpod migration for ${hostname}`, 'danger');
-                        console.error('Failed to preview runpod migration:', response.statusText);
-                        return;
-                    }
-                } else {
-                    // Handle aggregate migration operation
-                    const sourceAggregate = `{{ current_gpu_type }}-${sourceType}`;
-                    const targetAggregate = `{{ current_gpu_type }}-${targetType}`;
-                    
-                    const response = await fetch('/api/preview-migration', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            host: hostname,
-                            source_aggregate: sourceAggregate,
-                            target_aggregate: targetAggregate
-                        })
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        operation = {
-                            id: Date.now(),
-                            hostname: hostname,
-                            sourceType: sourceType,
-                            targetType: targetType,
-                            targetVariant: targetVariant,
-                            timestamp: new Date().toISOString(),
-                            selected: true,
-                            commands: data.commands || [],
-                            operationType: 'migration',
-                            commandOutputs: [] // Track command outputs
-                        };
-                        
-                        showToast(`Added ${hostname} migration from ${sourceType} to ${targetType}`, 'success');
-                    } else {
-                        showToast(`Failed to preview migration for ${hostname}`, 'danger');
-                        console.error('Failed to preview migration:', response.statusText);
-                        return;
-                    }
-                }
-                
-                pendingOperations.push(operation);
-                updatePendingOperationsUI();
-                console.log('📝 Added pending operation:', operation);
-                
-            } catch (error) {
-                showToast(`Error adding operation for ${hostname}`, 'danger');
-                console.error('Error adding pending operation:', error);
-            }
-        }
-        
-        // Schedule a separate runpod launch operation (after host is in runpod aggregate)
-        async function scheduleRunpodLaunch(hostname) {
-            try {
-                const response = await fetch('/api/preview-runpod-launch', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        hostname: hostname
-                    })
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const operation = {
-                        id: Date.now(),
-                        hostname: hostname,
-                        sourceType: 'runpod',
-                        targetType: 'runpod-launch',
-                        timestamp: new Date().toISOString(),
-                        selected: true,
-                        commands: data.commands || [],
-                        operationType: 'runpod-launch',
-                        flavorName: data.flavor_name,
-                        vmName: data.vm_name,
-                        totalSteps: data.total_steps,
-                        canadaHost: data.canada_host,
-                        commandOutputs: [] // Track command outputs
-                    };
-                    
-                    pendingOperations.push(operation);
-                    updatePendingOperationsUI();
-                    showToast(`🚀 Added ${hostname} VM launch to queue`, 'success');
-                    console.log('🚀 Added runpod launch operation:', operation);
-                } else {
-                    showToast(`Failed to schedule runpod launch for ${hostname}`, 'danger');
-                    console.error('Failed to schedule runpod launch:', response.statusText);
-                }
-            } catch (error) {
-                showToast(`Error scheduling launch for ${hostname}`, 'danger');
-                console.error('Error scheduling runpod launch:', error);
-            }
-        }
-        
-        // Update action buttons based on selection
-        function updateActionButtons() {
-            const moveToOndemandBtn = document.getElementById('moveToOndemandBtn');
-            const moveToRunpodBtn = document.getElementById('moveToRunpodBtn');
-            const moveToSpotBtn = document.getElementById('moveToSpotBtn');
-            
-            const hasSelection = selectedHosts.size > 0;
-            
-            if (moveToOndemandBtn) moveToOndemandBtn.disabled = !hasSelection;
-            if (moveToRunpodBtn) moveToRunpodBtn.disabled = !hasSelection;
-            if (moveToSpotBtn) moveToSpotBtn.disabled = !hasSelection;
-        }
-        
-        // Update pending operations UI
-        function updatePendingOperationsUI() {
-            const pendingCount = document.getElementById('pendingTabCount');
-            const pendingList = document.getElementById('pendingOperationsList');
-            
-            if (pendingCount) {
-                pendingCount.textContent = pendingOperations.length;
-            }
-            
-            if (pendingList && pendingOperations.length > 0) {
-                const operationsHtml = pendingOperations.map(op => {
-                    let commandsHtml;
-                    
-                    if (op.operationType === 'runpod-launch' && op.commands && op.commands.length > 0) {
-                        // Detailed display for Runpod launches like main branch
-                        commandsHtml = op.commands.map((cmd, index) => `
-                            <div class="command-detail mb-3">
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="badge bg-secondary me-2">${index + 1}</span>
-                                    <strong class="text-primary">${cmd.title}</strong>
-                                    ${cmd.title.includes('Wait') ? '<i class="fas fa-clock ms-2 text-warning"></i>' : ''}
-                                </div>
-                                <div class="mb-2">
-                                    <small class="text-muted">${cmd.description}</small>
-                                </div>
-                                <div class="command-code mb-2">
-                                    <code class="d-block p-2 bg-dark text-light rounded">${cmd.command}</code>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <small class="text-muted">
-                                            <strong>Purpose:</strong> ${cmd.purpose}
-                                        </small>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <small class="text-muted">
-                                            <strong>Expected:</strong> ${cmd.expected_output}
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('');
-                    } else if (op.commands && op.commands.length > 0) {
-                        // Simple display for migrations
-                        commandsHtml = op.commands.map((cmd, index) => `
-                            <div class="command-item mb-1">
-                                <small class="text-muted">${index + 1}.</small>
-                                <code class="text-dark">${cmd}</code>
-                            </div>
-                        `).join('');
-                    } else {
-                        commandsHtml = `<div class="text-muted">No commands available</div>`;
-                    }
-                    
-                    // Different display for Runpod launches vs migrations
-                    let operationTitle, operationSubtitle, commandSectionTitle;
-                    
-                    if (op.operationType === 'runpod-launch') {
-                        operationTitle = `🚀 Launch VM '${op.vmName || op.hostname}' on ${op.hostname}`;
-                        operationSubtitle = `Deploy new virtual machine with automated networking and security configuration${op.totalSteps ? ` (${op.totalSteps} steps)` : ''}${op.canadaHost ? ' - Canada Host' : ''}`;
-                        commandSectionTitle = 'API Call to execute:';
-                    } else if (op.operationType === 'runpod-migration') {
-                        operationTitle = `🚀 Move to Runpod: ${op.hostname}`;
-                        operationSubtitle = `${op.sourceType} → runpod aggregate${op.targetVariant ? ` (${op.targetVariant})` : ''}`;
-                        commandSectionTitle = 'Commands to execute:';
-                    } else {
-                        operationTitle = `🔄 Migration: ${op.hostname}`;
-                        operationSubtitle = `${op.sourceType} → ${op.targetType}${op.targetVariant ? ` (${op.targetVariant})` : ''}`;
-                        commandSectionTitle = 'Commands to execute:';
-                    }
-                    
-                    return `
-                        <div class="pending-operation card mb-3">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div class="d-flex align-items-center">
-                                        <input type="checkbox" class="form-check-input me-2" ${op.selected ? 'checked' : ''} 
-                                               onchange="toggleOperationSelection(${op.id})">
-                                        <div>
-                                            <strong>${operationTitle}</strong>
-                                            <small class="text-muted d-block">
-                                                ${operationSubtitle}
-                                            </small>
-                                        </div>
-                                    </div>
-                                    <div class="btn-group">
-                                        <button class="btn btn-sm btn-success" onclick="executeIndividualOperation(${op.id})" 
-                                                title="Execute this operation">
-                                            <i class="fas fa-play"></i> Execute
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="removeOperation(${op.id})" 
-                                                title="Remove from queue">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="commands-section">
-                                    <h6 class="mb-2 text-muted">
-                                        <i class="fas fa-terminal me-1"></i>${commandSectionTitle}
-                                    </h6>
-                                    <div class="bg-light p-2 rounded">
-                                        ${commandsHtml}
-                                    </div>
-                                    ${op.commandOutputs && op.commandOutputs.length > 0 ? `
-                                        <div class="mt-3">
-                                            <h6 class="mb-2 text-success">
-                                                <i class="fas fa-check-circle me-1"></i>Command Outputs:
-                                            </h6>
-                                            <div class="command-outputs">
-                                                ${op.commandOutputs.map((output, index) => `
-                                                    <div class="output-item mb-2 p-2 border rounded ${output.success ? 'border-success' : 'border-danger'}">
-                                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                                            <small class="text-muted">Command ${index + 1}</small>
-                                                            <span class="badge ${output.success ? 'bg-success' : 'bg-danger'}">
-                                                                ${output.success ? 'Success' : 'Failed'}
-                                                            </span>
-                                                        </div>
-                                                        <code class="d-block p-1 bg-dark text-light rounded mb-1">${output.command}</code>
-                                                        ${output.output ? `<pre class="mb-0 small">${output.output}</pre>` : ''}
-                                                    </div>
-                                                `).join('')}
-                                            </div>
-                                        </div>
-                                    ` : ''}
-                                </div>
-                                ${op.operationType === 'runpod-migration' ? `
-                                    <div class="mt-3 pt-2 border-top">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span class="text-muted">After migration:</span>
-                                            <button class="btn btn-sm btn-outline-primary" onclick="scheduleRunpodLaunch('${op.hostname}')">
-                                                <i class="fas fa-rocket"></i> Schedule VM Launch
-                                            </button>
-                                        </div>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-                
-                pendingList.innerHTML = operationsHtml;
-            } else if (pendingList) {
-                pendingList.innerHTML = `
-                    <div class="text-center text-muted">
-                        <i class="fas fa-clock fa-3x mb-3"></i>
-                        <p>No pending operations. Select hosts and add operations to see them here.</p>
-                    </div>
-                `;
-            }
-        }
-        
-        // Show toast notification
-        function showToast(message, type = 'info') {
-            const toast = document.getElementById('notificationToast');
-            const toastBody = document.getElementById('toastBody');
-            
-            if (toast && toastBody) {
-                toastBody.textContent = message;
-                const bsToast = new bootstrap.Toast(toast);
-                bsToast.show();
-            }
-        }
-        
-        // Toggle operation selection (called from checkbox onchange)
-        function toggleOperationSelection(operationId) {
-            const operation = pendingOperations.find(op => op.id === operationId);
-            if (operation) {
-                operation.selected = !operation.selected;
-                updatePendingOperationsUI();
-                console.log(`Toggled operation ${operationId} selection:`, operation.selected);
-            }
-        }
-        
-        // Select all pending operations
-        function selectAllPendingOperations() {
-            pendingOperations.forEach(op => op.selected = true);
-            updatePendingOperationsUI();
-            showToast('Selected all pending operations', 'success');
-            console.log('Selected all pending operations');
-        }
-        
-        // Deselect all pending operations
-        function deselectAllPendingOperations() {
-            pendingOperations.forEach(op => op.selected = false);
-            updatePendingOperationsUI();
-            showToast('Deselected all pending operations', 'info');
-            console.log('Deselected all pending operations');
-        }
-        
-        // Clear all pending operations
-        function clearAllPendingOperations() {
-            if (pendingOperations.length === 0) {
-                showToast('No pending operations to clear', 'info');
-                return;
-            }
-            
-            const count = pendingOperations.length;
-            pendingOperations.length = 0; // Clear the array
-            updatePendingOperationsUI();
-            showToast(`Cleared ${count} pending operations`, 'success');
-            console.log(`Cleared ${count} pending operations`);
-        }
-        
-        // Remove a specific operation
-        function removeOperation(operationId) {
-            const index = pendingOperations.findIndex(op => op.id === operationId);
-            if (index !== -1) {
-                const operation = pendingOperations[index];
-                pendingOperations.splice(index, 1);
-                updatePendingOperationsUI();
-                showToast(`Removed ${operation.hostname} operation`, 'success');
-                console.log('Removed operation:', operation);
-            }
-        }
-        
-        // Execute an individual operation
-        async function executeIndividualOperation(operationId) {
-            const operation = pendingOperations.find(op => op.id === operationId);
-            if (!operation) {
-                showToast('Operation not found', 'danger');
-                return;
-            }
-            
-            if (!confirm(`Execute operation for ${operation.hostname}?\n\nThis will run the commands immediately.`)) {
-                return;
-            }
-            
-            try {
-                // Disable the execute button to prevent double-clicks
-                const executeBtn = document.querySelector(`button[onclick="executeIndividualOperation(${operationId})"]`);
-                if (executeBtn) {
-                    executeBtn.disabled = true;
-                    executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
-                }
-                
-                let response, data;
-                
-                if (operation.operationType === 'runpod-launch') {
-                    // Execute runpod launch
-                    response = await fetch('/api/execute-runpod-launch', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            hostname: operation.hostname
-                        })
-                    });
-                } else {
-                    // Execute migration (including runpod-migration)
-                    const sourceAggregate = operation.operationType === 'runpod-migration' 
-                        ? `{{ current_gpu_type }}-${operation.sourceType}`
-                        : `{{ current_gpu_type }}-${operation.sourceType}`;
-                    const targetAggregate = operation.operationType === 'runpod-migration'
-                        ? `{{ current_gpu_type }}-runpod`
-                        : `{{ current_gpu_type }}-${operation.targetType}`;
-                    
-                    response = await fetch('/api/execute-migration', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            host: operation.hostname,
-                            source_aggregate: sourceAggregate,
-                            target_aggregate: targetAggregate
-                        })
-                    });
-                }
-                
-                if (response.ok) {
-                    data = await response.json();
-                    
-                    // Register command outputs
-                    operation.commandOutputs = data.results || [];
-                    
-                    // Update UI to show results
-                    updatePendingOperationsUI();
-                    
-                    if (data.results && data.results.every(r => r.success)) {
-                        showToast(`✅ Successfully executed operation for ${operation.hostname}`, 'success');
-                        
-                        // For successful runpod migrations, show option to schedule launch
-                        if (operation.operationType === 'runpod-migration') {
-                            showToast(`Host ${operation.hostname} moved to runpod aggregate. You can now schedule a VM launch.`, 'info');
-                        }
-                    } else {
-                        showToast(`⚠️ Operation completed with some errors for ${operation.hostname}`, 'warning');
-                    }
-                } else {
-                    const errorData = await response.json();
-                    showToast(`❌ Failed to execute operation: ${errorData.error || 'Unknown error'}`, 'danger');
-                }
-                
-            } catch (error) {
-                console.error('Error executing individual operation:', error);
-                showToast(`Error executing operation: ${error.message}`, 'danger');
-            } finally {
-                // Re-enable the execute button
-                const executeBtn = document.querySelector(`button[onclick="executeIndividualOperation(${operationId})"]`);
-                if (executeBtn) {
-                    executeBtn.disabled = false;
-                    executeBtn.innerHTML = '<i class="fas fa-play"></i> Execute';
-                }
-            }
-        }
-        
-        // Move selected hosts to target
-        function moveSelectedHosts(targetType) {
-            selectedHosts.forEach(hostname => {
-                const hostCard = document.querySelector(`[data-host="${hostname}"]`);
-                if (hostCard) {
-                    const sourceType = hostCard.dataset.type;
-                    if (sourceType !== targetType) {
-                        addToPendingOperations(hostname, sourceType, targetType);
-                    }
-                }
-            });
-            
-            // Clear selection
-            selectedHosts.clear();
-            document.querySelectorAll('.host-card.selected, .machine-card.selected').forEach(card => {
-                card.classList.remove('selected');
-            });
-            updateActionButtons();
-        }
-        
-        // Action button event listeners
-        document.addEventListener('DOMContentLoaded', function() {
-            // Setup drag and drop
-            setupDragAndDrop();
-            
-            // Action button listeners
-            const moveToOndemandBtn = document.getElementById('moveToOndemandBtn');
-            const moveToRunpodBtn = document.getElementById('moveToRunpodBtn');
-            const moveToSpotBtn = document.getElementById('moveToSpotBtn');
-            const refreshBtn = document.getElementById('refreshBtn');
-            
-            if (moveToOndemandBtn) {
-                moveToOndemandBtn.addEventListener('click', () => moveSelectedHosts('ondemand'));
-            }
-            if (moveToRunpodBtn) {
-                moveToRunpodBtn.addEventListener('click', () => moveSelectedHosts('runpod'));
-            }
-            if (moveToSpotBtn) {
-                moveToSpotBtn.addEventListener('click', () => moveSelectedHosts('spot'));
-            }
-            if (refreshBtn) {
-                refreshBtn.addEventListener('click', () => {
-                    window.location.reload();
-                });
-            }
-            
-            // Pending operations button listeners
-            const selectAllPendingBtn = document.getElementById('selectAllPendingBtn');
-            const deselectAllPendingBtn = document.getElementById('deselectAllPendingBtn');
-            const clearPendingBtn = document.getElementById('clearPendingBtn');
-            
-            if (selectAllPendingBtn) {
-                selectAllPendingBtn.addEventListener('click', selectAllPendingOperations);
-            }
-            if (deselectAllPendingBtn) {
-                deselectAllPendingBtn.addEventListener('click', deselectAllPendingOperations);
-            }
-            if (clearPendingBtn) {
-                clearPendingBtn.addEventListener('click', clearAllPendingOperations);
-            }
-            
-            console.log('🔧 Drag & Drop system initialized');
-        });
-    </script>
 </body>
 </html>
