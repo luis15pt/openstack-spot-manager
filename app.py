@@ -719,6 +719,16 @@ def get_specific_aggregate_data(gpu_type, aggregate_type):
     gpu_hosts = spot_hosts if aggregate_type == 'spot' else (ondemand_hosts if aggregate_type == 'ondemand' else [])
     gpu_info_bulk = get_bulk_gpu_info(gpu_hosts) if gpu_hosts else {}
     
+    # Helper function to calculate GPU summary statistics
+    def calculate_gpu_summary(data):
+        total_used = sum(host.get('gpu_used', 0) for host in data)
+        total_capacity = sum(host.get('gpu_capacity', 0) for host in data)
+        return {
+            'gpu_used': total_used,
+            'gpu_capacity': total_capacity,
+            'gpu_usage_ratio': f"{total_used}/{total_capacity}"
+        }
+    
     # Helper function to process hosts with consistent data structure (same as main function)
     def process_hosts(hosts, aggregate_type):
         processed = []
