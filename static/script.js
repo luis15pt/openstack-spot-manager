@@ -715,8 +715,8 @@ function executeRealCommand(operation, command) {
         const commandTitle = command.title;
         let commandType;
         
-        if (commandTitle.includes('Sleep 120 seconds')) {
-            commandType = 'storage-wait-command';
+        if (commandTitle.includes('Poll VM status until ACTIVE')) {
+            commandType = 'vm-status-poll';
         } else if (commandTitle.includes('Sleep 10 seconds')) {
             commandType = 'firewall-wait-command';
         } else if (commandTitle.includes('Deploy VM via Hyperstack')) {
@@ -740,12 +740,14 @@ function executeRealCommand(operation, command) {
         console.log(`🔍 Determined command type: "${commandType}" from title: "${commandTitle}"`);
         
         switch (commandType) {
-            case 'storage-wait-command':
-                // Real wait for storage operations
-                console.log(`⏰ Waiting 120 seconds for VM boot completion`);
-                setTimeout(() => {
-                    resolve({ output: `[${new Date().toLocaleString()}] Wait completed - 120 seconds elapsed\nVM ready for storage network operations` });
-                }, 120000); // Real 120 second wait
+            case 'vm-status-poll':
+                // Poll VM status until ACTIVE (replaces 120-second wait)
+                console.log(`🔄 Polling VM status for ${hostname} until ACTIVE`);
+                pollVmStatus(hostname)
+                    .then(result => {
+                        resolve({ output: result });
+                    })
+                    .catch(error => reject(error));
                 break;
                 
             case 'firewall-wait-command':
@@ -1000,8 +1002,8 @@ function markCommandAsInProgress(commandElement) {
             let waitDuration = 60; // default
             const commandTitle = commandElement.querySelector('.command-title strong')?.textContent || '';
             
-            if (commandTitle.includes('Sleep 120 seconds') || commandTitle.includes('120s')) {
-                waitDuration = 120;
+            if (commandTitle.includes('Poll VM status until ACTIVE') || commandTitle.includes('vm-status-poll')) {
+                waitDuration = 300; // Max 5 minutes for polling
             } else if (commandTitle.includes('Sleep 10 seconds') || commandTitle.includes('10s')) {
                 waitDuration = 10;
             } else if (commandTitle.includes('Sleep 60 seconds') || commandTitle.includes('60s') || commandTitle.toLowerCase().includes('aggregate')) {
@@ -1292,9 +1294,79 @@ function refreshAggregateDataAfterOperations() {
     }
 }
 
+// Poll VM status until it's no longer in BUILD state
+async function pollVmStatus(hostname, maxAttempts = 60) {
+    console.log(`🔄 Starting VM status polling for ${hostname}`);
+    
+    let attempts = 0;
+    const startTime = new Date();
+    
+    while (attempts < maxAttempts) {
+        try {
+            console.log(`📊 Polling attempt ${attempts + 1}/${maxAttempts} for ${hostname}`);
+            
+            const response = await window.Utils.fetchWithTimeout('/api/openstack/server/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ server_name: hostname })
+            }, 10000);
+            
+            const result = await window.Utils.checkResponse(response);
+            const data = await result.json();
+            
+            if (data.success) {
+                const status = data.status;
+                const vmState = data.vm_state;
+                const taskState = data.task_state;
+                
+                console.log(`📊 ${hostname} status: ${status}, vm_state: ${vmState}, task_state: ${taskState}`);
+                
+                // Check if VM is ready (not in BUILD state)
+                if (status !== 'BUILD') {
+                    const elapsedTime = Math.round((new Date() - startTime) / 1000);
+                    const finalOutput = `[${new Date().toLocaleString()}] VM status polling completed\n` +
+                                      `Final status: ${status}\n` +
+                                      `VM State: ${vmState || 'N/A'}\n` +
+                                      `Task State: ${taskState || 'N/A'}\n` +
+                                      `Total polling time: ${elapsedTime} seconds (${attempts + 1} checks)\n` +
+                                      `VM is ready for network operations`;
+                    
+                    console.log(`✅ ${hostname} reached status: ${status} (was BUILD) after ${elapsedTime}s`);
+                    return finalOutput;
+                }
+                
+                // Still building, wait 5 seconds
+                console.log(`⏳ ${hostname} still in BUILD state, waiting 5 seconds...`);
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                attempts++;
+                
+            } else {
+                throw new Error(`Status check failed: ${data.error}`);
+            }
+            
+        } catch (error) {
+            console.error(`❌ Error polling VM status for ${hostname}:`, error);
+            attempts++;
+            
+            if (attempts >= maxAttempts) {
+                throw new Error(`VM status polling failed after ${maxAttempts} attempts: ${error.message}`);
+            }
+            
+            // Wait 5 seconds before retry
+            console.log(`⏳ Retrying in 5 seconds... (attempt ${attempts}/${maxAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+    }
+    
+    // Max attempts reached
+    const elapsedTime = Math.round((new Date() - startTime) / 1000);
+    throw new Error(`VM status polling timeout after ${elapsedTime} seconds (${maxAttempts} attempts). VM may still be building.`);
+}
+
 // Make functions available globally that need to be called from HTML or other modules
 window.showVmDetails = showVmDetails;
 window.removePendingOperation = removePendingOperation;
 window.updateControlButtons = updateControlButtons;
+window.pollVmStatus = pollVmStatus;
 
 console.log('✅ OpenStack Spot Manager main script loaded');

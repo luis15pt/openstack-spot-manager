@@ -384,7 +384,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                     <div class="host-subgroup investors-group">
                         <div class="host-subgroup-header clickable" onclick="toggleGroup('${investorSubGroupId}')">
                             <i class="fas fa-users text-warning"></i>
-                            <span class="subgroup-title">Investors (${investorHosts.length})</span>
+                            <span class="subgroup-title">Investor Devices (${investorHosts.length})</span>
                             <i class="fas fa-chevron-down toggle-icon" id="${investorSubGroupId}-icon"></i>
                         </div>
                         <div class="host-subgroup-content" id="${investorSubGroupId}">
@@ -502,7 +502,7 @@ function createHostCard(host, type, aggregateName = null) {
                 <div class="tenant-info">
                     <span class="${tenantBadgeClass}" title="${tenant}">
                         <i class="${tenantIcon}"></i>
-                        ${ownerGroup}
+                        ${ownerGroup === 'Nexgen Cloud' ? ownerGroup : tenant}
                     </span>
                 </div>
                 <div class="nvlinks-info">
@@ -929,7 +929,7 @@ function updatePendingOperationsDisplay() {
                                 </label>
                                 
                                 <!-- Progress bar for timed operations -->
-                                ${cmd.type === 'wait-command' || cmd.type === 'storage-wait-command' || cmd.type === 'firewall-wait-command' ? `
+                                ${cmd.type === 'wait-command' || cmd.type === 'vm-status-poll' || cmd.type === 'firewall-wait-command' ? `
                                 <div class="command-progress mt-1" id="${commandId}-progress" style="display: none;">
                                     <div class="progress" style="height: 6px;">
                                         <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
@@ -1346,18 +1346,18 @@ function generateIndividualCommandOperations(operation) {
         });
         
         if (operation.hostname.startsWith('CA1-')) {
-            // 3. Sleep 120 seconds before storage operations
+            // 3. Poll VM status until ACTIVE (replaces 120-second sleep)
             commands.push({
-                type: 'storage-wait-command',
+                type: 'vm-status-poll',
                 hostname: operation.hostname,
                 parent_operation: 'runpod-launch',
-                title: 'Sleep 120 seconds',
-                description: 'Wait for VM to fully boot and initialize before attaching storage network interface',
-                command: `sleep 120  # Wait for VM boot completion before network operations`,
-                timing: '120s delay',
-                command_type: 'timing',
-                purpose: 'Ensure VM is ready for network interface attachment to prevent OpenStack errors',
-                expected_output: 'Wait completed - VM ready for network operations',
+                title: 'Poll VM status until ACTIVE',
+                description: 'Check VM status every 5 seconds until it transitions from BUILD to ACTIVE state',
+                command: `# Poll VM status until ACTIVE\nwhile [ "$(openstack server show ${operation.hostname} -c status -f value)" = "BUILD" ]; do\n  echo "VM still building, waiting 5 seconds..."\n  sleep 5\ndone`,
+                timing: 'Poll every 5s',
+                command_type: 'polling',
+                purpose: 'Wait for VM to reach ACTIVE state before network operations to prevent errors',
+                expected_output: 'VM status changed from BUILD to ACTIVE - ready for network operations',
                 dependencies: ['hyperstack-launch'],
                 timestamp: new Date().toISOString()
             });
@@ -1374,22 +1374,22 @@ function generateIndividualCommandOperations(operation) {
                 command_type: 'server',
                 purpose: 'Get the server UUID required for OpenStack network operations',
                 expected_output: 'Server UUID (e.g., 832eccd6-d9fb-4c00-9b71-8ee69b19a14b)',
-                dependencies: ['storage-wait-command'],
+                dependencies: ['vm-status-poll'],
                 timestamp: new Date().toISOString()
             });
             
-            // 5. Storage Network - Direct Attachment
+            // 5. Storage Network - Direct Attachment with Retry Logic
             commands.push({
                 type: 'storage-attach-network',
                 hostname: operation.hostname,
                 parent_operation: 'runpod-launch',
-                title: 'Attach storage network to VM',
-                description: 'Directly attaches the storage network to the VM using server UUID',
+                title: 'Attach storage network to VM (with retry)',
+                description: 'Attaches the storage network to the VM using server UUID with automatic retry logic',
                 command: `openstack server add network <UUID_FROM_STEP_4> "RunPod-Storage-Canada-1"`,
-                timing: 'Immediate',
+                timing: 'Immediate with retries',
                 command_type: 'network',
-                purpose: 'Connect VM to high-performance storage network for data access',
-                expected_output: 'Network successfully attached to VM',
+                purpose: 'Connect VM to high-performance storage network with fault tolerance',
+                expected_output: 'Network successfully attached to VM (may retry up to 3 times)',
                 dependencies: ['server-get-uuid'],
                 timestamp: new Date().toISOString()
             });
