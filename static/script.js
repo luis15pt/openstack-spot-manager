@@ -136,6 +136,11 @@ function initializeEventListeners() {
     document.getElementById('moveToSpotBtn').addEventListener('click', () => moveSelectedHosts('spot'));
     document.getElementById('refreshBtn').addEventListener('click', refreshData);
     
+    // Individual column refresh buttons
+    document.getElementById('refreshRunpodBtn').addEventListener('click', () => refreshSpecificColumn('runpod'));
+    document.getElementById('refreshOndemandBtn').addEventListener('click', () => refreshSpecificColumn('ondemand'));
+    document.getElementById('refreshSpotBtn').addEventListener('click', () => refreshSpecificColumn('spot'));
+    
     // Pending operations buttons
     document.getElementById('commitBtn').addEventListener('click', commitSelectedCommands);
     document.getElementById('clearPendingBtn').addEventListener('click', clearPendingOperations);
@@ -245,6 +250,34 @@ function refreshData() {
     if (selectedType) {
         console.log(`🔄 Refreshing data for ${selectedType}`);
         window.Logs.addToDebugLog('System', `Refreshing data for ${selectedType}`, 'info');
+        window.OpenStack.loadAggregateData(selectedType);
+    }
+}
+
+// Refresh specific column
+function refreshSpecificColumn(columnType) {
+    const selectedType = document.getElementById('gpuTypeSelect').value;
+    if (selectedType) {
+        console.log(`🔄 Refreshing ${columnType} column for ${selectedType}`);
+        window.Logs.addToDebugLog('System', `Refreshing ${columnType} column for ${selectedType}`, 'info');
+        
+        // Add visual feedback - temporarily show loading state for the button
+        const buttonId = `refresh${columnType.charAt(0).toUpperCase() + columnType.slice(1)}Btn`;
+        const button = document.getElementById(buttonId);
+        if (button) {
+            const originalContent = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            button.disabled = true;
+            
+            // Restore button after a short delay
+            setTimeout(() => {
+                button.innerHTML = originalContent;
+                button.disabled = false;
+            }, 1000);
+        }
+        
+        // For now, refresh the entire aggregate data
+        // In the future, this could be optimized to refresh only the specific column
         window.OpenStack.loadAggregateData(selectedType);
     }
 }

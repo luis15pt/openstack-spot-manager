@@ -1797,7 +1797,7 @@ def openstack_server_add_network():
         # Attach the network to the server using server UUID with retry logic
         # This is equivalent to: openstack server add network {server_uuid} {network_name}
         max_retries = 3
-        retry_delay = 10  # seconds
+        retry_delay = 30  # seconds
         retry_log = []
         
         for attempt in range(max_retries):
