@@ -1610,6 +1610,7 @@ window.Frontend = {
     renderAggregateData,
     renderHosts,
     renderOnDemandVariantColumns,
+    setupDragAndDrop,
     showLoading,
     updateLoadingProgress,
     showMainContent,

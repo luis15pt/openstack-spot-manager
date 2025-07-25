@@ -258,7 +258,7 @@ function refreshData() {
 function refreshSpecificColumn(columnType) {
     const selectedType = document.getElementById('gpuTypeSelect').value;
     if (selectedType) {
-        console.log(`🔄 Refreshing ${columnType} column for ${selectedType}`);
+        console.log(`🎯 Refreshing ONLY ${columnType} column for ${selectedType}`);
         window.Logs.addToDebugLog('System', `Refreshing ${columnType} column for ${selectedType}`, 'info');
         
         // Add visual feedback - temporarily show loading state for the button
@@ -269,17 +269,125 @@ function refreshSpecificColumn(columnType) {
             button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             button.disabled = true;
             
-            // Restore button after a short delay
-            setTimeout(() => {
-                button.innerHTML = originalContent;
-                button.disabled = false;
-            }, 1000);
+            // Load only the specific aggregate data
+            loadSpecificAggregateData(selectedType, columnType)
+                .then(() => {
+                    // Restore button after successful refresh
+                    button.innerHTML = originalContent;
+                    button.disabled = false;
+                })
+                .catch(error => {
+                    console.error(`❌ Error refreshing ${columnType} column:`, error);
+                    window.Frontend.showNotification(`Error refreshing ${columnType} column: ${error.message}`, 'error');
+                    
+                    // Restore button even on error
+                    button.innerHTML = originalContent;
+                    button.disabled = false;
+                });
+        }
+    }
+}
+
+// Load data for a specific aggregate type only
+async function loadSpecificAggregateData(gpuType, aggregateType) {
+    console.log(`🎯 Loading specific aggregate data: ${aggregateType} for ${gpuType}`);
+    
+    try {
+        const response = await window.Utils.fetchWithTimeout(`/api/aggregates/${gpuType}/${aggregateType}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        }, 30000);
+        
+        const result = await window.Utils.checkResponse(response);
+        const data = await result.json();
+        
+        console.log(`✅ Received ${aggregateType} data:`, data);
+        
+        // Update only the specific column based on aggregate type
+        if (aggregateType === 'runpod') {
+            // Update RunPod column
+            updateRunpodColumn(data);
+        } else if (aggregateType === 'spot') {
+            // Update Spot column
+            updateSpotColumn(data);
+        } else if (aggregateType === 'ondemand') {
+            // Update On-Demand column(s)
+            updateOnDemandColumn(data);
         }
         
-        // For now, refresh the entire aggregate data
-        // In the future, this could be optimized to refresh only the specific column
-        window.OpenStack.loadAggregateData(selectedType);
+        // Setup drag and drop for new elements  
+        if (window.Frontend && window.Frontend.setupDragAndDrop) {
+            window.Frontend.setupDragAndDrop();
+        }
+        
+        console.log(`✅ Successfully refreshed ${aggregateType} column`);
+        window.Frontend.showNotification(`${aggregateType.charAt(0).toUpperCase() + aggregateType.slice(1)} column refreshed`, 'success');
+        
+    } catch (error) {
+        console.error(`❌ Error loading ${aggregateType} data:`, error);
+        throw error;
     }
+}
+
+// Update RunPod column specifically
+function updateRunpodColumn(data) {
+    console.log(`🔄 Updating RunPod column with ${data.hosts.length} hosts`);
+    
+    // Update header counts
+    document.getElementById('runpodCount').textContent = data.hosts.length;
+    
+    // Update VM usage statistics
+    const totalVms = data.hosts.reduce((total, host) => total + (host.vm_count || 0), 0);
+    document.getElementById('runpodVmUsage').textContent = totalVms + ' VMs';
+    
+    // Re-render the hosts
+    window.Frontend.renderHosts('runpodHosts', data.hosts, 'runpod', data.name);
+}
+
+// Update Spot column specifically
+function updateSpotColumn(data) {
+    console.log(`🔄 Updating Spot column with ${data.hosts.length} hosts`);
+    
+    // Update header counts
+    document.getElementById('spotCount').textContent = data.hosts.length;
+    
+    // Update GPU statistics if available
+    if (data.gpu_summary) {
+        const spotPercent = Math.round((data.gpu_summary.gpu_used / data.gpu_summary.gpu_capacity) * 100) || 0;
+        document.getElementById('spotGpuUsage').textContent = data.gpu_summary.gpu_usage_ratio;
+        document.getElementById('spotGpuPercent').textContent = spotPercent + '%';
+        document.getElementById('spotGpuProgressBar').style.width = spotPercent + '%';
+    }
+    
+    // Re-render the hosts
+    window.Frontend.renderHosts('spotHosts', data.hosts, 'spot', data.name);
+}
+
+// Update On-Demand column(s) specifically
+function updateOnDemandColumn(data) {
+    console.log(`🔄 Updating On-Demand column(s) with ${data.hosts.length} hosts`);
+    
+    // Update header counts (fallback column)
+    document.getElementById('ondemandCount').textContent = data.hosts.length;
+    
+    // Update GPU statistics if available
+    if (data.gpu_summary) {
+        const ondemandPercent = Math.round((data.gpu_summary.gpu_used / data.gpu_summary.gpu_capacity) * 100) || 0;
+        document.getElementById('ondemandGpuUsage').textContent = data.gpu_summary.gpu_usage_ratio;
+        document.getElementById('ondemandGpuPercent').textContent = ondemandPercent + '%';
+        document.getElementById('ondemandGpuProgressBar').style.width = ondemandPercent + '%';
+    }
+    
+    // Store the data for variant column rendering
+    const ondemandData = {
+        name: data.name,
+        hosts: data.hosts,
+        variants: data.variants,
+        gpu_summary: data.gpu_summary
+    };
+    
+    // Re-render the variant columns (this handles both single and multiple variants)
+    window.Frontend.renderOnDemandVariantColumns(ondemandData);
 }
 
 // Toggle group visibility - removed duplicate function

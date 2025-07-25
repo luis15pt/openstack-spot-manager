@@ -670,6 +670,110 @@ def get_gpu_types():
         'aggregates': gpu_aggregates
     })
 
+@app.route('/api/aggregates/<gpu_type>/<aggregate_type>')
+def get_specific_aggregate_data(gpu_type, aggregate_type):
+    """Get data for a specific aggregate type (runpod, ondemand, or spot)"""
+    gpu_aggregates = discover_gpu_aggregates()
+    
+    if gpu_type not in gpu_aggregates:
+        return jsonify({'error': 'Invalid GPU type'}), 400
+    
+    if aggregate_type not in ['runpod', 'ondemand', 'spot']:
+        return jsonify({'error': 'Invalid aggregate type. Must be runpod, ondemand, or spot'}), 400
+    
+    config = gpu_aggregates[gpu_type]
+    print(f"🎯 Loading specific aggregate data: {aggregate_type} for {gpu_type}")
+    
+    all_hostnames = []
+    result_data = {}
+    
+    # Get hosts for the specific aggregate type
+    if aggregate_type == 'runpod' and config.get('runpod'):
+        runpod_hosts = get_aggregate_hosts(config['runpod'])
+        all_hostnames.extend(runpod_hosts)
+        
+        # Get bulk data
+        tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
+        vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
+        
+        # Process runpod hosts
+        processed_hosts = process_aggregate_hosts(runpod_hosts, 'runpod', tenant_info_bulk, vm_counts_bulk)
+        
+        result_data = {
+            'type': 'runpod',
+            'name': config['runpod'],
+            'hosts': processed_hosts
+        }
+        
+    elif aggregate_type == 'spot' and config.get('spot'):
+        spot_hosts = get_aggregate_hosts(config['spot'])
+        all_hostnames.extend(spot_hosts)
+        
+        # Get bulk data
+        tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
+        vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
+        
+        # Process spot hosts
+        processed_hosts = process_aggregate_hosts(spot_hosts, 'spot', tenant_info_bulk, vm_counts_bulk)
+        
+        result_data = {
+            'type': 'spot',
+            'name': config['spot'],
+            'hosts': processed_hosts,
+            'gpu_summary': calculate_gpu_summary(processed_hosts)
+        }
+        
+    elif aggregate_type == 'ondemand':
+        ondemand_hosts = []
+        ondemand_host_variants = {}
+        variants_info = []
+        
+        if config.get('ondemand_variants'):
+            for variant in config['ondemand_variants']:
+                variant_hosts = get_aggregate_hosts(variant['aggregate'])
+                ondemand_hosts.extend(variant_hosts)
+                all_hostnames.extend(variant_hosts)
+                # Track which variant each host belongs to
+                for host in variant_hosts:
+                    ondemand_host_variants[host] = variant['aggregate']
+                    
+                variants_info.append({
+                    'variant': variant['variant'],
+                    'aggregate': variant['aggregate']
+                })
+                    
+        elif config.get('ondemand'):
+            # Fallback for single on-demand aggregate
+            ondemand_hosts = get_aggregate_hosts(config['ondemand'])
+            all_hostnames.extend(ondemand_hosts)
+            for host in ondemand_hosts:
+                ondemand_host_variants[host] = config['ondemand']
+                
+            variants_info.append({
+                'variant': config['ondemand'],
+                'aggregate': config['ondemand']
+            })
+        
+        # Get bulk data
+        tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
+        vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
+        
+        # Process ondemand hosts
+        processed_hosts = process_aggregate_hosts(ondemand_hosts, 'ondemand', tenant_info_bulk, vm_counts_bulk, ondemand_host_variants)
+        
+        result_data = {
+            'type': 'ondemand',
+            'name': config.get('ondemand_variants', [{}])[0].get('variant', 'On-Demand') if config.get('ondemand_variants') else config.get('ondemand', 'On-Demand'),
+            'hosts': processed_hosts,
+            'variants': variants_info,
+            'gpu_summary': calculate_gpu_summary(processed_hosts)
+        }
+    
+    else:
+        return jsonify({'error': f'No configuration found for {aggregate_type} aggregate'}), 404
+    
+    return jsonify(result_data)
+
 @app.route('/api/aggregates/<gpu_type>')
 def get_aggregate_data(gpu_type):
     """Get aggregate data for a specific GPU type with three-column layout: On-Demand, Runpod, Spot"""
