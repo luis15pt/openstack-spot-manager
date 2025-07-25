@@ -1389,7 +1389,7 @@ def attach_runpod_storage_network(vm_name, delay_seconds=120):
             
             # Find the VM by name with retry mechanism (VM might still be synchronizing)
             server = None
-            max_retries = 3
+            max_retries = 5
             retry_delay = 30  # 30 seconds between retries
             
             for attempt in range(max_retries):
