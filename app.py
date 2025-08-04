@@ -650,7 +650,8 @@ def get_bulk_vm_counts(hostnames, max_workers=10):
                 print(f"📊 VM count progress: {completed}/{len(hostnames)} hosts checked ({elapsed:.1f}s)")
     
     total_elapsed = time.time() - start_time
-    print(f"✅ Bulk VM count completed: {len(hostnames)} hosts in {total_elapsed:.2f}s (avg {total_elapsed/len(hostnames):.2f}s per host)")
+    avg_time = total_elapsed / len(hostnames) if len(hostnames) > 0 else 0
+    print(f"✅ Bulk VM count completed: {len(hostnames)} hosts in {total_elapsed:.2f}s (avg {avg_time:.2f}s per host)")
     
     return vm_counts
 
