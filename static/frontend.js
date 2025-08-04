@@ -1031,8 +1031,8 @@ function updatePendingOperationsDisplay() {
                             <button class="btn btn-sm btn-outline-light me-2" 
                                     onclick="toggleOperationCollapse(${index})" 
                                     id="collapse-btn-${index}"
-                                    title="Expand/Collapse operation">
-                                <i class="fas fa-chevron-down"></i>
+                                    title="Expand operation">
+                                <i class="fas fa-chevron-right"></i>
                             </button>
                             <h6 class="mb-0">${operationTitle}</h6>
                         </div>
@@ -1044,7 +1044,7 @@ function updatePendingOperationsDisplay() {
                         <strong>Purpose:</strong> ${purposeText}
                     </small>
                 </div>
-                <div class="card-body collapse show" id="operation-body-${index}">
+                <div class="card-body collapse" id="operation-body-${index}">
                     <div class="commands-list">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="text-primary mb-0">
