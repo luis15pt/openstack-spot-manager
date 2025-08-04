@@ -390,6 +390,39 @@ def get_gpu_type_from_hostname_context(hostname):
         print(f"❌ Error getting GPU type for hostname {hostname}: {e}")
         return None
 
+def find_host_current_aggregate(hostname):
+    """Find which specific aggregate a host is currently in"""
+    try:
+        gpu_aggregates = discover_gpu_aggregates()
+        for gpu_type, config in gpu_aggregates.items():
+            # Check runpod aggregate
+            if config.get('runpod'):
+                runpod_hosts = get_aggregate_hosts(config['runpod'])
+                if hostname in runpod_hosts:
+                    print(f"✅ Found {hostname} in runpod aggregate: {config['runpod']}")
+                    return config['runpod']
+                    
+            # Check on-demand variants
+            if config.get('ondemand_variants'):
+                for variant in config['ondemand_variants']:
+                    variant_hosts = get_aggregate_hosts(variant['aggregate'])
+                    if hostname in variant_hosts:
+                        print(f"✅ Found {hostname} in ondemand variant: {variant['aggregate']}")
+                        return variant['aggregate']
+                        
+            # Check spot aggregate
+            if config.get('spot'):
+                spot_hosts = get_aggregate_hosts(config['spot'])
+                if hostname in spot_hosts:
+                    print(f"✅ Found {hostname} in spot aggregate: {config['spot']}")
+                    return config['spot']
+        
+        print(f"⚠️ Host {hostname} not found in any aggregate")
+        return None
+    except Exception as e:
+        print(f"❌ Error finding current aggregate for hostname {hostname}: {e}")
+        return None
+
 def build_flavor_name(hostname):
     """Build dynamic flavor name like 'n3-RTX-A6000x8' from hostname"""
     gpu_type = get_gpu_type_from_hostname_context(hostname)
@@ -1055,8 +1088,18 @@ def execute_migration():
     
     print(f"\n🚀 EXECUTING MIGRATION: {host} from {source_aggregate} to {target_aggregate}")
     
-    if not all([host, source_aggregate, target_aggregate]):
-        return jsonify({'error': 'Missing required parameters'}), 400
+    if not all([host, target_aggregate]):
+        return jsonify({'error': 'Missing required parameters (host and target_aggregate)'}), 400
+    
+    # Find the ACTUAL current aggregate the host is in (instead of trusting source_aggregate)
+    actual_source_aggregate = find_host_current_aggregate(host)
+    if not actual_source_aggregate:
+        return jsonify({'error': f'Host {host} not found in any aggregate'}), 404
+    
+    print(f"🔍 Verified: {host} is actually in aggregate: {actual_source_aggregate}")
+    
+    # Use the actual source aggregate instead of the passed one
+    source_aggregate = actual_source_aggregate
     
     # Check if host has VMs and source is spot aggregate
     if 'spot' in source_aggregate.lower():
