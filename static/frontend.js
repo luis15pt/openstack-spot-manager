@@ -588,10 +588,22 @@ function handleDragOver(e) {
 function handleDragEnter(e) {
     e.preventDefault();
     e.currentTarget.classList.add('drag-over');
+    console.log('🎯 Drag entered drop zone:', {
+        type: e.currentTarget.dataset.type,
+        variant: e.currentTarget.dataset.variant,
+        id: e.currentTarget.id
+    });
 }
 
 function handleDragLeave(e) {
-    e.currentTarget.classList.remove('drag-over');
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.classList.remove('drag-over');
+        console.log('🚪 Drag left drop zone:', {
+            type: e.currentTarget.dataset.type,
+            variant: e.currentTarget.dataset.variant,
+            id: e.currentTarget.id
+        });
+    }
 }
 
 async function handleDrop(e) {
