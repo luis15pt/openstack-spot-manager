@@ -161,19 +161,21 @@ let imageCache = {
     expireAfter: 5 * 60 * 1000 // 5 minutes in milliseconds
 };
 
-// Region mapping and detection
+// Region mapping and detection (updated to match actual Hyperstack API region names)
 const regionMappings = {
-    'CA1': 'Canada-1',
+    'CA1': 'CANADA-1',
     'US1': 'US-1',
-    'EU1': 'Europe-1',
-    'AS1': 'Asia-1'
+    'EU1': 'EUROPE-1',
+    'AS1': 'ASIA-1',
+    'NO1': 'NORWAY-1'
 };
 
 const regionFlags = {
-    'Canada-1': '🇨🇦',
+    'CANADA-1': '🇨🇦',
     'US-1': '🇺🇸', 
-    'Europe-1': '🇪🇺',
-    'Asia-1': '🌏'
+    'EUROPE-1': '🇪🇺',
+    'ASIA-1': '🌏',
+    'NORWAY-1': '🇳🇴'
 };
 
 // Detect region from hostname
@@ -290,7 +292,12 @@ function loadAvailableImages(forceRefresh = false) {
             imageCache.timestamp = Date.now();
             
             console.log(`✅ Loaded ${availableImages.length} images from Hyperstack (cached for 5 minutes)`);
-            window.Logs.addToDebugLog('Hyperstack', `Loaded ${availableImages.length} available images`, 'success');
+            
+            // Debug: Log unique regions found
+            const uniqueRegions = [...new Set(availableImages.map(img => img.region_name))];
+            console.log(`🌍 Available regions: ${uniqueRegions.join(', ')}`);
+            
+            window.Logs.addToDebugLog('Hyperstack', `Loaded ${availableImages.length} available images from regions: ${uniqueRegions.join(', ')}`, 'success');
             
             // Hide loading and show content
             document.getElementById('imageSelectionLoading').style.display = 'none';
@@ -517,7 +524,15 @@ function setupRegionFilter() {
 function filterImagesByRegion(images, region) {
     if (!region) return images; // Show all if no region filter
     
-    return images.filter(image => image.region_name === region);
+    const filtered = images.filter(image => image.region_name === region);
+    console.log(`🔍 Filtering ${images.length} images by region '${region}': ${filtered.length} matches`);
+    
+    if (filtered.length === 0) {
+        const availableRegions = [...new Set(images.map(img => img.region_name))];
+        console.log(`⚠️ No images found for region '${region}'. Available regions: ${availableRegions.join(', ')}`);
+    }
+    
+    return filtered;
 }
 
 // Confirm image selection and launch VM
