@@ -2002,30 +2002,49 @@ def openstack_server_add_network():
         
         print(f"📋 Found network {network_name} with UUID: {network.id}")
         
-        # Attach the network to the server using server UUID with retry logic
+        # Wait 10 seconds after server is found to ensure networking stack is fully initialized
+        print(f"⏳ Waiting 10 seconds for server {server_name} networking to fully initialize...")
+        time.sleep(10)
+        
+        # Attach the network to the server using server UUID with improved retry logic
         # This is equivalent to: openstack server add network {server_uuid} {network_name}
-        max_retries = 3
-        retry_delay = 30  # seconds
+        max_retries = 12  # 12 attempts = 120 seconds maximum wait time
+        retry_delay = 10  # seconds between retries
         retry_log = []
+        
+        print(f"🔄 Starting network attachment with retry loop (10s intervals, 120s timeout)")
         
         for attempt in range(max_retries):
             try:
                 conn.compute.create_server_interface(server_uuid, net_id=network.id)
                 success_msg = f"✅ Attached network {network_name} to server {server_name} (UUID: {server_uuid})"
                 if attempt > 0:
-                    success_msg += f" (succeeded on attempt {attempt + 1})"
+                    success_msg += f" (succeeded on attempt {attempt + 1} after {attempt * retry_delay}s)"
                 print(success_msg)
                 break
             except Exception as attach_error:
-                if "vm_state building" in str(attach_error) and attempt < max_retries - 1:
-                    retry_msg = f"⏳ VM {server_name} still building, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})"
+                error_str = str(attach_error).lower()
+                elapsed_time = attempt * retry_delay
+                
+                # Check for various states that indicate we should retry
+                should_retry = (
+                    "vm_state building" in error_str or
+                    "failed to attach network adapter" in error_str or
+                    "server error" in error_str or
+                    "task_state" in error_str or
+                    "instance is not ready" in error_str
+                )
+                
+                if should_retry and attempt < max_retries - 1:
+                    retry_msg = f"⏳ Network attachment failed (VM not ready), retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries}, elapsed: {elapsed_time}s)"
                     print(retry_msg)
-                    retry_log.append(retry_msg)
+                    retry_log.append(f"Attempt {attempt + 1}: {str(attach_error)}")
                     time.sleep(retry_delay)
                     continue
                 else:
-                    # Either not a building state error, or we've exhausted retries
-                    error_details = f"Failed after {attempt + 1} attempts: {str(attach_error)}"
+                    # Either not a retryable error, or we've exhausted retries
+                    total_elapsed = elapsed_time + retry_delay if attempt == max_retries - 1 else elapsed_time
+                    error_details = f"Failed after {attempt + 1} attempts over {total_elapsed}s: {str(attach_error)}"
                     if retry_log:
                         error_details = "\n".join(retry_log) + f"\nFinal error: {str(attach_error)}"
                     
