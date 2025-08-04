@@ -861,6 +861,7 @@ function addRunPodLaunchOperation(hostname, vmDetails) {
         vm_name: vmDetails.vm_name || hostname,
         flavor_name: vmDetails.flavor_name,
         image_name: vmDetails.image_name,
+        image_id: vmDetails.image_id,
         key_name: vmDetails.key_name,
         timestamp: new Date().toISOString(),
         manual: vmDetails.manual || false,
