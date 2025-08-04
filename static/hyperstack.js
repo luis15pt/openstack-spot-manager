@@ -152,6 +152,7 @@ function scheduleRunpodLaunch(hostname) {
 let availableImages = [];
 let selectedImage = null;
 let currentLaunchHostname = '';
+let currentRegionFilter = null;
 
 // Image cache with timestamp
 let imageCache = {
@@ -160,10 +161,45 @@ let imageCache = {
     expireAfter: 5 * 60 * 1000 // 5 minutes in milliseconds
 };
 
+// Region mapping and detection
+const regionMappings = {
+    'CA1': 'Canada-1',
+    'US1': 'US-1',
+    'EU1': 'Europe-1',
+    'AS1': 'Asia-1'
+};
+
+const regionFlags = {
+    'Canada-1': '🇨🇦',
+    'US-1': '🇺🇸', 
+    'Europe-1': '🇪🇺',
+    'Asia-1': '🌏'
+};
+
+// Detect region from hostname
+function detectRegionFromHostname(hostname) {
+    if (!hostname) return null;
+    
+    // Extract region prefix from hostname (e.g., CA1-ESC812-206 -> CA1)
+    const regionMatch = hostname.match(/^([A-Z]+\d*)-/);
+    if (regionMatch) {
+        const regionPrefix = regionMatch[1];
+        return regionMappings[regionPrefix] || null;
+    }
+    
+    return null;
+}
+
 // Show image selection modal
 function showImageSelectionModal(hostname) {
     console.log(`🖼️ Opening image selection modal for ${hostname}`);
     currentLaunchHostname = hostname;
+    
+    // Detect region from hostname
+    const detectedRegion = detectRegionFromHostname(hostname);
+    currentRegionFilter = detectedRegion;
+    
+    console.log(`🌍 Detected region for ${hostname}: ${detectedRegion || 'Unknown'}`);
     
     // Update modal title
     document.getElementById('imageSelectionHostname').textContent = hostname;
@@ -175,8 +211,13 @@ function showImageSelectionModal(hostname) {
     const modal = new bootstrap.Modal(document.getElementById('imageSelectionModal'));
     modal.show();
     
-    // Load images
+    // Load images with region filter
     loadAvailableImages();
+    
+    // Setup region filter after modal is shown
+    setTimeout(() => {
+        setupRegionFilter();
+    }, 100);
 }
 
 // Reset image selection modal to initial state
@@ -228,7 +269,13 @@ function loadAvailableImages(forceRefresh = false) {
         }
     }
     
-    window.Utils.fetchWithTimeout('/api/hyperstack/images', {
+    // Build URL with region filter if applicable
+    let apiUrl = '/api/hyperstack/images';
+    if (currentRegionFilter && !forceRefresh) {
+        apiUrl += `?region=${encodeURIComponent(currentRegionFilter)}`;
+    }
+    
+    window.Utils.fetchWithTimeout(apiUrl, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
     }, 30000)
@@ -272,7 +319,14 @@ function loadAvailableImages(forceRefresh = false) {
 
 // Render image selection list
 function renderImageSelection(filteredImages = null) {
-    const imagesToRender = filteredImages || availableImages;
+    // Apply region filter first, then any additional filters (like search)
+    let imagesToRender = filteredImages || availableImages;
+    
+    // If no specific filtered images provided, apply region filter
+    if (!filteredImages) {
+        imagesToRender = filterImagesByRegion(availableImages, currentRegionFilter);
+    }
+    
     const container = document.getElementById('imageSelectionList');
     
     if (imagesToRender.length === 0) {
@@ -389,9 +443,11 @@ function setupImageSearch() {
         const searchTerm = this.value.toLowerCase().trim();
         
         if (searchTerm === '') {
-            renderImageSelection(); // Show all images
+            renderImageSelection(); // Show images with region filter only
         } else {
-            const filteredImages = availableImages.filter(image => 
+            // Apply both region filter and search filter
+            const regionFilteredImages = filterImagesByRegion(availableImages, currentRegionFilter);
+            const searchFilteredImages = regionFilteredImages.filter(image => 
                 image.name.toLowerCase().includes(searchTerm) ||
                 image.type.toLowerCase().includes(searchTerm) ||
                 image.version.toLowerCase().includes(searchTerm) ||
@@ -400,9 +456,68 @@ function setupImageSearch() {
                 (image.green_status && image.green_status.toLowerCase().includes(searchTerm)) ||
                 (image.snapshot && image.snapshot.name.toLowerCase().includes(searchTerm))
             );
-            renderImageSelection(filteredImages);
+            renderImageSelection(searchFilteredImages);
         }
     });
+}
+
+// Setup region filter buttons and detection info
+function setupRegionFilter() {
+    const regionButtons = document.querySelectorAll('.region-filter-btn');
+    const regionInfo = document.getElementById('regionDetectionInfo');
+    
+    // Update detection info
+    if (currentRegionFilter) {
+        const flag = regionFlags[currentRegionFilter] || '🌍';
+        regionInfo.textContent = `Auto-detected: ${flag} ${currentRegionFilter}`;
+        regionInfo.className = 'text-success';
+    } else {
+        regionInfo.textContent = 'No region detected - showing all regions';
+        regionInfo.className = 'text-muted';
+    }
+    
+    // Set active button based on current filter
+    regionButtons.forEach(btn => {
+        const region = btn.dataset.region;
+        btn.classList.remove('active');
+        
+        if ((currentRegionFilter && region === currentRegionFilter) || 
+            (!currentRegionFilter && region === 'all')) {
+            btn.classList.add('active');
+        }
+        
+        // Add click handler
+        btn.addEventListener('click', () => {
+            // Update active state
+            regionButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // Update current filter
+            currentRegionFilter = region === 'all' ? null : region;
+            
+            console.log(`🌍 Region filter changed to: ${currentRegionFilter || 'All regions'}`);
+            
+            // Update detection info
+            if (currentRegionFilter) {
+                const flag = regionFlags[currentRegionFilter] || '🌍';
+                regionInfo.textContent = `Selected: ${flag} ${currentRegionFilter}`;
+                regionInfo.className = 'text-primary';
+            } else {
+                regionInfo.textContent = 'Showing all regions';
+                regionInfo.className = 'text-muted';
+            }
+            
+            // Re-render images with new filter
+            renderImageSelection();
+        });
+    });
+}
+
+// Filter images by region
+function filterImagesByRegion(images, region) {
+    if (!region) return images; // Show all if no region filter
+    
+    return images.filter(image => image.region_name === region);
 }
 
 // Confirm image selection and launch VM

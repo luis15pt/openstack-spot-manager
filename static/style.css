@@ -2173,3 +2173,40 @@ body {
     color: #495057;
     font-weight: 600;
 }
+
+/* Region Filter Styles */
+.region-filter-btn {
+    flex: 1;
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    border-radius: 6px !important;
+    transition: all 0.3s ease;
+}
+
+.region-filter-btn:first-child {
+    border-top-left-radius: 6px !important;
+    border-bottom-left-radius: 6px !important;
+}
+
+.region-filter-btn:last-child {
+    border-top-right-radius: 6px !important;
+    border-bottom-right-radius: 6px !important;
+}
+
+.region-filter-btn.active {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+
+.region-filter-btn:hover:not(.active) {
+    background-color: #e7f3ff;
+    border-color: #0d6efd;
+    transform: translateY(-1px);
+}
+
+#regionDetectionInfo {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
