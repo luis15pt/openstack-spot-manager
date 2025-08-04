@@ -1285,8 +1285,10 @@ def preview_runpod_launch():
     """Preview runpod VM launch command without executing"""
     data = request.json
     hostname = data.get('hostname')
+    image_name = data.get('image_name', 'Ubuntu Server 24.04 LTS R570 CUDA 12.8')  # Default fallback
+    image_id = data.get('image_id')
     
-    print(f"\n👁️  PREVIEW RUNPOD LAUNCH: {hostname}")
+    print(f"\n👁️  PREVIEW RUNPOD LAUNCH: {hostname} with image: {image_name}")
     
     if not hostname:
         return jsonify({'error': 'Missing hostname parameter'}), 400
@@ -1311,7 +1313,7 @@ def preview_runpod_launch():
   -d '{{
     "name": "{hostname}",
     "environment_name": "CA1-RunPod",
-    "image_name": "Ubuntu Server 24.04 LTS R570 CUDA 12.8",
+    "image_name": "{image_name}",
     "volume_name": "",
     "flavor_name": "{flavor_name}",
     "assign_floating_ip": true,
@@ -1349,8 +1351,10 @@ def execute_runpod_launch():
     """Execute the runpod VM launch using Hyperstack API"""
     data = request.json
     hostname = data.get('hostname')
+    image_name = data.get('image_name', 'Ubuntu Server 24.04 LTS R570 CUDA 12.8')  # Default fallback
+    image_id = data.get('image_id')
     
-    print(f"\n🚀 EXECUTING RUNPOD LAUNCH: {hostname}")
+    print(f"\n🚀 EXECUTING RUNPOD LAUNCH: {hostname} with image: {image_name}")
     
     if not hostname:
         return jsonify({'error': 'Missing hostname parameter'}), 400
@@ -1444,11 +1448,11 @@ power_state:
 --==BOUNDARY==--
 """
     
-    # Build the payload
+    # Build the payload with selected image
     payload = {
         "name": hostname,
         "environment_name": "CA1-RunPod",
-        "image_name": "Ubuntu Server 24.04 LTS R570 CUDA 12.8",
+        "image_name": image_name,
         "volume_name": "",
         "flavor_name": flavor_name,
         "assign_floating_ip": True,
@@ -2287,6 +2291,117 @@ def hyperstack_firewall_update_attachments():
         
     except Exception as e:
         print(f"❌ Error updating firewall attachments: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/hyperstack/images')
+def hyperstack_list_images():
+    """Get available images from Hyperstack API with optional filtering"""
+    try:
+        if not HYPERSTACK_API_KEY:
+            return jsonify({'success': False, 'error': 'Hyperstack API key not configured'})
+        
+        # Get optional query parameters
+        region = request.args.get('region')
+        include_public = request.args.get('include_public', 'true').lower() == 'true'
+        search = request.args.get('search')
+        page = request.args.get('page')
+        per_page = request.args.get('per_page')
+        
+        print("🖼️ Fetching available images from Hyperstack...")
+        if region:
+            print(f"  📍 Region filter: {region}")
+        if search:
+            print(f"  🔍 Search filter: {search}")
+        
+        headers = {
+            'api_key': HYPERSTACK_API_KEY,
+            'Content-Type': 'application/json'
+        }
+        
+        # Build query parameters
+        params = {}
+        if region:
+            params['region'] = region
+        if not include_public:
+            params['include_public'] = 'false'
+        if search:
+            params['search'] = search
+        if page:
+            params['page'] = page
+        if per_page:
+            params['per_page'] = per_page
+        
+        response = requests.get(
+            f'{HYPERSTACK_API_URL}/core/images',
+            headers=headers,
+            params=params,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            image_groups = data.get('images', [])
+            
+            # Flatten the nested structure for easier frontend consumption
+            formatted_images = []
+            total_count = 0
+            
+            for group in image_groups:
+                region_name = group.get('region_name', 'Unknown')
+                group_type = group.get('type', 'Unknown')
+                logo = group.get('logo', '')
+                green_status = group.get('green_status', 'UNKNOWN')
+                
+                # Get images from this group
+                group_images = group.get('images', [])
+                
+                for image in group_images:
+                    formatted_images.append({
+                        'id': image.get('id'),
+                        'name': image.get('name'),
+                        'type': group_type,  # Use group type
+                        'version': image.get('version'),
+                        'region_name': region_name,  # Use group region
+                        'size': image.get('size'),
+                        'display_size': image.get('display_size'),
+                        'description': image.get('description', ''),
+                        'is_public': image.get('is_public', True),
+                        'created_at': image.get('created_at'),
+                        'logo': logo,
+                        'green_status': green_status,
+                        'snapshot': image.get('snapshot'),
+                        'labels': image.get('labels', [])
+                    })
+                    total_count += 1
+            
+            # Sort by region first, then type, then name for easier selection
+            formatted_images.sort(key=lambda x: (x['region_name'], x['type'], x['name']))
+            
+            print(f"✅ Retrieved {total_count} images from {len(image_groups)} groups from Hyperstack")
+            
+            # Log the command
+            log_command('curl -X GET https://infrahub-api.nexgencloud.com/v1/core/images', {
+                'success': True,
+                'stdout': f'Retrieved {total_count} available images from {len(image_groups)} groups',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+            return jsonify({
+                'success': True,
+                'images': formatted_images,
+                'count': total_count,
+                'groups': len(image_groups)
+            })
+        else:
+            error_msg = f'Failed to fetch images: HTTP {response.status_code}'
+            if response.text:
+                error_msg += f' - {response.text}'
+            print(f"❌ {error_msg}")
+            return jsonify({'success': False, 'error': error_msg})
+        
+    except Exception as e:
+        print(f"❌ Error fetching Hyperstack images: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 

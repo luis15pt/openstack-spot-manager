@@ -11,6 +11,23 @@ let isExecutionInProgress = false;
 
 // EXACT ORIGINAL renderAggregateData function
 function renderAggregateData(data) {
+    // FIRST: Clean up any existing variant columns from previous GPU type selections
+    // This prevents duplicate columns when switching between GPU types or refreshing
+    const mainRow = document.querySelector('.row.mt-3');
+    if (mainRow) {
+        const existingVariantColumns = mainRow.querySelectorAll('[class*="col-md-"]:not([id="ondemandColumnFallback"])');
+        existingVariantColumns.forEach(col => {
+            const columnDiv = col.querySelector('.aggregate-column');
+            if (columnDiv && columnDiv.id && 
+                columnDiv.id !== 'runpodColumn' && 
+                columnDiv.id !== 'spotColumn' && 
+                columnDiv.id !== 'ondemandColumn') {
+                console.log('🗑️ Global cleanup: Removing variant column:', columnDiv.id);
+                col.remove();
+            }
+        });
+    }
+    
     // Clear existing content
     document.getElementById('ondemandHosts').innerHTML = '';
     document.getElementById('runpodHosts').innerHTML = '';
@@ -1124,6 +1141,23 @@ function renderOnDemandVariantColumns(ondemandData) {
         totalHosts: ondemandData.hosts.length
     });
     
+    // FIRST: Clean up ALL existing variant columns regardless of their state
+    // This ensures we start fresh and prevents duplicates
+    const mainRow = document.querySelector('.row.mt-3');
+    if (mainRow) {
+        const existingVariantColumns = mainRow.querySelectorAll('[class*="col-md-"]:not([id="ondemandColumnFallback"])');
+        existingVariantColumns.forEach(col => {
+            const columnDiv = col.querySelector('.aggregate-column');
+            if (columnDiv && columnDiv.id && 
+                columnDiv.id !== 'runpodColumn' && 
+                columnDiv.id !== 'spotColumn' && 
+                columnDiv.id !== 'ondemandColumn') {
+                console.log('🗑️ Pre-cleanup: Removing variant column:', columnDiv.id);
+                col.remove();
+            }
+        });
+    }
+    
     // Calculate total columns: RunPod + OnDemand variants + Spot
     const totalVariants = ondemandData.variants ? ondemandData.variants.length : 1;
     const totalColumns = 1 + totalVariants + 1; // RunPod + variants + Spot
@@ -1154,24 +1188,10 @@ function renderOnDemandVariantColumns(ondemandData) {
             fallbackColumn.style.display = 'none';
         }
         
-        // Insert columns directly into the row, not into a separate container
-        const mainRow = document.querySelector('.row.mt-3');
-        const spotColumnElement = document.querySelector('#spotColumn').closest('.col-md-2, .col-md-3, .col-md-4');
+        // Insert columns directly into the row, not into a separate container  
+        const spotColumnElement = document.querySelector('#spotColumn').closest('[class*="col-md-"]');
         
-        // Remove ALL existing dynamically created variant columns
-        // Look for any column that has an aggregate-column div but isn't one of the three static columns
-        console.log('🔍 Cleaning up existing variant columns...');
-        const allColumns = mainRow.querySelectorAll('.col-md-2, .col-md-3, .col-md-4');
-        allColumns.forEach(col => {
-            const columnDiv = col.querySelector('.aggregate-column');
-            if (columnDiv && columnDiv.id) {
-                // Keep only the three static columns
-                if (columnDiv.id !== 'runpodColumn' && columnDiv.id !== 'spotColumn' && columnDiv.id !== 'ondemandColumn') {
-                    console.log('🗑️ Removing variant column:', columnDiv.id);
-                    col.remove();
-                }
-            }
-        });
+        // Cleanup was already done at the start of the function
         
         // Add each variant column before the spot column
         ondemandData.variants.forEach((variant, index) => {

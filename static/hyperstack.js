@@ -7,13 +7,27 @@ function executeRunpodLaunch(hostname) {
         console.log(`🚀 Starting RunPod launch for ${hostname}`);
         window.Logs.addToDebugLog('Hyperstack', `Starting RunPod launch for ${hostname}`, 'info', hostname);
         
+        // Get stored operation data to find image information
+        const operation = window.Frontend.pendingOperations.find(op => 
+            op.hostname === hostname && op.type === 'runpod-launch'
+        );
+        
+        // Build preview request with image information
+        const previewRequest = { hostname: hostname };
+        if (operation && operation.details.image_name) {
+            previewRequest.image_name = operation.details.image_name;
+        }
+        if (operation && operation.details.image_id) {
+            previewRequest.image_id = operation.details.image_id;
+        }
+        
         // Preview first
         window.Utils.fetchWithTimeout('/api/preview-runpod-launch', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ hostname: hostname })
+            body: JSON.stringify(previewRequest)
         }, 15000)
         .then(window.Utils.checkResponse)
         .then(response => response.json())
@@ -31,13 +45,23 @@ function executeRunpodLaunch(hostname) {
             console.log(`✅ Preview successful for ${hostname} - VM: ${previewData.vm_name}, Flavor: ${previewData.flavor_name}`);
             window.Logs.addToDebugLog('Hyperstack', `VM: ${previewData.vm_name}, Flavor: ${previewData.flavor_name}, GPU: ${previewData.gpu_type}`, 'success', hostname);
             
-            // Execute the launch
+            // Execute the launch with image data
+            const launchData = { hostname: hostname };
+            
+            // Add image data if available from operation
+            if (previewData.image_name) {
+                launchData.image_name = previewData.image_name;
+            }
+            if (previewData.image_id) {
+                launchData.image_id = previewData.image_id;
+            }
+            
             window.Utils.fetchWithTimeout('/api/execute-runpod-launch', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ hostname: hostname })
+                body: JSON.stringify(launchData)
             }, 60000) // 60 second timeout for VM launch
             .then(window.Utils.checkResponse)
             .then(response => response.json())
@@ -108,8 +132,8 @@ function executeRunpodLaunch(hostname) {
 
 // Schedule a RunPod launch (add to pending operations)
 function scheduleRunpodLaunch(hostname) {
-    console.log(`📋 Scheduling RunPod launch for ${hostname}`);
-    window.Logs.addToDebugLog('Hyperstack', `Scheduling RunPod launch for ${hostname}`, 'info', hostname);
+    console.log(`📋 Opening image selection modal for ${hostname}`);
+    window.Logs.addToDebugLog('Hyperstack', `Opening image selection modal for ${hostname}`, 'info', hostname);
     
     // Get the host card to determine current state
     const hostCard = document.querySelector(`[data-host="${hostname}"]`);
@@ -120,18 +144,294 @@ function scheduleRunpodLaunch(hostname) {
         return;
     }
     
-    // Add RunPod launch operation (not a migration)
-    window.Frontend.addRunPodLaunchOperation(hostname, {
-        vm_name: hostname,
+    // Show image selection modal
+    showImageSelectionModal(hostname);
+}
+
+// Global variables for image selection
+let availableImages = [];
+let selectedImage = null;
+let currentLaunchHostname = '';
+
+// Image cache with timestamp
+let imageCache = {
+    data: [],
+    timestamp: null,
+    expireAfter: 5 * 60 * 1000 // 5 minutes in milliseconds
+};
+
+// Show image selection modal
+function showImageSelectionModal(hostname) {
+    console.log(`🖼️ Opening image selection modal for ${hostname}`);
+    currentLaunchHostname = hostname;
+    
+    // Update modal title
+    document.getElementById('imageSelectionHostname').textContent = hostname;
+    
+    // Reset modal state
+    resetImageSelectionModal();
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('imageSelectionModal'));
+    modal.show();
+    
+    // Load images
+    loadAvailableImages();
+}
+
+// Reset image selection modal to initial state
+function resetImageSelectionModal() {
+    selectedImage = null;
+    
+    // Show loading, hide content
+    document.getElementById('imageSelectionLoading').style.display = 'block';
+    document.getElementById('imageSelectionContent').style.display = 'none';
+    document.getElementById('imageSelectionError').classList.add('d-none');
+    document.getElementById('selectedImageInfo').style.display = 'none';
+    
+    // Disable confirm button
+    document.getElementById('confirmImageSelectionBtn').disabled = true;
+    
+    // Clear search input
+    const searchInput = document.getElementById('imageSearchInput');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+}
+
+// Load available images from Hyperstack API (with caching)
+function loadAvailableImages(forceRefresh = false) {
+    console.log('🔄 Loading available images from Hyperstack...');
+    
+    // Check cache first (unless force refresh)
+    if (!forceRefresh && imageCache.timestamp && imageCache.data.length > 0) {
+        const now = Date.now();
+        const cacheAge = now - imageCache.timestamp;
+        
+        if (cacheAge < imageCache.expireAfter) {
+            console.log(`📦 Using cached images (${Math.round(cacheAge / 1000)}s old)`);
+            availableImages = imageCache.data;
+            
+            // Hide loading and show content
+            document.getElementById('imageSelectionLoading').style.display = 'none';
+            document.getElementById('imageSelectionContent').style.display = 'block';
+            
+            // Render images
+            renderImageSelection();
+            
+            // Setup search functionality
+            setupImageSearch();
+            
+            return;
+        } else {
+            console.log('🗑️ Cache expired, fetching fresh images...');
+        }
+    }
+    
+    window.Utils.fetchWithTimeout('/api/hyperstack/images', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+    }, 30000)
+    .then(window.Utils.checkResponse)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            availableImages = data.images;
+            
+            // Update cache
+            imageCache.data = availableImages;
+            imageCache.timestamp = Date.now();
+            
+            console.log(`✅ Loaded ${availableImages.length} images from Hyperstack (cached for 5 minutes)`);
+            window.Logs.addToDebugLog('Hyperstack', `Loaded ${availableImages.length} available images`, 'success');
+            
+            // Hide loading and show content
+            document.getElementById('imageSelectionLoading').style.display = 'none';
+            document.getElementById('imageSelectionContent').style.display = 'block';
+            
+            // Render images
+            renderImageSelection();
+            
+            // Setup search functionality
+            setupImageSearch();
+            
+        } else {
+            throw new Error(data.error || 'Failed to load images');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error loading images:', error);
+        window.Logs.addToDebugLog('Hyperstack', `Error loading images: ${error.message}`, 'error');
+        
+        // Show error
+        document.getElementById('imageSelectionLoading').style.display = 'none';
+        document.getElementById('imageSelectionError').classList.remove('d-none');
+        document.getElementById('imageSelectionErrorMessage').textContent = `Failed to load images: ${error.message}`;
+    });
+}
+
+// Render image selection list
+function renderImageSelection(filteredImages = null) {
+    const imagesToRender = filteredImages || availableImages;
+    const container = document.getElementById('imageSelectionList');
+    
+    if (imagesToRender.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-compact-disc fa-3x mb-3"></i>
+                <p>No images found matching your search criteria.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const imagesHtml = imagesToRender.map(image => {
+        const isSelected = selectedImage && selectedImage.id === image.id;
+        const cardClass = isSelected ? 'image-card selected' : 'image-card';
+        
+        // Determine status color based on green_status
+        const statusColor = image.green_status === 'GREEN' ? 'success' : 
+                           image.green_status === 'NOT_GREEN' ? 'warning' : 'secondary';
+        
+        return `
+            <div class="${cardClass}" data-image-id="${image.id}" onclick="selectImage(${image.id})">
+                <div class="image-card-header">
+                    <div class="image-info">
+                        <h6 class="image-name mb-1">
+                            ${image.logo ? `<img src="${image.logo}" alt="${image.type}" style="width: 20px; height: 20px; margin-right: 8px;">` : '<i class="fas fa-compact-disc me-2"></i>'}
+                            ${image.name}
+                        </h6>
+                        <div class="image-meta">
+                            <span class="badge bg-primary me-1">${image.type}</span>
+                            <span class="badge bg-secondary me-1">${image.region_name}</span>
+                            <span class="badge bg-${statusColor} me-1">${image.green_status || 'UNKNOWN'}</span>
+                            <span class="badge bg-info">${image.display_size}</span>
+                        </div>
+                    </div>
+                    <div class="image-selection-indicator">
+                        <i class="fas fa-check-circle text-success"></i>
+                    </div>
+                </div>
+                <div class="image-details">
+                    <p class="mb-1"><strong>Version:</strong> ${image.version}</p>
+                    ${image.description ? `<p class="mb-1"><strong>Description:</strong> ${image.description}</p>` : ''}
+                    ${image.snapshot ? `<p class="mb-1"><strong>From Snapshot:</strong> ${image.snapshot.name} (${image.snapshot.display_size})</p>` : ''}
+                    <p class="mb-1"><strong>Public:</strong> ${image.is_public ? 'Yes' : 'No'}</p>
+                    <p class="mb-0"><strong>Created:</strong> ${new Date(image.created_at).toLocaleDateString()}</p>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = imagesHtml;
+}
+
+// Select an image
+function selectImage(imageId) {
+    const image = availableImages.find(img => img.id === imageId);
+    if (!image) {
+        console.error(`❌ Image with ID ${imageId} not found`);
+        return;
+    }
+    
+    selectedImage = image;
+    console.log(`📸 Selected image: ${image.name} (ID: ${image.id})`);
+    window.Logs.addToDebugLog('Hyperstack', `Selected image: ${image.name}`, 'info', currentLaunchHostname);
+    
+    // Update UI
+    renderImageSelection(); // Re-render to show selection
+    showSelectedImageInfo(image);
+    
+    // Enable confirm button
+    document.getElementById('confirmImageSelectionBtn').disabled = false;
+}
+
+// Show selected image information
+function showSelectedImageInfo(image) {
+    const infoContainer = document.getElementById('selectedImageInfo');
+    const detailsContainer = document.getElementById('selectedImageDetails');
+    
+    detailsContainer.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <p class="mb-1">
+                    ${image.logo ? `<img src="${image.logo}" alt="${image.type}" style="width: 16px; height: 16px; margin-right: 6px;">` : ''}
+                    <strong>Name:</strong> ${image.name}
+                </p>
+                <p class="mb-1"><strong>Type:</strong> ${image.type}</p>
+                <p class="mb-1"><strong>Region:</strong> ${image.region_name}</p>
+                <p class="mb-1"><strong>Status:</strong> 
+                    <span class="badge bg-${image.green_status === 'GREEN' ? 'success' : 
+                                          image.green_status === 'NOT_GREEN' ? 'warning' : 'secondary'}">
+                        ${image.green_status || 'UNKNOWN'}
+                    </span>
+                </p>
+            </div>
+            <div class="col-md-6">
+                <p class="mb-1"><strong>Version:</strong> ${image.version}</p>
+                <p class="mb-1"><strong>Size:</strong> ${image.display_size}</p>
+                <p class="mb-1"><strong>Public:</strong> ${image.is_public ? 'Yes' : 'No'}</p>
+                <p class="mb-1"><strong>Created:</strong> ${new Date(image.created_at).toLocaleDateString()}</p>
+            </div>
+        </div>
+        ${image.description ? `<p class="mb-2 mt-2"><strong>Description:</strong> ${image.description}</p>` : ''}
+        ${image.snapshot ? `<p class="mb-0"><strong>Snapshot:</strong> ${image.snapshot.name} (${image.snapshot.display_size}, created ${new Date(image.snapshot.created_at).toLocaleDateString()})</p>` : ''}
+    `;
+    
+    infoContainer.style.display = 'block';
+}
+
+// Setup image search functionality
+function setupImageSearch() {
+    const searchInput = document.getElementById('imageSearchInput');
+    
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        
+        if (searchTerm === '') {
+            renderImageSelection(); // Show all images
+        } else {
+            const filteredImages = availableImages.filter(image => 
+                image.name.toLowerCase().includes(searchTerm) ||
+                image.type.toLowerCase().includes(searchTerm) ||
+                image.version.toLowerCase().includes(searchTerm) ||
+                image.region_name.toLowerCase().includes(searchTerm) ||
+                (image.description && image.description.toLowerCase().includes(searchTerm)) ||
+                (image.green_status && image.green_status.toLowerCase().includes(searchTerm)) ||
+                (image.snapshot && image.snapshot.name.toLowerCase().includes(searchTerm))
+            );
+            renderImageSelection(filteredImages);
+        }
+    });
+}
+
+// Confirm image selection and launch VM
+function confirmImageSelection() {
+    if (!selectedImage || !currentLaunchHostname) {
+        console.error('❌ No image selected or hostname missing');
+        return;
+    }
+    
+    console.log(`🚀 Launching VM on ${currentLaunchHostname} with image: ${selectedImage.name}`);
+    window.Logs.addToDebugLog('Hyperstack', `Launching VM with image: ${selectedImage.name}`, 'info', currentLaunchHostname);
+    
+    // Add RunPod launch operation with selected image
+    window.Frontend.addRunPodLaunchOperation(currentLaunchHostname, {
+        vm_name: currentLaunchHostname,
         flavor_name: 'default', // Should be determined based on host specs
-        image_name: 'default',  // Should be determined based on requirements
-        key_name: 'default',    // Should be determined based on user preferences
+        image_name: selectedImage.name,
+        image_id: selectedImage.id,
+        key_name: 'default', // Should be determined based on user preferences
         manual: true,
         source: 'manual_launch'
     });
     
-    console.log(`✅ RunPod launch scheduled for ${hostname}`);
-    window.Logs.addToDebugLog('Hyperstack', `RunPod launch scheduled for ${hostname}`, 'success', hostname);
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('imageSelectionModal'));
+    modal.hide();
+    
+    console.log(`✅ RunPod launch scheduled for ${currentLaunchHostname} with image ${selectedImage.name}`);
+    window.Logs.addToDebugLog('Hyperstack', `RunPod launch scheduled with image ${selectedImage.name}`, 'success', currentLaunchHostname);
 }
 
 // Generate commands for RunPod launch operations
@@ -271,9 +571,41 @@ function generateRunpodLaunchCommands(operation) {
     return commands;
 }
 
+// Initialize image selection modal event listeners
+function initializeImageSelectionModal() {
+    // Confirm button
+    const confirmBtn = document.getElementById('confirmImageSelectionBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', confirmImageSelection);
+    }
+    
+    // Refresh button
+    const refreshBtn = document.getElementById('refreshImagesBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            console.log('🔄 Force refreshing images...');
+            resetImageSelectionModal();
+            loadAvailableImages(true); // Force refresh
+        });
+    }
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    initializeImageSelectionModal();
+});
+
+// Make image selection functions globally available
+window.selectImage = selectImage;
+window.confirmImageSelection = confirmImageSelection;
+
 // Export Hyperstack functions
 window.Hyperstack = {
     executeRunpodLaunch,
     scheduleRunpodLaunch,
-    generateRunpodLaunchCommands
+    generateRunpodLaunchCommands,
+    showImageSelectionModal,
+    loadAvailableImages,
+    selectImage,
+    confirmImageSelection
 };
