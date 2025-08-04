@@ -753,6 +753,17 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
             target_aggregate: targetAggregate
         });
         
+        // Check if source and target aggregates are the same
+        if (sourceAggregate === targetAggregate) {
+            console.log('⚠️ Ignoring drag and drop - host is already in target aggregate:', {
+                hostname,
+                sourceAggregate,
+                targetAggregate
+            });
+            showNotification(`Host ${hostname} is already in ${targetAggregate}`, 'warning');
+            return;
+        }
+        
         // For on-demand moves with variants, check NVLink compatibility
         if (targetType === 'ondemand' && targetVariant && aggregateData.ondemand?.variants) {
             const hostCard = document.querySelector(`[data-host="${hostname}"]`);
@@ -1071,6 +1082,30 @@ function removePendingOperation(index) {
         updatePendingOperationsDisplay();
         showNotification(`Removed ${operation.hostname} from pending operations`, 'info');
     }
+}
+
+// Clean up invalid pending operations where source equals target
+function cleanupInvalidPendingOperations() {
+    const originalCount = pendingOperations.length;
+    const invalidOperations = [];
+    
+    // Find operations where source and target aggregates are the same
+    for (let i = pendingOperations.length - 1; i >= 0; i--) {
+        const operation = pendingOperations[i];
+        if (operation.sourceAggregate === operation.targetAggregate) {
+            invalidOperations.push(operation.hostname);
+            pendingOperations.splice(i, 1);
+        }
+    }
+    
+    if (invalidOperations.length > 0) {
+        console.log('🧹 Cleaned up invalid pending operations:', invalidOperations);
+        updatePendingOperationsDisplay();
+        showNotification(`Removed ${invalidOperations.length} invalid operations where source equals target: ${invalidOperations.join(', ')}`, 'info');
+        return invalidOperations.length;
+    }
+    
+    return 0;
 }
 
 // Placeholder for scheduleRunpodLaunch function (referenced in host cards)
@@ -1596,6 +1631,7 @@ window.toggleGroup = toggleGroup;
 window.handleHostClick = handleHostClick;
 // scheduleRunpodLaunch is now in window.Hyperstack namespace
 window.removePendingOperation = removePendingOperation;
+window.cleanupInvalidPendingOperations = cleanupInvalidPendingOperations;
 window.generateIndividualCommandOperations = generateIndividualCommandOperations;
 window.updateCommitButtonState = updateCommitButtonState;
 window.toggleOperationCollapse = toggleOperationCollapse;
