@@ -161,21 +161,20 @@ let imageCache = {
     expireAfter: 5 * 60 * 1000 // 5 minutes in milliseconds
 };
 
-// Region mapping and detection (updated to match actual Hyperstack API region names)
+// Region mapping and detection (only confirmed regions)
 const regionMappings = {
     'CA1': 'CANADA-1',
     'US1': 'US-1',
-    'EU1': 'EUROPE-1',
-    'AS1': 'ASIA-1',
     'NO1': 'NORWAY-1'
+    // Other regions will be added dynamically based on API response
 };
 
 const regionFlags = {
     'CANADA-1': '🇨🇦',
     'US-1': '🇺🇸', 
-    'EUROPE-1': '🇪🇺',
-    'ASIA-1': '🌏',
-    'NORWAY-1': '🇳🇴'
+    'NORWAY-1': '🇳🇴',
+    // Default flag for unknown regions
+    'default': '🌍'
 };
 
 // Detect region from hostname
@@ -302,6 +301,9 @@ function loadAvailableImages(forceRefresh = false) {
             // Hide loading and show content
             document.getElementById('imageSelectionLoading').style.display = 'none';
             document.getElementById('imageSelectionContent').style.display = 'block';
+            
+            // Create dynamic region filter buttons based on actual regions
+            createDynamicRegionButtons();
             
             // Render images
             renderImageSelection();
@@ -466,6 +468,42 @@ function setupImageSearch() {
             renderImageSelection(searchFilteredImages);
         }
     });
+}
+
+// Create dynamic region filter buttons based on actual API response
+function createDynamicRegionButtons() {
+    const uniqueRegions = [...new Set(availableImages.map(img => img.region_name))].sort();
+    const buttonContainer = document.getElementById('regionFilterButtons');
+    
+    if (!buttonContainer) return;
+    
+    // Clear existing buttons
+    buttonContainer.innerHTML = '';
+    
+    // Add "All Regions" button
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = 'btn btn-outline-primary region-filter-btn';
+    allBtn.dataset.region = 'all';
+    allBtn.innerHTML = '<i class="fas fa-globe me-1"></i>All Regions';
+    buttonContainer.appendChild(allBtn);
+    
+    // Add buttons for each actual region
+    uniqueRegions.forEach(region => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline-primary region-filter-btn';
+        btn.dataset.region = region;
+        
+        // Get flag and display name
+        const flag = regionFlags[region] || regionFlags['default'];
+        const displayName = region.replace('-1', '').replace('-', ' ');
+        
+        btn.innerHTML = `${flag} ${displayName}`;
+        buttonContainer.appendChild(btn);
+    });
+    
+    console.log(`🏗️ Created dynamic region buttons for: ${uniqueRegions.join(', ')}`);
 }
 
 // Setup region filter buttons and detection info

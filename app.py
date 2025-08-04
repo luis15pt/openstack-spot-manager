@@ -2379,6 +2379,13 @@ def hyperstack_list_images():
             
             print(f"✅ Retrieved {total_count} images from {len(image_groups)} groups from Hyperstack")
             
+            # Debug: Log all unique regions found
+            unique_regions = set()
+            for group in image_groups:
+                region_name = group.get('region_name', 'Unknown')
+                unique_regions.add(region_name)
+            print(f"🌍 Available regions in API response: {', '.join(sorted(unique_regions))}")
+            
             # Log the command
             log_command('curl -X GET https://infrahub-api.nexgencloud.com/v1/core/images', {
                 'success': True,
