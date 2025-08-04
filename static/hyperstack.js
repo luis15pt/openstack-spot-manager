@@ -161,12 +161,11 @@ let imageCache = {
     expireAfter: 5 * 60 * 1000 // 5 minutes in milliseconds
 };
 
-// Region mapping and detection (only confirmed regions)
+// Region mapping and detection (based on actual Hyperstack API response)
 const regionMappings = {
     'CA1': 'CANADA-1',
-    'US1': 'US-1',
+    'US1': 'US-1', 
     'NO1': 'NORWAY-1'
-    // Other regions will be added dynamically based on API response
 };
 
 const regionFlags = {
@@ -175,6 +174,13 @@ const regionFlags = {
     'NORWAY-1': '🇳🇴',
     // Default flag for unknown regions
     'default': '🌍'
+};
+
+// Region status colors based on green_status from API
+const regionStatusColors = {
+    'GREEN': 'success',
+    'NOT_GREEN': 'warning',
+    'default': 'secondary'
 };
 
 // Detect region from hostname
@@ -488,18 +494,29 @@ function createDynamicRegionButtons() {
     allBtn.innerHTML = '<i class="fas fa-globe me-1"></i>All Regions';
     buttonContainer.appendChild(allBtn);
     
-    // Add buttons for each actual region
+    // Add buttons for each actual region with status indicators
     uniqueRegions.forEach(region => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-outline-primary region-filter-btn';
         btn.dataset.region = region;
         
+        // Get region info from first image in that region
+        const regionImage = availableImages.find(img => img.region_name === region);
+        const greenStatus = regionImage?.green_status || 'UNKNOWN';
+        const statusColor = regionStatusColors[greenStatus] || regionStatusColors['default'];
+        
         // Get flag and display name
         const flag = regionFlags[region] || regionFlags['default'];
         const displayName = region.replace('-1', '').replace('-', ' ');
         
-        btn.innerHTML = `${flag} ${displayName}`;
+        // Add status indicator
+        const statusIndicator = greenStatus === 'GREEN' ? '🟢' : 
+                               greenStatus === 'NOT_GREEN' ? '🟡' : '⚫';
+        
+        btn.innerHTML = `${flag} ${displayName} ${statusIndicator}`;
+        btn.title = `Region Status: ${greenStatus}`;
+        
         buttonContainer.appendChild(btn);
     });
     
@@ -514,11 +531,17 @@ function setupRegionFilter() {
     // Update detection info
     if (currentRegionFilter) {
         const flag = regionFlags[currentRegionFilter] || '🌍';
-        regionInfo.textContent = `Auto-detected: ${flag} ${currentRegionFilter}`;
+        const regionImage = availableImages.find(img => img.region_name === currentRegionFilter);
+        const status = regionImage?.green_status || 'UNKNOWN';
+        const statusIndicator = status === 'GREEN' ? '🟢' : status === 'NOT_GREEN' ? '🟡' : '⚫';
+        
+        regionInfo.innerHTML = `Auto-detected: ${flag} ${currentRegionFilter} ${statusIndicator}`;
         regionInfo.className = 'text-success';
+        regionInfo.title = `Region Status: ${status}`;
     } else {
         regionInfo.textContent = 'No region detected - showing all regions';
         regionInfo.className = 'text-muted';
+        regionInfo.title = '';
     }
     
     // Set active button based on current filter
@@ -545,11 +568,17 @@ function setupRegionFilter() {
             // Update detection info
             if (currentRegionFilter) {
                 const flag = regionFlags[currentRegionFilter] || '🌍';
-                regionInfo.textContent = `Selected: ${flag} ${currentRegionFilter}`;
+                const regionImage = availableImages.find(img => img.region_name === currentRegionFilter);
+                const status = regionImage?.green_status || 'UNKNOWN';
+                const statusIndicator = status === 'GREEN' ? '🟢' : status === 'NOT_GREEN' ? '🟡' : '⚫';
+                
+                regionInfo.innerHTML = `Selected: ${flag} ${currentRegionFilter} ${statusIndicator}`;
                 regionInfo.className = 'text-primary';
+                regionInfo.title = `Region Status: ${status}`;
             } else {
                 regionInfo.textContent = 'Showing all regions';
                 regionInfo.className = 'text-muted';
+                regionInfo.title = '';
             }
             
             // Re-render images with new filter
