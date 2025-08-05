@@ -1509,6 +1509,14 @@ async function pollVmStatus(hostname, maxAttempts = 60) {
 async function loadContractAggregates(gpuType) {
     console.log(`🔍 Loading contract aggregates for GPU type: ${gpuType}`);
     
+    const contractSelect = document.getElementById('contractAggregateSelect');
+    const contractSection = document.getElementById('contractAggregateSection');
+    
+    // Show the contract section immediately with loading state
+    contractSection.style.display = 'block';
+    contractSelect.innerHTML = '<option value="">Loading contracts...</option>';
+    contractSelect.disabled = true;
+    
     try {
         const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
             method: 'GET',
@@ -1518,10 +1526,8 @@ async function loadContractAggregates(gpuType) {
         const result = await window.Utils.checkResponse(response);
         const data = await result.json();
         
-        const contractSelect = document.getElementById('contractAggregateSelect');
-        const contractSection = document.getElementById('contractAggregateSection');
-        
-        // Clear existing options
+        // Re-enable dropdown and clear loading state
+        contractSelect.disabled = false;
         contractSelect.innerHTML = '<option value="">Select Contract...</option>';
         
         if (data.contracts && data.contracts.length > 0) {
@@ -1534,18 +1540,20 @@ async function loadContractAggregates(gpuType) {
                 option.textContent = `${contract.name} (${contract.host_count} hosts)`;
                 contractSelect.appendChild(option);
             });
-            
-            // Show the contract section
-            contractSection.style.display = 'block';
         } else {
             console.log(`ℹ️ No contract aggregates found for ${gpuType}`);
-            contractSection.style.display = 'none';
+            contractSelect.innerHTML = '<option value="">No contracts available</option>';
         }
         
     } catch (error) {
         console.error(`❌ Error loading contract aggregates for ${gpuType}:`, error);
-        hideContractAggregateSection();
-        // Don't show error notification - contracts are optional
+        
+        // Show error state but keep dropdown visible
+        contractSelect.disabled = false;
+        contractSelect.innerHTML = '<option value="">Error loading contracts</option>';
+        
+        // Optional: Show a subtle error indication
+        window.Frontend.showNotification(`Could not load contracts for ${gpuType} (timeout/error)`, 'warning');
     }
 }
 
