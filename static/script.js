@@ -410,7 +410,7 @@ function updateOnDemandColumn(data) {
         gpu_summary: data.gpu_summary
     };
     
-    // Re-render the variant columns (this handles both single and multiple variants)
+    // Re-render the variant columns with NVLink logic
     window.Frontend.renderOnDemandVariantColumns(ondemandData);
 }
 

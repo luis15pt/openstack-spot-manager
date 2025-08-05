@@ -112,7 +112,7 @@ function renderAggregateData(data) {
     // Store data for other functions
     aggregateData = data;
     
-    // Render On-Demand variants as separate columns
+    // Render On-Demand variants as separate columns only if NVLink variants exist
     if (data.ondemand.hosts) {
         renderOnDemandVariantColumns(data.ondemand);
     }
@@ -1192,7 +1192,11 @@ function renderOnDemandVariantColumns(ondemandData) {
         spotColumn.className = spotColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
     }
     
-    if (ondemandData.variants && ondemandData.variants.length > 1) {
+    // Check if variants include NVLink differentiation (only split columns for NVLink variants)
+    const hasNVLinkVariants = ondemandData.variants && ondemandData.variants.length > 1 && 
+        ondemandData.variants.some(v => v.variant.toLowerCase().includes('nvlink'));
+        
+    if (hasNVLinkVariants) {
         // Multiple variants - create separate columns
         // Hide fallback column
         const fallbackColumn = document.getElementById('ondemandColumnFallback');

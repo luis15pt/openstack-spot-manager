@@ -2190,41 +2190,30 @@ body {
     font-weight: 500;
 }
 
-/* Static 5-column layout - fitted to screen width */
+/* Dynamic 3-4 column layout that resizes with window */
 .hosts-row {
     display: flex;
-    flex-wrap: nowrap; /* Prevent wrapping */
+    flex-wrap: wrap; /* Allow wrapping on small screens */
 }
 
 .hosts-row .col-md-2 {
-    width: 20% !important; /* 5 columns = 20% each */
-    flex: 0 0 20% !important;
-    max-width: 20% !important;
-    min-width: 140px;
-    display: block !important; /* Ensure column is visible */
+    flex: 1 1 0; /* Equal width columns that grow to fill space */
+    min-width: 250px; /* Minimum width before wrapping */
+    max-width: none; /* Remove width constraints to allow flexible sizing */
 }
 
-/* Responsive adjustments for 5-column layout */
+/* Responsive adjustments for dynamic column layout */
 @media (max-width: 1200px) {
     .hosts-row .col-md-2 {
-        width: 20%;
-        flex: 0 0 20%;
-        max-width: 20%;
-        min-width: 120px; /* Even smaller minimum for tighter fit */
+        min-width: 200px; /* Smaller minimum for tighter screens */
     }
 }
 
 @media (max-width: 992px) {
-    .hosts-row {
-        flex-wrap: wrap;
-    }
-    
     .hosts-row .col-md-2 {
-        width: 100% !important;
-        flex: 0 0 100% !important;
-        max-width: 100% !important;
-        margin-bottom: 15px;
+        flex: 1 1 100%; /* Full width on mobile */
         min-width: unset;
+        margin-bottom: 15px;
     }
 }
 
