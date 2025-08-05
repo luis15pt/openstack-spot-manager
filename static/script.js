@@ -431,9 +431,27 @@ function showVmDetails(hostname) {
                 console.log('🔍 VM Properties:', Object.keys(data.vms[0]));
             }
             
-            const modal = new bootstrap.Modal(document.getElementById('vmDetailsModal'));
+            const modalEl = document.getElementById('vmDetailsModal');
             const modalBody = document.getElementById('vmDetailsBody');
             const modalTitle = document.querySelector('#vmDetailsModal .modal-title');
+            
+            // Get existing modal instance or create new one
+            let modal = bootstrap.Modal.getInstance(modalEl);
+            if (!modal) {
+                modal = new bootstrap.Modal(modalEl);
+            }
+            
+            // Add event listener to properly clean up backdrop on hide
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                // Remove any remaining backdrop elements
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+                
+                // Reset body classes
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            }, { once: true });
             
             // Update modal title
             modalTitle.textContent = `VMs on Host: ${hostname}`;
@@ -1523,6 +1541,9 @@ async function loadContractAggregatesForColumn(gpuType) {
     const contractSelect = document.getElementById('contractColumnSelect');
     const contractName = document.getElementById('contractName');
     
+    // Preserve the current selection if any
+    const currentSelection = contractSelect ? contractSelect.value : '';
+    
     try {
         // Show loading state
         contractSelect.innerHTML = '<option value="">Loading contracts...</option>';
@@ -1550,6 +1571,17 @@ async function loadContractAggregatesForColumn(gpuType) {
                 option.textContent = `${contract.name} (${contract.host_count} hosts)`;
                 contractSelect.appendChild(option);
             });
+            
+            // Restore the previous selection if it exists in the new options
+            if (currentSelection && currentSelection !== '') {
+                const optionExists = Array.from(contractSelect.options).some(option => option.value === currentSelection);
+                if (optionExists) {
+                    contractSelect.value = currentSelection;
+                    console.log(`🔄 Restored contract selection: ${currentSelection}`);
+                    // Reload the contract data to maintain the display
+                    loadContractDataForColumn(currentSelection);
+                }
+            }
             
             console.log(`✅ Contract aggregates loaded in column successfully`);
         } else {
