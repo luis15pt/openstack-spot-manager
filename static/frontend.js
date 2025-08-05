@@ -183,7 +183,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                         <span class="subgroup-title">Nexgen Cloud (${nexgenHosts.length})</span>
                         <i class="fas fa-chevron-right toggle-icon" id="${nexgenSubGroupId}-icon"></i>
                     </div>
-                    <div class="host-subgroup-content" id="${nexgenSubGroupId}">
+                    <div class="host-subgroup-content collapsed" id="${nexgenSubGroupId}">
                         ${nexgenCards}
                     </div>
                 </div>
@@ -202,7 +202,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                         <span class="subgroup-title">Investor Devices (${investorHosts.length})</span>
                         <i class="fas fa-chevron-right toggle-icon" id="${investorSubGroupId}-icon"></i>
                     </div>
-                    <div class="host-subgroup-content" id="${investorSubGroupId}">
+                    <div class="host-subgroup-content collapsed" id="${investorSubGroupId}">
                         ${investorCards}
                     </div>
                 </div>
@@ -217,7 +217,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                     <small class="text-muted">No VMs - Ready to move</small>
                     <i class="fas fa-chevron-right toggle-icon" id="${availableId}-icon"></i>
                 </div>
-                <div class="host-group-content" id="${availableId}">
+                <div class="host-group-content collapsed" id="${availableId}">
                     ${availableSubGroups}
                 </div>
             </div>
@@ -252,7 +252,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                             <span class="subgroup-title">${vmCount} VM${vmCount != 1 ? 's' : ''} (${hostsInGroup.length})</span>
                             <i class="fas fa-chevron-right toggle-icon" id="${subGroupId}-icon"></i>
                         </div>
-                        <div class="host-subgroup-content" id="${subGroupId}">
+                        <div class="host-subgroup-content collapsed" id="${subGroupId}">
                             ${cards}
                         </div>
                     </div>
@@ -281,7 +281,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                             <span class="subgroup-title">${gpuUsage} GPU${gpuUsage != 1 ? 's' : ''} (${hostsInGroup.length})</span>
                             <i class="fas fa-chevron-right toggle-icon" id="${subGroupId}-icon"></i>
                         </div>
-                        <div class="host-subgroup-content" id="${subGroupId}">
+                        <div class="host-subgroup-content collapsed" id="${subGroupId}">
                             ${cards}
                         </div>
                     </div>
@@ -385,7 +385,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                             <span class="subgroup-title">Nexgen Cloud (${nexgenHosts.length})</span>
                             <i class="fas fa-chevron-right toggle-icon" id="${nexgenSubGroupId}-icon"></i>
                         </div>
-                        <div class="host-subgroup-content" id="${nexgenSubGroupId}">
+                        <div class="host-subgroup-content collapsed" id="${nexgenSubGroupId}">
                             ${nexgenCards}
                         </div>
                     </div>
@@ -404,7 +404,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                             <span class="subgroup-title">Investor Devices (${investorHosts.length})</span>
                             <i class="fas fa-chevron-right toggle-icon" id="${investorSubGroupId}-icon"></i>
                         </div>
-                        <div class="host-subgroup-content" id="${investorSubGroupId}">
+                        <div class="host-subgroup-content collapsed" id="${investorSubGroupId}">
                             ${investorCards}
                         </div>
                     </div>
@@ -419,7 +419,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                         <small class="text-muted">Ready for deployment</small>
                         <i class="fas fa-chevron-right toggle-icon" id="${availableId}-icon"></i>
                     </div>
-                    <div class="host-group-content" id="${availableId}">
+                    <div class="host-group-content collapsed" id="${availableId}">
                         <div class="subgroups-container">
                             ${availableSubGroups}
                         </div>
@@ -441,7 +441,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                         <small class="text-muted">Have running VMs</small>
                         <i class="fas fa-chevron-right toggle-icon" id="${inUseId}-icon"></i>
                     </div>
-                    <div class="host-group-content" id="${inUseId}">
+                    <div class="host-group-content collapsed" id="${inUseId}">
                         ${inUseCards}
                     </div>
                 </div>
@@ -457,7 +457,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                     <small class="text-muted">Available: ${availableHosts.length} | In Use: ${inUseHosts.length}</small>
                     <i class="fas fa-chevron-right toggle-icon" id="${variantId}-icon"></i>
                 </div>
-                <div class="host-group-content" id="${variantId}">
+                <div class="host-group-content collapsed" id="${variantId}">
                     <div class="drop-zone" data-type="ondemand" data-variant="${variant.aggregate}">
                         <div class="subgroups-container">
                             ${sectionsHtml}
