@@ -125,8 +125,21 @@ function initializeEventListeners() {
             window.currentGpuType = selectedType;
             console.log(`📊 Loading data for GPU type: ${selectedType}`);
             window.OpenStack.loadAggregateData(selectedType);
+            
+            // Load contract aggregates for this GPU type
+            loadContractAggregates(selectedType);
         } else {
             window.Frontend.hideMainContent();
+            hideContractAggregateSection();
+        }
+    });
+    
+    // Contract aggregate selector
+    document.getElementById('contractAggregateSelect').addEventListener('change', function() {
+        const selectedContract = this.value;
+        if (selectedContract) {
+            console.log(`📋 Selected contract aggregate: ${selectedContract}`);
+            loadContractAggregateData(selectedContract);
         }
     });
     
@@ -805,6 +818,15 @@ function executeCommandsForOperation(operation, commands, callback) {
                 const errorOutput = `REAL COMMAND FAILED: ${error.message}\n\nCommand: ${command.title}`;
                 markCommandAsCompleted(command.element, errorOutput);
                 
+                // Track this as a failed command
+                if (!operation.failedCommands) {
+                    operation.failedCommands = [];
+                }
+                if (!operation.failedCommands.includes(commandIndex)) {
+                    operation.failedCommands.push(commandIndex);
+                    console.log(`❌ Added command ${commandIndex} to failed commands for ${operation.hostname}`);
+                }
+                
                 // STOP execution on failure - don't continue to next command
                 console.error(`🛑 Stopping execution due to failed command: ${command.title}`);
                 window.Logs.addToDebugLog('Execution Stopped', `Operation stopped due to failed command: ${command.title}`, 'error', operation.hostname);
@@ -1320,9 +1342,12 @@ function removeCompletedCommands() {
         if (!isNaN(operationIndex) && operationIndex < window.Frontend.pendingOperations.length) {
             const operation = window.Frontend.pendingOperations[operationIndex];
             
-            // Mark command as completed
+            // Initialize tracking arrays if they don't exist
             if (!operation.completedCommands) {
                 operation.completedCommands = [];
+            }
+            if (!operation.failedCommands) {
+                operation.failedCommands = [];
             }
             
             // Add command type to completed list (this is a simplified approach)
@@ -1330,18 +1355,24 @@ function removeCompletedCommands() {
                 operation.completedCommands.push(commandIndex);
             }
             
-            // If all commands for this operation are completed, remove the operation
             // Count total commands for this specific operation
             const operationCommands = window.generateIndividualCommandOperations ? window.generateIndividualCommandOperations(operation) : [];
             const totalCommands = operationCommands.length;
             
-            console.log(`🔍 Operation ${operation.hostname}: ${operation.completedCommands.length}/${totalCommands} commands completed`);
+            console.log(`🔍 Operation ${operation.hostname}: ${operation.completedCommands.length}/${totalCommands} commands processed, ${operation.failedCommands.length} failed`);
             
-            if (operation.completedCommands.length >= totalCommands) {
-                console.log(`✅ All commands completed for ${operation.hostname}, removing from pending operations`);
-                window.Logs.addToDebugLog('Operation Completed', `Removed ${operation.hostname} - all ${totalCommands} commands completed`, 'success', operation.hostname);
+            // Only remove operation if ALL commands completed successfully (no failures)
+            if (operation.completedCommands.length >= totalCommands && operation.failedCommands.length === 0) {
+                console.log(`✅ All commands completed successfully for ${operation.hostname}, removing from pending operations`);
+                window.Logs.addToDebugLog('Operation Completed', `Removed ${operation.hostname} - all ${totalCommands} commands completed successfully`, 'success', operation.hostname);
                 window.Frontend.pendingOperations.splice(operationIndex, 1);
-                
+            } else if (operation.failedCommands.length > 0) {
+                console.log(`❌ Operation ${operation.hostname} has ${operation.failedCommands.length} failed commands - keeping in pending operations for review`);
+                window.Logs.addToDebugLog('Operation Failed', `${operation.hostname} has failed commands - operation remains pending`, 'error', operation.hostname);
+            }
+            
+            // Only refresh aggregate data if operation completed successfully (was removed)
+            if (operation.completedCommands.length >= totalCommands && operation.failedCommands.length === 0) {
                 // Refresh aggregate data for individual operation completion if it was an aggregate migration
                 if (operation.type === 'move-to-spot' || operation.type === 'move-to-ondemand' || operation.type === 'move-to-runpod') {
                     console.log(`🔄 Individual operation completed for ${operation.hostname}, refreshing aggregate data`);
@@ -1474,9 +1505,110 @@ async function pollVmStatus(hostname, maxAttempts = 60) {
 }
 
 // Make functions available globally that need to be called from HTML or other modules
+// Contract Aggregates Functions
+async function loadContractAggregates(gpuType) {
+    console.log(`🔍 Loading contract aggregates for GPU type: ${gpuType}`);
+    
+    try {
+        const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        }, 10000);
+        
+        const result = await window.Utils.checkResponse(response);
+        const data = await result.json();
+        
+        const contractSelect = document.getElementById('contractAggregateSelect');
+        const contractSection = document.getElementById('contractAggregateSection');
+        
+        // Clear existing options
+        contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+        
+        if (data.contracts && data.contracts.length > 0) {
+            console.log(`✅ Found ${data.contracts.length} contract aggregates for ${gpuType}`);
+            
+            // Populate dropdown with contracts
+            data.contracts.forEach(contract => {
+                const option = document.createElement('option');
+                option.value = contract.aggregate;
+                option.textContent = `${contract.name} (${contract.host_count} hosts)`;
+                contractSelect.appendChild(option);
+            });
+            
+            // Show the contract section
+            contractSection.style.display = 'block';
+        } else {
+            console.log(`ℹ️ No contract aggregates found for ${gpuType}`);
+            contractSection.style.display = 'none';
+        }
+        
+    } catch (error) {
+        console.error(`❌ Error loading contract aggregates for ${gpuType}:`, error);
+        hideContractAggregateSection();
+        // Don't show error notification - contracts are optional
+    }
+}
+
+function hideContractAggregateSection() {
+    const contractSection = document.getElementById('contractAggregateSection');
+    contractSection.style.display = 'none';
+    
+    // Clear the dropdown
+    const contractSelect = document.getElementById('contractAggregateSelect');
+    contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+}
+
+async function loadContractAggregateData(contractAggregate) {
+    console.log(`📋 Loading data for contract aggregate: ${contractAggregate}`);
+    
+    try {
+        const gpuType = window.currentGpuType;
+        if (!gpuType) {
+            console.error('❌ No GPU type selected');
+            return;
+        }
+        
+        const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        }, 10000);
+        
+        const result = await window.Utils.checkResponse(response);
+        const data = await result.json();
+        
+        // Find the selected contract
+        const selectedContract = data.contracts.find(contract => contract.aggregate === contractAggregate);
+        
+        if (selectedContract) {
+            console.log(`✅ Contract aggregate data loaded:`, selectedContract);
+            
+            // Display contract information in a modal or notification
+            const contractInfo = `
+                Contract: ${selectedContract.name}
+                Hosts: ${selectedContract.host_count}
+                
+                Hosts in this contract:
+                ${selectedContract.hosts.map(host => 
+                    `• ${host.hostname} (${host.tenant}) - ${host.vm_count} VMs, GPU: ${host.gpu_info.gpu_usage_ratio}`
+                ).join('\n')}
+            `;
+            
+            window.Frontend.showNotification(`Contract Details:\n${contractInfo}`, 'info');
+            window.Logs.addToDebugLog('Contract', `Loaded contract aggregate: ${contractAggregate}`, 'info');
+        }
+        
+    } catch (error) {
+        console.error(`❌ Error loading contract aggregate data:`, error);
+        window.Frontend.showNotification(`Error loading contract data: ${error.message}`, 'error');
+    }
+}
+
 window.showVmDetails = showVmDetails;
 window.removePendingOperation = removePendingOperation;
 window.updateControlButtons = updateControlButtons;
 window.pollVmStatus = pollVmStatus;
+window.loadContractAggregates = loadContractAggregates;
+window.hideContractAggregateSection = hideContractAggregateSection;
+window.loadContractAggregateData = loadContractAggregateData;
 
 console.log('✅ OpenStack Spot Manager main script loaded');

@@ -280,7 +280,7 @@ def get_bulk_gpu_info(hostnames, max_workers=10):
     return gpu_info_results
 
 def discover_gpu_aggregates():
-    """Dynamically discover GPU aggregates from OpenStack with variant support and contract aggregates"""
+    """Dynamically discover GPU aggregates from OpenStack with variant support"""
     try:
         conn = get_openstack_connection()
         if not conn:
@@ -289,11 +289,11 @@ def discover_gpu_aggregates():
         aggregates = list(conn.compute.aggregates())
         gpu_aggregates = {}
         
-        # Patterns to match different aggregate types
+        # Pattern to match GPU aggregates: GPU-TYPE-n3[-suffix]
         import re
         
         for agg in aggregates:
-            # Pattern 1: Regular GPU aggregates: GPU-TYPE-n3[-suffix]
+            # Match patterns like: RTX-A6000-n3, A100-n3-NVLink, RTX-A6000-n3-spot, RTX-A6000-n3-runpod
             match = re.match(r'^([A-Z0-9-]+)-n3(-NVLink)?(-spot|-runpod)?$', agg.name)
             if match:
                 gpu_type = match.group(1)
@@ -304,8 +304,7 @@ def discover_gpu_aggregates():
                     gpu_aggregates[gpu_type] = {
                         'ondemand_variants': [],
                         'spot': None,
-                        'runpod': None,
-                        'contracts': []  # Add contracts support
+                        'runpod': None
                     }
                 
                 if pool_suffix == '-spot':
@@ -324,53 +323,16 @@ def discover_gpu_aggregates():
                         'aggregate': agg.name,
                         'variant': variant_display
                     })
-            
-            # Pattern 2: Contract aggregates: Contract-* or contract-*
-            contract_match = re.match(r'^[Cc]ontract-([^-]+)', agg.name)
-            if contract_match:
-                # Extract GPU type from contract aggregate name
-                # Examples: Contract-AI2C-24xA100 -> try to extract A100
-                # Look for GPU types in the name
-                gpu_type = None
-                for possible_gpu in ['A100', 'H100', 'RTX-A6000', 'L40', 'A4000']:
-                    if possible_gpu in agg.name:
-                        gpu_type = possible_gpu
-                        break
-                
-                # If no GPU type found, try to extract from suffix patterns
-                if not gpu_type:
-                    # Try patterns like 24xA100, 8xH100, etc.
-                    suffix_match = re.search(r'\d+x([A-Z0-9-]+)', agg.name)
-                    if suffix_match:
-                        gpu_type = suffix_match.group(1)
-                
-                # Default fallback - use A100 for contracts if no GPU type detected
-                if not gpu_type:
-                    gpu_type = 'A100'
-                
-                if gpu_type not in gpu_aggregates:
-                    gpu_aggregates[gpu_type] = {
-                        'ondemand_variants': [],
-                        'spot': None,
-                        'runpod': None,
-                        'contracts': []
-                    }
-                
-                gpu_aggregates[gpu_type]['contracts'].append({
-                    'aggregate': agg.name,
-                    'name': agg.name
-                })
         
         # Convert to format compatible with existing code
         result = {}
         for gpu_type, data in gpu_aggregates.items():
-            if data['ondemand_variants'] or data['contracts']:  # Include if has ondemand or contracts
+            if data['ondemand_variants']:
                 result[gpu_type] = {
-                    'ondemand': data['ondemand_variants'][0]['aggregate'] if data['ondemand_variants'] else None,  # Primary for compatibility
+                    'ondemand': data['ondemand_variants'][0]['aggregate'],  # Primary for compatibility
                     'ondemand_variants': data['ondemand_variants'],
                     'spot': data['spot'],
-                    'runpod': data['runpod'],
-                    'contracts': data['contracts']  # Add contracts to result
+                    'runpod': data['runpod']
                 }
         
         if app.debug:
@@ -741,56 +703,6 @@ def get_gpu_types():
         'gpu_types': list(gpu_aggregates.keys()),
         'aggregates': gpu_aggregates
     })
-
-@app.route('/api/contract-aggregates/<gpu_type>')
-def get_contract_aggregates(gpu_type):
-    """Get contract aggregates for a specific GPU type"""
-    try:
-        gpu_aggregates = discover_gpu_aggregates()
-        
-        if gpu_type not in gpu_aggregates:
-            return jsonify({'error': f'GPU type {gpu_type} not found'}), 400
-        
-        contracts = gpu_aggregates[gpu_type].get('contracts', [])
-        
-        # Get detailed information for each contract aggregate
-        contract_details = []
-        for contract in contracts:
-            aggregate_name = contract['aggregate']
-            hosts = get_aggregate_hosts(aggregate_name)
-            
-            # Get host details with tenant information
-            host_details = []
-            if hosts:
-                tenant_info = get_netbox_tenants_bulk(hosts)
-                vm_counts = get_bulk_vm_counts(hosts, max_workers=5)
-                gpu_info = get_bulk_gpu_info(hosts, max_workers=5)
-                
-                for host in hosts:
-                    host_detail = {
-                        'hostname': host,
-                        'tenant': tenant_info.get(host, {}).get('tenant', 'Unknown'),
-                        'owner_group': tenant_info.get(host, {}).get('owner_group', 'Investors'),
-                        'vm_count': vm_counts.get(host, 0),
-                        'gpu_info': gpu_info.get(host, {'gpu_used': 0, 'gpu_capacity': 8, 'gpu_usage_ratio': '0/8'})
-                    }
-                    host_details.append(host_detail)
-            
-            contract_details.append({
-                'name': aggregate_name,
-                'aggregate': aggregate_name,
-                'hosts': host_details,
-                'host_count': len(hosts)
-            })
-        
-        return jsonify({
-            'gpu_type': gpu_type,
-            'contracts': contract_details
-        })
-        
-    except Exception as e:
-        print(f"❌ Error getting contract aggregates for {gpu_type}: {e}")
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/aggregates/<gpu_type>/<aggregate_type>')
 def get_specific_aggregate_data(gpu_type, aggregate_type):
