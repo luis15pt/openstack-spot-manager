@@ -2190,29 +2190,26 @@ body {
     font-weight: 500;
 }
 
-/* Dynamic 3-4 column layout that resizes with window */
+/* Dynamic column layout - all columns stay on same horizontal line */
 .hosts-row {
     display: flex;
-    flex-wrap: wrap; /* Allow wrapping on small screens */
+    flex-wrap: nowrap; /* NEVER wrap - keep all columns on same line */
 }
 
 .hosts-row .col-md-2 {
     flex: 1 1 0; /* Equal width columns that grow to fill space */
-    min-width: 250px; /* Minimum width before wrapping */
+    min-width: 0; /* Remove minimum width that causes wrapping */
     max-width: none; /* Remove width constraints to allow flexible sizing */
 }
 
-/* Responsive adjustments for dynamic column layout */
-@media (max-width: 1200px) {
-    .hosts-row .col-md-2 {
-        min-width: 200px; /* Smaller minimum for tighter screens */
+/* Only stack columns on very small mobile screens */
+@media (max-width: 768px) {
+    .hosts-row {
+        flex-wrap: wrap; /* Allow wrapping only on small mobile */
     }
-}
-
-@media (max-width: 992px) {
+    
     .hosts-row .col-md-2 {
-        flex: 1 1 100%; /* Full width on mobile */
-        min-width: unset;
+        flex: 1 1 100%; /* Full width on small mobile */
         margin-bottom: 15px;
     }
 }

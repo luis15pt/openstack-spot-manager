@@ -1734,7 +1734,7 @@ function populateContractPanel(contractData) {
         contractGpuProgressBar.style.width = `${gpuPercentage}%`;
     }
     
-    // Transform contract host data to match the expected format for createHostCard
+    // Transform contract host data to match the format expected by renderHosts
     const transformedHosts = contractData.hosts.map(host => {
         const gpuInfo = host.gpu_info || {};
         // Use the correct field names that match the backend (gpu_capacity, gpu_used)
@@ -1760,36 +1760,13 @@ function populateContractPanel(contractData) {
         };
     });
     
-    // Use the existing createHostCard function from Frontend module
-    if (contractHosts && window.Frontend && window.Frontend.createHostCard) {
-        const hostCards = transformedHosts.map(host => 
-            window.Frontend.createHostCard(host, 'contract', contractData.aggregate)
-        ).join('');
-        
-        // Wrap cards in the same structure as other columns for consistent sizing
-        contractHosts.innerHTML = `
-            <div class="host-subgroup-content">
-                ${hostCards}
-            </div>
-        `;
-        
-        // Initialize drag and drop for the new cards
-        if (window.Frontend.initializeDragAndDrop) {
-            window.Frontend.initializeDragAndDrop();
-        }
-        
-        // Add click handlers for VM details
-        contractHosts.querySelectorAll('.clickable-vm-count').forEach(element => {
-            element.addEventListener('click', function() {
-                const hostName = this.closest('.machine-card').dataset.host;
-                if (hostName && window.showVmDetails) {
-                    window.showVmDetails(hostName);
-                }
-            });
-        });
+    // Use the same renderHosts function as other columns for consistent grouping
+    if (window.Frontend && window.Frontend.renderHosts) {
+        console.log(`📋 Rendering ${transformedHosts.length} contract hosts with proper grouping`);
+        window.Frontend.renderHosts('contractHostsList', transformedHosts, 'contract', contractData.aggregate);
     }
     
-    console.log(`✅ Contract panel populated with ${contractData.hosts.length} hosts using createHostCard`);
+    console.log(`✅ Contract panel populated with ${contractData.hosts.length} hosts using renderHosts with proper grouping`);
 }
 
 window.showVmDetails = showVmDetails;
