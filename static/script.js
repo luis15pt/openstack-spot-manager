@@ -1642,11 +1642,15 @@ function showContractColumn() {
     const hostsRow = document.getElementById('hostsRow');
     const contractColumn = document.getElementById('contractColumn');
     
+    console.log('🔧 Showing contract column...');
+    console.log('🔧 Hosts row found:', !!hostsRow);
+    console.log('🔧 Contract column found:', !!contractColumn);
+    
     if (hostsRow && contractColumn) {
         hostsRow.classList.add('contract-active');
         contractColumn.style.display = 'block';
         
-        console.log('✅ Contract column shown');
+        console.log('✅ Contract column shown - classes:', hostsRow.className);
         window.Logs?.addToDebugLog('UI', 'Contract column displayed', 'info');
     }
 }
@@ -1660,9 +1664,9 @@ function hideContractColumn() {
         contractColumn.style.display = 'none';
         
         // Clear contract data
-        const contractHostsList = document.getElementById('contractHostsList');
-        if (contractHostsList) {
-            contractHostsList.innerHTML = '';
+        const contractHosts = document.getElementById('contractHosts');
+        if (contractHosts) {
+            contractHosts.innerHTML = '';
         }
         
         console.log('✅ Contract column hidden');
@@ -1677,6 +1681,9 @@ function populateContractPanel(contractData) {
     const contractGpuPercent = document.getElementById('contractGpuPercent');
     const contractGpuProgressBar = document.getElementById('contractGpuProgressBar');
     const contractHosts = document.getElementById('contractHosts');
+    
+    console.log('🔍 Contract data received:', contractData);
+    console.log('🔍 First host data structure:', contractData?.hosts?.[0]);
     
     if (!contractData || !contractData.hosts) {
         console.error('❌ Invalid contract data provided');
@@ -1721,7 +1728,9 @@ function populateContractPanel(contractData) {
     const transformedHosts = contractData.hosts.map(host => {
         const gpuInfo = host.gpu_info || {};
         const usedGpus = gpuInfo.used_gpus || 0;
-        const totalGpus = gpuInfo.total_gpus || 0;
+        const totalGpus = gpuInfo.total_gpus || 8; // Default to 8 for H100 hosts
+        
+        console.log(`🔧 Transforming host ${host.hostname}: VM=${host.vm_count}, GPU=${usedGpus}/${totalGpus}, Tenant=${host.tenant}`);
         
         return {
             name: host.hostname,
@@ -1731,7 +1740,7 @@ function populateContractPanel(contractData) {
             owner_group: host.tenant === 'Nexgen Cloud' ? 'Nexgen Cloud' : 'Investors',
             gpu_used: usedGpus,
             gpu_usage_ratio: `${usedGpus}/${totalGpus}`,
-            nvlinks: host.nvlinks || false,
+            nvlinks: host.nvlinks !== false, // Default to true for contract hosts
             variant: contractData.aggregate || contractData.name
         };
     });
