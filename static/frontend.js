@@ -181,7 +181,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                     <div class="host-subgroup-header clickable" onclick="toggleGroup('${nexgenSubGroupId}')">
                         <i class="fas fa-cloud text-info"></i>
                         <span class="subgroup-title">Nexgen Cloud (${nexgenHosts.length})</span>
-                        <i class="fas fa-chevron-down toggle-icon" id="${nexgenSubGroupId}-icon"></i>
+                        <i class="fas fa-chevron-right toggle-icon" id="${nexgenSubGroupId}-icon"></i>
                     </div>
                     <div class="host-subgroup-content" id="${nexgenSubGroupId}">
                         ${nexgenCards}
@@ -200,7 +200,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                     <div class="host-subgroup-header clickable" onclick="toggleGroup('${investorSubGroupId}')">
                         <i class="fas fa-users text-warning"></i>
                         <span class="subgroup-title">Investor Devices (${investorHosts.length})</span>
-                        <i class="fas fa-chevron-down toggle-icon" id="${investorSubGroupId}-icon"></i>
+                        <i class="fas fa-chevron-right toggle-icon" id="${investorSubGroupId}-icon"></i>
                     </div>
                     <div class="host-subgroup-content" id="${investorSubGroupId}">
                         ${investorCards}
@@ -215,7 +215,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                     <i class="fas fa-circle-check text-success"></i>
                     <h6 class="mb-0">Available (${availableHosts.length})</h6>
                     <small class="text-muted">No VMs - Ready to move</small>
-                    <i class="fas fa-chevron-down toggle-icon" id="${availableId}-icon"></i>
+                    <i class="fas fa-chevron-right toggle-icon" id="${availableId}-icon"></i>
                 </div>
                 <div class="host-group-content" id="${availableId}">
                     ${availableSubGroups}
@@ -250,7 +250,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                         <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
                             <i class="fas fa-desktop text-danger"></i>
                             <span class="subgroup-title">${vmCount} VM${vmCount != 1 ? 's' : ''} (${hostsInGroup.length})</span>
-                            <i class="fas fa-chevron-down toggle-icon" id="${subGroupId}-icon"></i>
+                            <i class="fas fa-chevron-right toggle-icon" id="${subGroupId}-icon"></i>
                         </div>
                         <div class="host-subgroup-content" id="${subGroupId}">
                             ${cards}
@@ -279,7 +279,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                         <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
                             <i class="fas fa-microchip text-danger"></i>
                             <span class="subgroup-title">${gpuUsage} GPU${gpuUsage != 1 ? 's' : ''} (${hostsInGroup.length})</span>
-                            <i class="fas fa-chevron-down toggle-icon" id="${subGroupId}-icon"></i>
+                            <i class="fas fa-chevron-right toggle-icon" id="${subGroupId}-icon"></i>
                         </div>
                         <div class="host-subgroup-content" id="${subGroupId}">
                             ${cards}
@@ -343,7 +343,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                         <i class="fas fa-microchip text-primary"></i>
                         <h6>${variant.variant} <span class="badge bg-secondary ms-2">0</span></h6>
                         <small class="text-muted">No hosts available</small>
-                        <i class="fas fa-chevron-down toggle-icon" id="${variantId}-icon"></i>
+                        <i class="fas fa-chevron-right toggle-icon" id="${variantId}-icon"></i>
                     </div>
                     <div class="host-group-content collapsed" id="${variantId}">
                         <div class="drop-zone" data-type="ondemand" data-variant="${variant.aggregate}">
@@ -383,7 +383,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                         <div class="host-subgroup-header clickable" onclick="toggleGroup('${nexgenSubGroupId}')">
                             <i class="fas fa-cloud text-info"></i>
                             <span class="subgroup-title">Nexgen Cloud (${nexgenHosts.length})</span>
-                            <i class="fas fa-chevron-down toggle-icon" id="${nexgenSubGroupId}-icon"></i>
+                            <i class="fas fa-chevron-right toggle-icon" id="${nexgenSubGroupId}-icon"></i>
                         </div>
                         <div class="host-subgroup-content" id="${nexgenSubGroupId}">
                             ${nexgenCards}
@@ -402,7 +402,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                         <div class="host-subgroup-header clickable" onclick="toggleGroup('${investorSubGroupId}')">
                             <i class="fas fa-users text-warning"></i>
                             <span class="subgroup-title">Investor Devices (${investorHosts.length})</span>
-                            <i class="fas fa-chevron-down toggle-icon" id="${investorSubGroupId}-icon"></i>
+                            <i class="fas fa-chevron-right toggle-icon" id="${investorSubGroupId}-icon"></i>
                         </div>
                         <div class="host-subgroup-content" id="${investorSubGroupId}">
                             ${investorCards}
@@ -417,7 +417,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                         <i class="fas fa-check-circle text-success"></i>
                         <h6>Available (${availableHosts.length})</h6>
                         <small class="text-muted">Ready for deployment</small>
-                        <i class="fas fa-chevron-down toggle-icon" id="${availableId}-icon"></i>
+                        <i class="fas fa-chevron-right toggle-icon" id="${availableId}-icon"></i>
                     </div>
                     <div class="host-group-content" id="${availableId}">
                         <div class="subgroups-container">
@@ -439,7 +439,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                         <i class="fas fa-exclamation-triangle text-warning"></i>
                         <h6>In Use (${inUseHosts.length})</h6>
                         <small class="text-muted">Have running VMs</small>
-                        <i class="fas fa-chevron-down toggle-icon" id="${inUseId}-icon"></i>
+                        <i class="fas fa-chevron-right toggle-icon" id="${inUseId}-icon"></i>
                     </div>
                     <div class="host-group-content" id="${inUseId}">
                         ${inUseCards}
@@ -455,7 +455,7 @@ function renderOnDemandVariants(container, hosts, variants) {
                     <i class="fas fa-microchip text-primary"></i>
                     <h6>${variant.variant} <span class="badge bg-secondary ms-2">${variantHosts.length}</span></h6>
                     <small class="text-muted">Available: ${availableHosts.length} | In Use: ${inUseHosts.length}</small>
-                    <i class="fas fa-chevron-down toggle-icon" id="${variantId}-icon"></i>
+                    <i class="fas fa-chevron-right toggle-icon" id="${variantId}-icon"></i>
                 </div>
                 <div class="host-group-content" id="${variantId}">
                     <div class="drop-zone" data-type="ondemand" data-variant="${variant.aggregate}">
@@ -959,7 +959,7 @@ function updatePendingOperationsDisplay() {
                             <button class="btn btn-sm btn-outline-secondary me-2 command-collapse-btn" 
                                     onclick="toggleCommandDetails('${commandId}')"
                                     title="Expand/Collapse command details">
-                                <i class="fas fa-chevron-down" id="${commandId}-chevron"></i>
+                                <i class="fas fa-chevron-right" id="${commandId}-chevron"></i>
                             </button>
                             
                             <div class="command-title-section flex-grow-1">
