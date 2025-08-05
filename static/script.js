@@ -1676,7 +1676,7 @@ function populateContractPanel(contractData) {
     const contractGpuUsage = document.getElementById('contractGpuUsage');
     const contractGpuPercent = document.getElementById('contractGpuPercent');
     const contractGpuProgressBar = document.getElementById('contractGpuProgressBar');
-    const contractHostsList = document.getElementById('contractHostsList');
+    const contractHosts = document.getElementById('contractHosts');
     
     if (!contractData || !contractData.hosts) {
         console.error('❌ Invalid contract data provided');
@@ -1717,76 +1717,50 @@ function populateContractPanel(contractData) {
         contractGpuProgressBar.style.width = `${gpuPercentage}%`;
     }
     
-    // Populate hosts list using the same format as existing host cards
-    if (contractHostsList) {
-        contractHostsList.innerHTML = '';
+    // Transform contract host data to match the expected format for createHostCard
+    const transformedHosts = contractData.hosts.map(host => {
+        const gpuInfo = host.gpu_info || {};
+        const usedGpus = gpuInfo.used_gpus || 0;
+        const totalGpus = gpuInfo.total_gpus || 0;
         
-        contractData.hosts.forEach(host => {
-            const hostCard = document.createElement('div');
-            hostCard.className = 'host-card';
-            
-            const gpuInfo = host.gpu_info || {};
-            const vmCount = host.vm_count || 0;
-            const hasVms = vmCount > 0;
-            
-            if (hasVms) {
-                hostCard.classList.add('has-vms');
-            }
-            
-            // Create the drag handle
-            const dragHandle = document.createElement('div');
-            dragHandle.className = 'drag-handle';
-            dragHandle.innerHTML = '<i class="fas fa-grip-vertical"></i>';
-            
-            // Create host name
-            const hostName = document.createElement('div');
-            hostName.className = 'host-name';
-            hostName.textContent = host.hostname;
-            
-            // Create tenant info
-            const tenantInfo = document.createElement('div');
-            tenantInfo.className = 'tenant-info';
-            tenantInfo.innerHTML = `
-                <span class="tenant-badge ${host.tenant?.toLowerCase() || 'unknown'}">
-                    <i class="fas fa-building"></i>
-                    ${host.tenant || 'Unknown'}
-                </span>
-            `;
-            
-            // Create VM count
-            const vmCountDiv = document.createElement('div');
-            vmCountDiv.className = 'vm-count';
-            vmCountDiv.innerHTML = `
-                <i class="fas fa-desktop"></i>
-                <span class="vm-badge ${vmCount > 0 ? 'active' : 'zero'}">${vmCount}</span>
-                <span class="vm-label">VMs</span>
-            `;
-            
-            // Create GPU info
-            const gpuDiv = document.createElement('div');
-            gpuDiv.className = 'vm-info';
-            const usedGpusHost = gpuInfo.used_gpus || 0;
-            const totalGpusHost = gpuInfo.total_gpus || 0;
-            const gpuPercentageHost = totalGpusHost > 0 ? Math.round((usedGpusHost / totalGpusHost) * 100) : 0;
-            
-            gpuDiv.innerHTML = `
-                <i class="fas fa-microchip text-info"></i>
-                <span class="gpu-badge ${usedGpusHost > 0 ? 'active' : 'zero'}">${usedGpusHost}/${totalGpusHost}</span>
-                <span class="gpu-label">GPUs (${gpuPercentageHost}%)</span>
-            `;
-            
-            // Assemble the card
-            hostCard.appendChild(dragHandle);
-            hostCard.appendChild(hostName);
-            hostCard.appendChild(tenantInfo);
-            hostCard.appendChild(vmCountDiv);
-            hostCard.appendChild(gpuDiv);
-            
-            contractHostsList.appendChild(hostCard);
+        return {
+            name: host.hostname,
+            has_vms: (host.vm_count || 0) > 0,
+            vm_count: host.vm_count || 0,
+            tenant: host.tenant || 'Unknown',
+            owner_group: host.tenant === 'Nexgen Cloud' ? 'Nexgen Cloud' : 'Investors',
+            gpu_used: usedGpus,
+            gpu_usage_ratio: `${usedGpus}/${totalGpus}`,
+            nvlinks: host.nvlinks || false,
+            variant: contractData.aggregate || contractData.name
+        };
+    });
+    
+    // Use the existing createHostCard function from Frontend module
+    if (contractHosts && window.Frontend && window.Frontend.createHostCard) {
+        const hostCards = transformedHosts.map(host => 
+            window.Frontend.createHostCard(host, 'contract', contractData.aggregate)
+        ).join('');
+        
+        contractHosts.innerHTML = hostCards;
+        
+        // Initialize drag and drop for the new cards
+        if (window.Frontend.initializeDragAndDrop) {
+            window.Frontend.initializeDragAndDrop();
+        }
+        
+        // Add click handlers for VM details
+        contractHosts.querySelectorAll('.clickable-vm-count').forEach(element => {
+            element.addEventListener('click', function() {
+                const hostName = this.closest('.machine-card').dataset.host;
+                if (hostName && window.showVmDetails) {
+                    window.showVmDetails(hostName);
+                }
+            });
         });
     }
     
-    console.log(`✅ Contract panel populated with ${contractData.hosts.length} hosts`);
+    console.log(`✅ Contract panel populated with ${contractData.hosts.length} hosts using createHostCard`);
 }
 
 window.showVmDetails = showVmDetails;

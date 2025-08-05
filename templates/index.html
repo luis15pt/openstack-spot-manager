@@ -243,15 +243,15 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Contract Details Column (hidden by default) -->
+                                <!-- Contract Column (hidden by default) -->
                                 <div class="col-md-2" id="contractColumn" style="display: none;">
                                     <div class="aggregate-column" id="contractAggregateColumn">
                                         <div class="card">
-                                            <div class="card-header bg-info text-white">
+                                            <div class="card-header bg-success text-white">
                                                 <h4 class="mb-0 d-flex justify-content-between align-items-center">
                                                     <span>
                                                         <i class="fas fa-file-contract"></i> 
-                                                        <span id="contractTitle">Contract</span> <span id="contractName"></span>
+                                                        Contract <span id="contractName"></span>
                                                         <span class="badge bg-light text-dark ms-2" id="contractHostCount">0</span>
                                                     </span>
                                                     <button class="btn btn-sm btn-outline-light" id="closeContractBtn" title="Close contract details">
@@ -266,15 +266,7 @@
                                                 </div>
                                             </div>
                                             <div class="card-body drop-zone" id="contractHosts" data-type="contract">
-                                                <div class="text-center text-muted" id="contractLoading" style="display: none;">
-                                                    <div class="spinner-border spinner-border-sm" role="status">
-                                                        <span class="visually-hidden">Loading...</span>
-                                                    </div>
-                                                    <p class="mt-2 mb-0">Loading contract details...</p>
-                                                </div>
-                                                <div id="contractHostsList">
-                                                    <!-- Contract hosts will be dynamically inserted here -->
-                                                </div>
+                                                <!-- Contract hosts will be dynamically inserted here -->
                                             </div>
                                         </div>
                                     </div>

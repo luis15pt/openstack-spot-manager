@@ -1713,5 +1713,6 @@ window.Frontend = {
     addRunPodLaunchOperation,
     updatePendingOperationsDisplay,
     updateCardPendingIndicators,
-    refreshAffectedColumns
+    refreshAffectedColumns,
+    createHostCard
 };
