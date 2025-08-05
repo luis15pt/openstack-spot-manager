@@ -919,8 +919,7 @@ function updatePendingOperationsDisplay() {
     
     const operationsHtml = pendingOperations.map((op, index) => {
         // Generate individual command operations for this operation
-        const commands = op.type === 'runpod-launch' && window.Hyperstack?.generateRunpodLaunchCommands ? 
-            window.Hyperstack.generateRunpodLaunchCommands(op) : generateIndividualCommandOperations(op);
+        const commands = generateIndividualCommandOperations(op);
         
         const operationTitle = op.type === 'runpod-launch' ? 
             `🚀 Launch VM '${op.vm_name || op.hostname}' on ${op.hostname}` : 
