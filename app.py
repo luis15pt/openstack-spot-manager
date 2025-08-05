@@ -795,12 +795,13 @@ def get_contract_aggregates(gpu_type):
             aggregate_name = contract['aggregate']
             hosts = get_aggregate_hosts(aggregate_name)
             
-            # Get host details with tenant information
+            # Get host details with tenant information (optimized for contracts)
             host_details = []
             if hosts:
+                print(f"📋 Loading data for {len(hosts)} hosts in contract {aggregate_name}")
                 tenant_info = get_netbox_tenants_bulk(hosts)
-                vm_counts = get_bulk_vm_counts(hosts, max_workers=5)
-                gpu_info = get_bulk_gpu_info(hosts, max_workers=5)
+                vm_counts = get_bulk_vm_counts(hosts, max_workers=8)  # Increase workers
+                gpu_info = get_bulk_gpu_info(hosts, max_workers=8)    # Increase workers
                 
                 for host in hosts:
                     host_detail = {

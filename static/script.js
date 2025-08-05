@@ -1513,7 +1513,7 @@ async function loadContractAggregates(gpuType) {
         const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
-        }, 10000);
+        }, 30000); // Increase timeout to 30 seconds for contract data
         
         const result = await window.Utils.checkResponse(response);
         const data = await result.json();
@@ -1571,7 +1571,7 @@ async function loadContractAggregateData(contractAggregate) {
         const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
-        }, 10000);
+        }, 30000); // Increase timeout to 30 seconds for contract data
         
         const result = await window.Utils.checkResponse(response);
         const data = await result.json();
