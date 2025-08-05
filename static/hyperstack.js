@@ -400,9 +400,13 @@ function selectImage(imageId) {
     console.log(`🔍 selectImage called with ID: ${imageId} (type: ${typeof imageId})`);
     console.log(`📋 Available images count: ${availableImages.length}`);
     
-    const image = availableImages.find(img => img.id === imageId);
+    // Convert imageId to number if it's a string, since image IDs are stored as numbers
+    const numericImageId = typeof imageId === 'string' ? parseInt(imageId, 10) : imageId;
+    console.log(`🔢 Converted ID: ${numericImageId} (type: ${typeof numericImageId})`);
+    
+    const image = availableImages.find(img => img.id === numericImageId);
     if (!image) {
-        console.error(`❌ Image with ID ${imageId} not found in available images`);
+        console.error(`❌ Image with ID ${numericImageId} not found in available images`);
         console.log(`🔍 Available image IDs:`, availableImages.map(img => `${img.id} (${typeof img.id})`));
         return;
     }
