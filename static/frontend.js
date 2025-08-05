@@ -15,15 +15,17 @@ function renderAggregateData(data) {
     // This prevents duplicate columns when switching between GPU types or refreshing
     const mainRow = document.querySelector('.row.mt-3');
     if (mainRow) {
-        const existingVariantColumns = mainRow.querySelectorAll('[class*="col-md-"]:not([id="ondemandColumnFallback"])');
-        existingVariantColumns.forEach(col => {
+        // Get all column divs
+        const existingColumns = mainRow.querySelectorAll('.col-md-1, .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6');
+        existingColumns.forEach(col => {
             const columnDiv = col.querySelector('.aggregate-column');
-            if (columnDiv && columnDiv.id && 
-                columnDiv.id !== 'runpodColumn' && 
-                columnDiv.id !== 'spotColumn' && 
-                columnDiv.id !== 'ondemandColumn') {
-                console.log('🗑️ Global cleanup: Removing variant column:', columnDiv.id);
-                col.remove();
+            if (columnDiv && columnDiv.id) {
+                // Keep only the core columns: runpod, spot, and ondemand fallback
+                const keepColumnIds = ['runpodColumn', 'spotColumn', 'ondemandColumn'];
+                if (!keepColumnIds.includes(columnDiv.id)) {
+                    console.log('🗑️ Global cleanup: Removing variant column:', columnDiv.id);
+                    col.remove();
+                }
             }
         });
     }
@@ -1146,15 +1148,17 @@ function renderOnDemandVariantColumns(ondemandData) {
     // This ensures we start fresh and prevents duplicates
     const mainRow = document.querySelector('.row.mt-3');
     if (mainRow) {
-        const existingVariantColumns = mainRow.querySelectorAll('[class*="col-md-"]:not([id="ondemandColumnFallback"])');
-        existingVariantColumns.forEach(col => {
+        // Get all column divs with more comprehensive selector
+        const existingColumns = mainRow.querySelectorAll('.col-md-1, .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6');
+        existingColumns.forEach(col => {
             const columnDiv = col.querySelector('.aggregate-column');
-            if (columnDiv && columnDiv.id && 
-                columnDiv.id !== 'runpodColumn' && 
-                columnDiv.id !== 'spotColumn' && 
-                columnDiv.id !== 'ondemandColumn') {
-                console.log('🗑️ Pre-cleanup: Removing variant column:', columnDiv.id);
-                col.remove();
+            if (columnDiv && columnDiv.id) {
+                // Keep only the core columns: runpod, spot, and ondemand fallback
+                const keepColumnIds = ['runpodColumn', 'spotColumn', 'ondemandColumn'];
+                if (!keepColumnIds.includes(columnDiv.id)) {
+                    console.log('🗑️ Pre-cleanup: Removing variant column:', columnDiv.id);
+                    col.remove();
+                }
             }
         });
     }
@@ -1203,6 +1207,13 @@ function renderOnDemandVariantColumns(ondemandData) {
                 aggregate: variant.aggregate,
                 hostCount: variantHosts.length
             });
+            
+            // Double-check: ensure no column with this ID already exists
+            const existingColumn = document.getElementById(`${variantId}Column`);
+            if (existingColumn) {
+                console.log(`⚠️ Column ${variantId}Column already exists, removing it first`);
+                existingColumn.closest('[class*="col-md-"]').remove();
+            }
             
             const columnHtml = `
                 <div class="col-md-${colWidth}">
@@ -1396,7 +1407,7 @@ function generateIndividualCommandOperations(operation) {
   -d '{
     "name": "<VM_NAME>",
     "environment_name": "CA1-RunPod", 
-    "image_name": "${operation.image_name || 'Ubuntu Server 24.04 LTS R570 CUDA 12.8'}",
+    "image_name": "${(operation && operation.image_name) || 'Ubuntu Server 24.04 LTS R570 CUDA 12.8'}",
     "flavor_name": "<GPU_FLAVOR>",
     "assign_floating_ip": true,
     "user_data": "<CLOUD_INIT_SCRIPT_WITH_RUNPOD_API_KEY>"

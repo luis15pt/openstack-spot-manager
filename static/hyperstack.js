@@ -363,7 +363,7 @@ function renderImageSelection(filteredImages = null) {
                            image.green_status === 'NOT_GREEN' ? 'warning' : 'secondary';
         
         return `
-            <div class="${cardClass}" data-image-id="${image.id}" onclick="selectImage(${image.id})">
+            <div class="${cardClass}" data-image-id="${image.id}" onclick="selectImage('${image.id}')">
                 <div class="image-card-header">
                     <div class="image-info">
                         <h6 class="image-name mb-1">
@@ -397,14 +397,19 @@ function renderImageSelection(filteredImages = null) {
 
 // Select an image
 function selectImage(imageId) {
+    console.log(`🔍 selectImage called with ID: ${imageId} (type: ${typeof imageId})`);
+    console.log(`📋 Available images count: ${availableImages.length}`);
+    
     const image = availableImages.find(img => img.id === imageId);
     if (!image) {
-        console.error(`❌ Image with ID ${imageId} not found`);
+        console.error(`❌ Image with ID ${imageId} not found in available images`);
+        console.log(`🔍 Available image IDs:`, availableImages.map(img => `${img.id} (${typeof img.id})`));
         return;
     }
     
     selectedImage = image;
     console.log(`📸 Selected image: ${image.name} (ID: ${image.id})`);
+    console.log(`✅ selectedImage variable is now:`, selectedImage);
     window.Logs.addToDebugLog('Hyperstack', `Selected image: ${image.name}`, 'info', currentLaunchHostname);
     
     // Update UI
@@ -604,8 +609,25 @@ function filterImagesByRegion(images, region) {
 
 // Confirm image selection and launch VM
 function confirmImageSelection() {
+    console.log(`🚀 confirmImageSelection called`);
+    console.log(`📊 Current state:`, {
+        selectedImage: selectedImage,
+        currentLaunchHostname: currentLaunchHostname,
+        availableImagesCount: availableImages.length
+    });
+    
     if (!selectedImage || !currentLaunchHostname) {
         console.error('❌ No image selected or hostname missing');
+        console.log(`❌ selectedImage:`, selectedImage);
+        console.log(`❌ currentLaunchHostname:`, currentLaunchHostname);
+        window.Frontend.showNotification('Please select an image before launching VM', 'error');
+        return;
+    }
+    
+    // Additional validation to ensure selectedImage has required properties
+    if (!selectedImage.name || !selectedImage.id) {
+        console.error('❌ Selected image is missing required properties:', selectedImage);
+        window.Frontend.showNotification('Selected image is invalid. Please select a different image.', 'error');
         return;
     }
     
