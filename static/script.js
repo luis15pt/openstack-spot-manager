@@ -126,35 +126,31 @@ function initializeEventListeners() {
             console.log(`📊 Loading data for GPU type: ${selectedType}`);
             window.OpenStack.loadAggregateData(selectedType);
             
-            // Load contract aggregates for this GPU type
-            loadContractAggregates(selectedType);
+            // Load contract aggregates for the contract column
+            loadContractAggregatesForColumn(selectedType);
         } else {
             window.Frontend.hideMainContent();
-            hideContractAggregateSection();
+            clearContractColumn();
         }
     });
     
-    // Contract aggregate selector
-    document.getElementById('contractAggregateSelect').addEventListener('change', function() {
+    // Contract column selector
+    document.getElementById('contractColumnSelect').addEventListener('change', function() {
         const selectedContract = this.value;
         if (selectedContract) {
-            console.log(`📋 Selected contract aggregate: ${selectedContract}`);
-            loadContractAggregateData(selectedContract);
+            console.log(`📋 Selected contract from column: ${selectedContract}`);
+            loadContractDataForColumn(selectedContract);
         } else {
-            // Hide contract column when no contract is selected
-            hideContractColumn();
+            clearContractHosts();
         }
     });
     
-    // Contract close button
-    document.getElementById('closeContractBtn').addEventListener('click', function() {
-        console.log('🚪 Closing contract details panel');
-        hideContractColumn();
-        
-        // Reset contract dropdown
-        const contractSelect = document.getElementById('contractAggregateSelect');
-        if (contractSelect) {
-            contractSelect.value = '';
+    // Contract refresh button
+    document.getElementById('refreshContractBtn').addEventListener('click', function() {
+        console.log('🔄 Refreshing contract column');
+        const gpuType = window.currentGpuType;
+        if (gpuType) {
+            loadContractAggregatesForColumn(gpuType);
         }
     });
     
@@ -1521,74 +1517,93 @@ async function pollVmStatus(hostname, maxAttempts = 60) {
 
 // Make functions available globally that need to be called from HTML or other modules
 // Contract Aggregates Functions
-async function loadContractAggregates(gpuType) {
-    console.log(`🔍 Loading contract aggregates for GPU type: ${gpuType}`);
+async function loadContractAggregatesForColumn(gpuType) {
+    console.log(`📋 Loading contract aggregates for column with GPU type: ${gpuType}`);
     
-    const contractSelect = document.getElementById('contractAggregateSelect');
-    const contractSection = document.getElementById('contractAggregateSection');
-    
-    // Show the contract section immediately with loading state
-    contractSection.style.display = 'block';
-    contractSelect.innerHTML = '<option value="">Loading contracts...</option>';
-    contractSelect.disabled = true;
+    const contractSelect = document.getElementById('contractColumnSelect');
+    const contractName = document.getElementById('contractName');
     
     try {
+        // Show loading state
+        contractSelect.innerHTML = '<option value="">Loading contracts...</option>';
+        contractSelect.disabled = true;
+        if (contractName) contractName.textContent = '';
+        
         const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
-        }, 30000); // Increase timeout to 30 seconds for contract data
+        }, 30000);
         
         const result = await window.Utils.checkResponse(response);
         const data = await result.json();
         
-        // Re-enable dropdown and clear loading state
-        contractSelect.disabled = false;
+        console.log(`📊 Found ${data.contracts?.length || 0} contract aggregates for ${gpuType}`);
+        
+        // Clear loading state and populate dropdown
         contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+        contractSelect.disabled = false;
         
         if (data.contracts && data.contracts.length > 0) {
-            console.log(`✅ Found ${data.contracts.length} contract aggregates for ${gpuType}`);
-            
-            // Populate dropdown with contracts
             data.contracts.forEach(contract => {
                 const option = document.createElement('option');
                 option.value = contract.aggregate;
                 option.textContent = `${contract.name} (${contract.host_count} hosts)`;
                 contractSelect.appendChild(option);
             });
+            
+            console.log(`✅ Contract aggregates loaded in column successfully`);
         } else {
-            console.log(`ℹ️ No contract aggregates found for ${gpuType}`);
             contractSelect.innerHTML = '<option value="">No contracts available</option>';
+            console.log(`ℹ️ No contract aggregates found for ${gpuType}`);
         }
         
     } catch (error) {
-        console.error(`❌ Error loading contract aggregates for ${gpuType}:`, error);
-        
-        // Show error state but keep dropdown visible
-        contractSelect.disabled = false;
+        console.error(`❌ Error loading contract aggregates for column:`, error);
         contractSelect.innerHTML = '<option value="">Error loading contracts</option>';
-        
-        // Optional: Show a subtle error indication
-        window.Frontend.showNotification(`Could not load contracts for ${gpuType} (timeout/error)`, 'warning');
+        contractSelect.disabled = false;
     }
 }
 
-function hideContractAggregateSection() {
-    const contractSection = document.getElementById('contractAggregateSection');
-    contractSection.style.display = 'none';
+function clearContractColumn() {
+    const contractSelect = document.getElementById('contractColumnSelect');
+    const contractName = document.getElementById('contractName');
+    const contractHostCount = document.getElementById('contractHostCount');
+    const contractGpuUsage = document.getElementById('contractGpuUsage');
+    const contractGpuPercent = document.getElementById('contractGpuPercent');
+    const contractGpuProgressBar = document.getElementById('contractGpuProgressBar');
     
-    // Clear the dropdown
-    const contractSelect = document.getElementById('contractAggregateSelect');
-    contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+    if (contractSelect) {
+        contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+        contractSelect.disabled = false;
+    }
+    if (contractName) contractName.textContent = '';
+    if (contractHostCount) contractHostCount.textContent = '0';
+    if (contractGpuUsage) contractGpuUsage.textContent = '0/0';
+    if (contractGpuPercent) contractGpuPercent.textContent = '0%';
+    if (contractGpuProgressBar) contractGpuProgressBar.style.width = '0%';
+    
+    clearContractHosts();
 }
 
-async function loadContractAggregateData(contractAggregate) {
-    console.log(`📋 Loading data for contract aggregate: ${contractAggregate}`);
+function clearContractHosts() {
+    const contractHostsList = document.getElementById('contractHostsList');
+    const contractEmptyState = document.getElementById('contractEmptyState');
     
-    // Show loading state in contract panel
-    const contractLoading = document.getElementById('contractLoading');
-    if (contractLoading) {
-        contractLoading.style.display = 'block';
+    if (contractHostsList) {
+        contractHostsList.innerHTML = '';
+        if (contractEmptyState) {
+            const emptyStateClone = contractEmptyState.cloneNode(true);
+            contractHostsList.appendChild(emptyStateClone);
+            emptyStateClone.style.display = 'block';
+        }
     }
+}
+
+async function loadContractDataForColumn(contractAggregate) {
+    console.log(`📋 Loading data for contract: ${contractAggregate}`);
+    
+    const contractHostsList = document.getElementById('contractHostsList');
+    const contractEmptyState = document.getElementById('contractEmptyState');
     
     try {
         const gpuType = window.currentGpuType;
@@ -1597,13 +1612,16 @@ async function loadContractAggregateData(contractAggregate) {
             return;
         }
         
-        // Show contract column
-        showContractColumn();
+        // Show loading state
+        if (contractEmptyState) contractEmptyState.style.display = 'none';
+        if (contractHostsList) {
+            contractHostsList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 small">Loading contract data...</p></div>';
+        }
         
         const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
-        }, 30000); // Increase timeout to 30 seconds for contract data
+        }, 30000);
         
         const result = await window.Utils.checkResponse(response);
         const data = await result.json();
@@ -1612,67 +1630,24 @@ async function loadContractAggregateData(contractAggregate) {
         const selectedContract = data.contracts.find(contract => contract.aggregate === contractAggregate);
         
         if (selectedContract) {
-            console.log(`✅ Contract aggregate data loaded:`, selectedContract);
-            
-            // Populate the contract panel instead of showing notification
+            console.log(`✅ Contract data loaded for column:`, selectedContract);
             populateContractPanel(selectedContract);
-            
-            window.Logs?.addToDebugLog('Contract', `Loaded contract aggregate: ${contractAggregate}`, 'info');
         } else {
             console.error(`❌ Contract ${contractAggregate} not found in response`);
-            window.Frontend?.showNotification(`Contract ${contractAggregate} not found`, 'error');
+            if (contractHostsList) {
+                contractHostsList.innerHTML = '<div class="text-center text-muted"><p class="small">Contract not found</p></div>';
+            }
         }
         
     } catch (error) {
-        console.error(`❌ Error loading contract aggregate data:`, error);
-        window.Frontend?.showNotification(`Error loading contract data: ${error.message}`, 'error');
-        
-        // Hide contract column on error
-        hideContractColumn();
-    } finally {
-        // Hide loading state
-        if (contractLoading) {
-            contractLoading.style.display = 'none';
+        console.error(`❌ Error loading contract data:`, error);
+        if (contractHostsList) {
+            contractHostsList.innerHTML = '<div class="text-center text-muted"><p class="small">Error loading contract data</p></div>';
         }
     }
 }
 
-// Contract column management functions
-function showContractColumn() {
-    const hostsRow = document.getElementById('hostsRow');
-    const contractColumn = document.getElementById('contractColumn');
-    
-    console.log('🔧 Showing contract column...');
-    console.log('🔧 Hosts row found:', !!hostsRow);
-    console.log('🔧 Contract column found:', !!contractColumn);
-    
-    if (hostsRow && contractColumn) {
-        hostsRow.classList.add('contract-active');
-        contractColumn.style.display = 'block';
-        
-        console.log('✅ Contract column shown - classes:', hostsRow.className);
-        window.Logs?.addToDebugLog('UI', 'Contract column displayed', 'info');
-    }
-}
-
-function hideContractColumn() {
-    const hostsRow = document.getElementById('hostsRow');
-    const contractColumn = document.getElementById('contractColumn');
-    
-    if (hostsRow && contractColumn) {
-        hostsRow.classList.remove('contract-active');
-        contractColumn.style.display = 'none';
-        
-        // Clear contract data
-        const contractHosts = document.getElementById('contractHosts');
-        if (contractHosts) {
-            contractHosts.innerHTML = '';
-        }
-        
-        console.log('✅ Contract column hidden');
-        window.Logs?.addToDebugLog('UI', 'Contract column hidden', 'info');
-    }
-}
+// Old loadContractAggregateData function removed - replaced with loadContractDataForColumn
 
 function populateContractPanel(contractData) {
     const contractName = document.getElementById('contractName');
@@ -1727,10 +1702,16 @@ function populateContractPanel(contractData) {
     // Transform contract host data to match the expected format for createHostCard
     const transformedHosts = contractData.hosts.map(host => {
         const gpuInfo = host.gpu_info || {};
-        const usedGpus = gpuInfo.used_gpus || 0;
+        // The backend logs show "GPU info for CA1-ESC812-180: 8/8 GPUs"
+        // So used_gpus should be the same as total_gpus for fully utilized H100 hosts
         const totalGpus = gpuInfo.total_gpus || 8; // Default to 8 for H100 hosts
+        const usedGpus = gpuInfo.used_gpus || totalGpus; // If all VMs running, all GPUs used
         
-        console.log(`🔧 Transforming host ${host.hostname}: VM=${host.vm_count}, GPU=${usedGpus}/${totalGpus}, Tenant=${host.tenant}`);
+        console.log(`🔧 Transforming host ${host.hostname}:`);
+        console.log(`  - VM Count: ${host.vm_count || 0}`);
+        console.log(`  - GPU Info:`, gpuInfo);
+        console.log(`  - Used/Total GPUs: ${usedGpus}/${totalGpus}`);
+        console.log(`  - Tenant: ${host.tenant}`);
         
         return {
             name: host.hostname,
@@ -1776,11 +1757,10 @@ window.showVmDetails = showVmDetails;
 window.removePendingOperation = removePendingOperation;
 window.updateControlButtons = updateControlButtons;
 window.pollVmStatus = pollVmStatus;
-window.loadContractAggregates = loadContractAggregates;
-window.hideContractAggregateSection = hideContractAggregateSection;
-window.loadContractAggregateData = loadContractAggregateData;
-window.showContractColumn = showContractColumn;
-window.hideContractColumn = hideContractColumn;
+window.loadContractAggregatesForColumn = loadContractAggregatesForColumn;
+window.loadContractDataForColumn = loadContractDataForColumn;
+window.clearContractColumn = clearContractColumn;
+window.clearContractHosts = clearContractHosts;
 window.populateContractPanel = populateContractPanel;
 
 console.log('✅ OpenStack Spot Manager main script loaded');
