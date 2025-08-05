@@ -289,6 +289,16 @@ def discover_gpu_aggregates():
         aggregates = list(conn.compute.aggregates())
         gpu_aggregates = {}
         
+        # Debug: Log all aggregate names to understand the patterns
+        print(f"🔍 DEBUG: Found {len(aggregates)} total aggregates:")
+        for agg in aggregates:
+            print(f"   - {agg.name}")
+            # Also check if aggregate has metadata/instance_type
+            if hasattr(agg, 'metadata') and agg.metadata:
+                instance_type = agg.metadata.get('instance_type', '')
+                if instance_type:
+                    print(f"     instance_type: {instance_type}")
+        
         # Patterns to match different aggregate types
         import re
         
@@ -325,41 +335,67 @@ def discover_gpu_aggregates():
                         'variant': variant_display
                     })
             
-            # Pattern 2: Contract aggregates: Contract-* or contract-*
-            contract_match = re.match(r'^[Cc]ontract-([^-]+)', agg.name)
-            if contract_match:
-                # Extract GPU type from contract aggregate name
-                # Examples: Contract-AI2C-24xA100 -> try to extract A100
-                # Look for GPU types in the name
-                gpu_type = None
-                for possible_gpu in ['A100', 'H100', 'RTX-A6000', 'L40', 'A4000']:
-                    if possible_gpu in agg.name:
-                        gpu_type = possible_gpu
-                        break
+            # Pattern 2: Contract aggregates - more flexible detection
+            is_contract = False
+            gpu_type = None
+            
+            # Check if aggregate name contains "contract" (case insensitive)
+            if re.search(r'contract', agg.name, re.IGNORECASE):
+                is_contract = True
+                print(f"🔍 Found potential contract aggregate: {agg.name}")
+            
+            # If it's a contract, determine GPU type from instance_type metadata first
+            if is_contract:
+                # Method 1: Use instance_type metadata if available
+                if hasattr(agg, 'metadata') and agg.metadata:
+                    instance_type = agg.metadata.get('instance_type', '')
+                    if instance_type:
+                        print(f"   instance_type: {instance_type}")
+                        # Parse instance types like "n3-H100x1,n3-H100x2,n3-RTX-A6000x4"
+                        # Extract unique GPU types, ignoring counts (x1, x2, etc.)
+                        gpu_types_found = set()
+                        for inst_type in instance_type.split(','):
+                            inst_type = inst_type.strip()
+                            # Match patterns like n3-H100x8, n3-RTX-A6000x4, etc.
+                            gpu_match = re.search(r'n3-([A-Z0-9-]+)x\d+', inst_type)
+                            if gpu_match:
+                                gpu_types_found.add(gpu_match.group(1))
+                        
+                        if gpu_types_found:
+                            print(f"   GPU types from instance_type: {gpu_types_found}")
+                            # If multiple GPU types, use the first one for now
+                            gpu_type = list(gpu_types_found)[0]
                 
-                # If no GPU type found, try to extract from suffix patterns
+                # Method 2: Fallback to name-based detection if no instance_type
                 if not gpu_type:
+                    # Look for GPU types in the aggregate name
+                    for possible_gpu in ['H100-SXM5-GB', 'H100-SXM5', 'H100', 'A100', 'RTX-A6000', 'L40', 'A4000']:
+                        if possible_gpu in agg.name:
+                            gpu_type = possible_gpu
+                            break
+                    
                     # Try patterns like 24xA100, 8xH100, etc.
-                    suffix_match = re.search(r'\d+x([A-Z0-9-]+)', agg.name)
-                    if suffix_match:
-                        gpu_type = suffix_match.group(1)
+                    if not gpu_type:
+                        suffix_match = re.search(r'\d+x([A-Z0-9-]+)', agg.name)
+                        if suffix_match:
+                            gpu_type = suffix_match.group(1)
                 
-                # Default fallback - use A100 for contracts if no GPU type detected
-                if not gpu_type:
-                    gpu_type = 'A100'
+                print(f"   Determined GPU type: {gpu_type}")
                 
-                if gpu_type not in gpu_aggregates:
-                    gpu_aggregates[gpu_type] = {
-                        'ondemand_variants': [],
-                        'spot': None,
-                        'runpod': None,
-                        'contracts': []
-                    }
-                
-                gpu_aggregates[gpu_type]['contracts'].append({
-                    'aggregate': agg.name,
-                    'name': agg.name
-                })
+                if gpu_type:
+                    if gpu_type not in gpu_aggregates:
+                        gpu_aggregates[gpu_type] = {
+                            'ondemand_variants': [],
+                            'spot': None,
+                            'runpod': None,
+                            'contracts': []
+                        }
+                    
+                    gpu_aggregates[gpu_type]['contracts'].append({
+                        'aggregate': agg.name,
+                        'name': agg.name
+                    })
+                    print(f"   Added to {gpu_type} contracts")
         
         # Convert to format compatible with existing code
         result = {}
