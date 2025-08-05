@@ -156,7 +156,7 @@
                                 </div>
                             </div>
                             
-                            <div class="row mt-3">
+                            <div class="row mt-3 hosts-row" id="hostsRow">
                                 <!-- Runpod Column -->
                                 <div class="col-md-2">
                                     <div class="aggregate-column" id="runpodColumn">
@@ -238,6 +238,46 @@
                                             </div>
                                             <div class="card-body drop-zone" id="spotHosts" data-type="spot">
                                                 <!-- Spot hosts will be dynamically inserted here -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Contract Details Column (hidden by default) -->
+                                <div class="col-md-3" id="contractColumn" style="display: none;">
+                                    <div class="aggregate-column">
+                                        <div class="card">
+                                            <div class="card-header bg-success text-white">
+                                                <h4 class="mb-0 d-flex justify-content-between align-items-center">
+                                                    <span>
+                                                        <i class="fas fa-file-contract"></i> 
+                                                        <span id="contractTitle">Contract Details</span>
+                                                        <span class="badge bg-light text-dark ms-2" id="contractHostCount">0</span>
+                                                    </span>
+                                                    <button class="btn btn-sm btn-outline-light" id="closeContractBtn" title="Close contract details">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </h4>
+                                                <div class="mt-2">
+                                                    <small class="text-light">
+                                                        GPU Usage: <span id="contractGpuUsage">0/0</span> 
+                                                        (<span id="contractGpuPercent">0%</span>)
+                                                    </small>
+                                                    <div class="progress mt-1" style="height: 6px;">
+                                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="contractGpuProgressBar"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="card-body" id="contractHosts">
+                                                <div class="text-center text-muted" id="contractLoading" style="display: none;">
+                                                    <div class="spinner-border spinner-border-sm" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                    <p class="mt-2 mb-0">Loading contract details...</p>
+                                                </div>
+                                                <div id="contractHostsList">
+                                                    <!-- Contract hosts will be dynamically inserted here -->
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

@@ -140,6 +140,21 @@ function initializeEventListeners() {
         if (selectedContract) {
             console.log(`📋 Selected contract aggregate: ${selectedContract}`);
             loadContractAggregateData(selectedContract);
+        } else {
+            // Hide contract column when no contract is selected
+            hideContractColumn();
+        }
+    });
+    
+    // Contract close button
+    document.getElementById('closeContractBtn').addEventListener('click', function() {
+        console.log('🚪 Closing contract details panel');
+        hideContractColumn();
+        
+        // Reset contract dropdown
+        const contractSelect = document.getElementById('contractAggregateSelect');
+        if (contractSelect) {
+            contractSelect.value = '';
         }
     });
     
@@ -1569,12 +1584,21 @@ function hideContractAggregateSection() {
 async function loadContractAggregateData(contractAggregate) {
     console.log(`📋 Loading data for contract aggregate: ${contractAggregate}`);
     
+    // Show loading state in contract panel
+    const contractLoading = document.getElementById('contractLoading');
+    if (contractLoading) {
+        contractLoading.style.display = 'block';
+    }
+    
     try {
         const gpuType = window.currentGpuType;
         if (!gpuType) {
             console.error('❌ No GPU type selected');
             return;
         }
+        
+        // Show contract column
+        showContractColumn();
         
         const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
             method: 'GET',
@@ -1590,25 +1614,150 @@ async function loadContractAggregateData(contractAggregate) {
         if (selectedContract) {
             console.log(`✅ Contract aggregate data loaded:`, selectedContract);
             
-            // Display contract information in a modal or notification
-            const contractInfo = `
-                Contract: ${selectedContract.name}
-                Hosts: ${selectedContract.host_count}
-                
-                Hosts in this contract:
-                ${selectedContract.hosts.map(host => 
-                    `• ${host.hostname} (${host.tenant}) - ${host.vm_count} VMs, GPU: ${host.gpu_info.gpu_usage_ratio}`
-                ).join('\n')}
-            `;
+            // Populate the contract panel instead of showing notification
+            populateContractPanel(selectedContract);
             
-            window.Frontend.showNotification(`Contract Details:\n${contractInfo}`, 'info');
-            window.Logs.addToDebugLog('Contract', `Loaded contract aggregate: ${contractAggregate}`, 'info');
+            window.Logs?.addToDebugLog('Contract', `Loaded contract aggregate: ${contractAggregate}`, 'info');
+        } else {
+            console.error(`❌ Contract ${contractAggregate} not found in response`);
+            window.Frontend?.showNotification(`Contract ${contractAggregate} not found`, 'error');
         }
         
     } catch (error) {
         console.error(`❌ Error loading contract aggregate data:`, error);
-        window.Frontend.showNotification(`Error loading contract data: ${error.message}`, 'error');
+        window.Frontend?.showNotification(`Error loading contract data: ${error.message}`, 'error');
+        
+        // Hide contract column on error
+        hideContractColumn();
+    } finally {
+        // Hide loading state
+        if (contractLoading) {
+            contractLoading.style.display = 'none';
+        }
     }
+}
+
+// Contract column management functions
+function showContractColumn() {
+    const hostsRow = document.getElementById('hostsRow');
+    const contractColumn = document.getElementById('contractColumn');
+    
+    if (hostsRow && contractColumn) {
+        hostsRow.classList.add('contract-active');
+        contractColumn.style.display = 'block';
+        
+        console.log('✅ Contract column shown');
+        window.Logs?.addToDebugLog('UI', 'Contract column displayed', 'info');
+    }
+}
+
+function hideContractColumn() {
+    const hostsRow = document.getElementById('hostsRow');
+    const contractColumn = document.getElementById('contractColumn');
+    
+    if (hostsRow && contractColumn) {
+        hostsRow.classList.remove('contract-active');
+        contractColumn.style.display = 'none';
+        
+        // Clear contract data
+        const contractHostsList = document.getElementById('contractHostsList');
+        if (contractHostsList) {
+            contractHostsList.innerHTML = '';
+        }
+        
+        console.log('✅ Contract column hidden');
+        window.Logs?.addToDebugLog('UI', 'Contract column hidden', 'info');
+    }
+}
+
+function populateContractPanel(contractData) {
+    const contractTitle = document.getElementById('contractTitle');
+    const contractHostCount = document.getElementById('contractHostCount');
+    const contractGpuUsage = document.getElementById('contractGpuUsage');
+    const contractGpuPercent = document.getElementById('contractGpuPercent');
+    const contractGpuProgressBar = document.getElementById('contractGpuProgressBar');
+    const contractHostsList = document.getElementById('contractHostsList');
+    
+    if (!contractData || !contractData.hosts) {
+        console.error('❌ Invalid contract data provided');
+        return;
+    }
+    
+    // Update header information
+    if (contractTitle) {
+        contractTitle.textContent = contractData.name || 'Contract Details';
+    }
+    
+    if (contractHostCount) {
+        contractHostCount.textContent = contractData.host_count || 0;
+    }
+    
+    // Calculate total GPU usage across all hosts
+    let totalGpus = 0;
+    let usedGpus = 0;
+    
+    contractData.hosts.forEach(host => {
+        if (host.gpu_info) {
+            totalGpus += host.gpu_info.total_gpus || 0;
+            usedGpus += host.gpu_info.used_gpus || 0;
+        }
+    });
+    
+    const gpuPercentage = totalGpus > 0 ? Math.round((usedGpus / totalGpus) * 100) : 0;
+    
+    if (contractGpuUsage) {
+        contractGpuUsage.textContent = `${usedGpus}/${totalGpus}`;
+    }
+    
+    if (contractGpuPercent) {
+        contractGpuPercent.textContent = `${gpuPercentage}%`;
+    }
+    
+    if (contractGpuProgressBar) {
+        contractGpuProgressBar.style.width = `${gpuPercentage}%`;
+    }
+    
+    // Populate hosts list
+    if (contractHostsList) {
+        contractHostsList.innerHTML = '';
+        
+        contractData.hosts.forEach(host => {
+            const hostCard = document.createElement('div');
+            hostCard.className = 'contract-host-card';
+            
+            const gpuInfo = host.gpu_info || {};
+            const hostGpuPercentage = gpuInfo.total_gpus > 0 ? 
+                Math.round((gpuInfo.used_gpus / gpuInfo.total_gpus) * 100) : 0;
+            
+            hostCard.innerHTML = `
+                <div class="contract-host-name">
+                    <i class="fas fa-server"></i>
+                    ${host.hostname}
+                </div>
+                <div class="contract-tenant-info">
+                    <span class="tenant-badge ${host.tenant?.toLowerCase() || 'unknown'}">
+                        <i class="fas fa-building"></i>
+                        ${host.tenant || 'Unknown'}
+                    </span>
+                </div>
+                <div class="contract-stats">
+                    <div class="contract-gpu-usage">
+                        <i class="fas fa-microchip text-info"></i>
+                        <span>${gpuInfo.used_gpus || 0}/${gpuInfo.total_gpus || 0} GPUs</span>
+                        <span class="badge bg-${hostGpuPercentage > 80 ? 'danger' : hostGpuPercentage > 50 ? 'warning' : 'success'}">${hostGpuPercentage}%</span>
+                    </div>
+                    <div class="contract-vm-count">
+                        <i class="fas fa-desktop"></i>
+                        <span>${host.vm_count || 0} VMs</span>
+                    </div>
+                </div>
+            `;
+            
+            contractHostsList.appendChild(hostCard);
+        });
+    }
+    
+    console.log(`✅ Contract panel populated with ${contractData.hosts.length} hosts`);
 }
 
 window.showVmDetails = showVmDetails;
@@ -1618,5 +1767,8 @@ window.pollVmStatus = pollVmStatus;
 window.loadContractAggregates = loadContractAggregates;
 window.hideContractAggregateSection = hideContractAggregateSection;
 window.loadContractAggregateData = loadContractAggregateData;
+window.showContractColumn = showContractColumn;
+window.hideContractColumn = hideContractColumn;
+window.populateContractPanel = populateContractPanel;
 
 console.log('✅ OpenStack Spot Manager main script loaded');
