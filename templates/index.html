@@ -244,14 +244,14 @@
                                 </div>
                                 
                                 <!-- Contract Details Column (hidden by default) -->
-                                <div class="col-md-3" id="contractColumn" style="display: none;">
-                                    <div class="aggregate-column">
+                                <div class="col-md-2" id="contractColumn" style="display: none;">
+                                    <div class="aggregate-column" id="contractAggregateColumn">
                                         <div class="card">
-                                            <div class="card-header bg-success text-white">
+                                            <div class="card-header bg-info text-white">
                                                 <h4 class="mb-0 d-flex justify-content-between align-items-center">
                                                     <span>
                                                         <i class="fas fa-file-contract"></i> 
-                                                        <span id="contractTitle">Contract Details</span>
+                                                        <span id="contractTitle">Contract</span> <span id="contractName"></span>
                                                         <span class="badge bg-light text-dark ms-2" id="contractHostCount">0</span>
                                                     </span>
                                                     <button class="btn btn-sm btn-outline-light" id="closeContractBtn" title="Close contract details">
@@ -259,16 +259,13 @@
                                                     </button>
                                                 </h4>
                                                 <div class="mt-2">
-                                                    <small class="text-light">
-                                                        GPU Usage: <span id="contractGpuUsage">0/0</span> 
-                                                        (<span id="contractGpuPercent">0%</span>)
-                                                    </small>
+                                                    <small class="text-light">GPU Usage: <span id="contractGpuUsage">0/0</span> (<span id="contractGpuPercent">0%</span>)</small>
                                                     <div class="progress mt-1" style="height: 6px;">
                                                         <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="contractGpuProgressBar"></div>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="card-body" id="contractHosts">
+                                            <div class="card-body drop-zone" id="contractHosts" data-type="contract">
                                                 <div class="text-center text-muted" id="contractLoading" style="display: none;">
                                                     <div class="spinner-border spinner-border-sm" role="status">
                                                         <span class="visually-hidden">Loading...</span>

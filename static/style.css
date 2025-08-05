@@ -2233,20 +2233,27 @@ body {
 #contractColumn {
     transition: all 0.5s ease;
     opacity: 0;
-    width: 0;
+    max-width: 0;
     overflow: hidden;
+    flex: 0 0 0;
     transform: translateX(20px);
 }
 
 /* 4-column layout when contract is shown */
-.contract-active .col-md-2,
+.contract-active .col-md-2 {
+    flex: 0 0 25% !important;
+    max-width: 25% !important;
+}
+
 .contract-active .col-md-4 {
-    width: 25% !important;
+    flex: 0 0 25% !important;
+    max-width: 25% !important;
 }
 
 .contract-active #contractColumn {
     opacity: 1;
-    width: 25%;
+    flex: 0 0 25% !important;
+    max-width: 25% !important;
     transform: translateX(0);
     overflow: visible;
 }
@@ -2273,52 +2280,8 @@ body {
     }
 }
 
-/* Contract host card styling */
-.contract-host-card {
-    background: white;
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 12px;
-    margin-bottom: 10px;
-    transition: all 0.3s ease;
-    border-left: 4px solid #28a745;
-}
-
-.contract-host-card:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    transform: translateY(-1px);
-}
-
-.contract-host-name {
-    font-weight: 600;
-    color: #2c3e50;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.contract-tenant-info {
-    margin-bottom: 8px;
-}
-
-.contract-stats {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9em;
-    margin-top: 8px;
-}
-
-.contract-gpu-usage {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.contract-vm-count {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    color: #6c757d;
+/* Contract column specific styling */
+.card-body.drop-zone[data-type="contract"].drag-over {
+    background-color: #d1ecf1;
+    border: 2px dashed #17a2b8;
 }

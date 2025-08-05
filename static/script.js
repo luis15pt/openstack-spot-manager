@@ -1671,7 +1671,7 @@ function hideContractColumn() {
 }
 
 function populateContractPanel(contractData) {
-    const contractTitle = document.getElementById('contractTitle');
+    const contractName = document.getElementById('contractName');
     const contractHostCount = document.getElementById('contractHostCount');
     const contractGpuUsage = document.getElementById('contractGpuUsage');
     const contractGpuPercent = document.getElementById('contractGpuPercent');
@@ -1684,8 +1684,8 @@ function populateContractPanel(contractData) {
     }
     
     // Update header information
-    if (contractTitle) {
-        contractTitle.textContent = contractData.name || 'Contract Details';
+    if (contractName) {
+        contractName.textContent = contractData.name || '';
     }
     
     if (contractHostCount) {
@@ -1717,41 +1717,70 @@ function populateContractPanel(contractData) {
         contractGpuProgressBar.style.width = `${gpuPercentage}%`;
     }
     
-    // Populate hosts list
+    // Populate hosts list using the same format as existing host cards
     if (contractHostsList) {
         contractHostsList.innerHTML = '';
         
         contractData.hosts.forEach(host => {
             const hostCard = document.createElement('div');
-            hostCard.className = 'contract-host-card';
+            hostCard.className = 'host-card';
             
             const gpuInfo = host.gpu_info || {};
-            const hostGpuPercentage = gpuInfo.total_gpus > 0 ? 
-                Math.round((gpuInfo.used_gpus / gpuInfo.total_gpus) * 100) : 0;
+            const vmCount = host.vm_count || 0;
+            const hasVms = vmCount > 0;
             
-            hostCard.innerHTML = `
-                <div class="contract-host-name">
-                    <i class="fas fa-server"></i>
-                    ${host.hostname}
-                </div>
-                <div class="contract-tenant-info">
-                    <span class="tenant-badge ${host.tenant?.toLowerCase() || 'unknown'}">
-                        <i class="fas fa-building"></i>
-                        ${host.tenant || 'Unknown'}
-                    </span>
-                </div>
-                <div class="contract-stats">
-                    <div class="contract-gpu-usage">
-                        <i class="fas fa-microchip text-info"></i>
-                        <span>${gpuInfo.used_gpus || 0}/${gpuInfo.total_gpus || 0} GPUs</span>
-                        <span class="badge bg-${hostGpuPercentage > 80 ? 'danger' : hostGpuPercentage > 50 ? 'warning' : 'success'}">${hostGpuPercentage}%</span>
-                    </div>
-                    <div class="contract-vm-count">
-                        <i class="fas fa-desktop"></i>
-                        <span>${host.vm_count || 0} VMs</span>
-                    </div>
-                </div>
+            if (hasVms) {
+                hostCard.classList.add('has-vms');
+            }
+            
+            // Create the drag handle
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'drag-handle';
+            dragHandle.innerHTML = '<i class="fas fa-grip-vertical"></i>';
+            
+            // Create host name
+            const hostName = document.createElement('div');
+            hostName.className = 'host-name';
+            hostName.textContent = host.hostname;
+            
+            // Create tenant info
+            const tenantInfo = document.createElement('div');
+            tenantInfo.className = 'tenant-info';
+            tenantInfo.innerHTML = `
+                <span class="tenant-badge ${host.tenant?.toLowerCase() || 'unknown'}">
+                    <i class="fas fa-building"></i>
+                    ${host.tenant || 'Unknown'}
+                </span>
             `;
+            
+            // Create VM count
+            const vmCountDiv = document.createElement('div');
+            vmCountDiv.className = 'vm-count';
+            vmCountDiv.innerHTML = `
+                <i class="fas fa-desktop"></i>
+                <span class="vm-badge ${vmCount > 0 ? 'active' : 'zero'}">${vmCount}</span>
+                <span class="vm-label">VMs</span>
+            `;
+            
+            // Create GPU info
+            const gpuDiv = document.createElement('div');
+            gpuDiv.className = 'vm-info';
+            const usedGpusHost = gpuInfo.used_gpus || 0;
+            const totalGpusHost = gpuInfo.total_gpus || 0;
+            const gpuPercentageHost = totalGpusHost > 0 ? Math.round((usedGpusHost / totalGpusHost) * 100) : 0;
+            
+            gpuDiv.innerHTML = `
+                <i class="fas fa-microchip text-info"></i>
+                <span class="gpu-badge ${usedGpusHost > 0 ? 'active' : 'zero'}">${usedGpusHost}/${totalGpusHost}</span>
+                <span class="gpu-label">GPUs (${gpuPercentageHost}%)</span>
+            `;
+            
+            // Assemble the card
+            hostCard.appendChild(dragHandle);
+            hostCard.appendChild(hostName);
+            hostCard.appendChild(tenantInfo);
+            hostCard.appendChild(vmCountDiv);
+            hostCard.appendChild(gpuDiv);
             
             contractHostsList.appendChild(hostCard);
         });
