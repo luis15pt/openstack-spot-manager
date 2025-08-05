@@ -854,6 +854,13 @@ function addRunPodLaunchOperation(hostname, vmDetails) {
         return;
     }
     
+    // Validate that required image information is provided
+    if (!vmDetails.image_name) {
+        console.error('❌ Cannot create operation: No image_name provided in vmDetails');
+        showNotification('Cannot launch VM: No image selected. Please select an image first.', 'error');
+        return;
+    }
+    
     // Create RunPod launch operation
     const operation = {
         hostname: hostname,
@@ -1391,6 +1398,11 @@ function refreshAffectedColumns(operations) {
 function generateIndividualCommandOperations(operation) {
     const commands = [];
     
+    // Debug logging to track operation object
+    console.log(`🔍 generateIndividualCommandOperations called with:`, operation);
+    console.log(`🔍 operation.image_name:`, operation?.image_name);
+    console.log(`🔍 operation type:`, operation?.type);
+    
     if (operation.type === 'runpod-launch') {
         // Generate individual commands with explicit sleep operations as separate steps
         
@@ -1407,7 +1419,7 @@ function generateIndividualCommandOperations(operation) {
   -d '{
     "name": "<VM_NAME>",
     "environment_name": "CA1-RunPod", 
-    "image_name": "${(operation && operation.image_name) || 'Ubuntu Server 24.04 LTS R570 CUDA 12.8'}",
+    "image_name": "${operation.image_name}",
     "flavor_name": "<GPU_FLAVOR>",
     "assign_floating_ip": true,
     "user_data": "<CLOUD_INIT_SCRIPT_WITH_RUNPOD_API_KEY>"

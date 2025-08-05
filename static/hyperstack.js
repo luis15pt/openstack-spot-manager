@@ -12,14 +12,30 @@ function executeRunpodLaunch(hostname) {
             op.hostname === hostname && op.type === 'runpod-launch'
         );
         
+        if (!operation) {
+            console.error(`❌ No runpod-launch operation found for hostname: ${hostname}`);
+            console.log(`🔍 Available operations:`, window.Frontend.pendingOperations);
+            reject(new Error(`No runpod-launch operation found for hostname: ${hostname}`));
+            return;
+        }
+        
         // Build preview request with image information
         const previewRequest = { hostname: hostname };
-        if (operation && operation.details.image_name) {
-            previewRequest.image_name = operation.details.image_name;
+        
+        if (!operation.image_name) {
+            console.error(`❌ No image selected for hostname: ${hostname}`);
+            reject(new Error(`No image selected. Please select an image before launching VM.`));
+            return;
         }
-        if (operation && operation.details.image_id) {
-            previewRequest.image_id = operation.details.image_id;
+        
+        previewRequest.image_name = operation.image_name;
+        if (operation.image_id) {
+            previewRequest.image_id = operation.image_id;
         }
+        
+        // Debug logging to help track the issue
+        console.log(`🔍 Operation found:`, operation);
+        console.log(`🔍 Preview request:`, previewRequest);
         
         // Preview first
         window.Utils.fetchWithTimeout('/api/preview-runpod-launch', {
@@ -691,7 +707,7 @@ function generateRunpodLaunchCommands(operation) {
   -d '{
     "name": "${operation.vm_name || operation.hostname}",
     "flavor_name": "gpu-${operation.gpu_type || 'L40'}-1x",
-    "image_name": "${operation.image_name || 'Ubuntu Server 24.04 LTS R570 CUDA 12.8'}",
+    "image_name": "${operation.image_name}",
     "keypair_name": "runpod-keypair",
     "assign_floating_ip": true,
     "user_data": "#!/bin/bash\\necho \\"RunPod VM initialized\\" > /var/log/runpod-init.log",

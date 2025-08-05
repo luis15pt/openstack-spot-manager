@@ -805,9 +805,11 @@ function executeCommandsForOperation(operation, commands, callback) {
                 const errorOutput = `REAL COMMAND FAILED: ${error.message}\n\nCommand: ${command.title}`;
                 markCommandAsCompleted(command.element, errorOutput);
                 
-                // Continue with next command even if this failed
-                commandIndex++;
-                executeNextCommand();
+                // STOP execution on failure - don't continue to next command
+                console.error(`🛑 Stopping execution due to failed command: ${command.title}`);
+                window.Logs.addToDebugLog('Execution Stopped', `Operation stopped due to failed command: ${command.title}`, 'error', operation.hostname);
+                callback(false); // Indicate operation failed
+                return;
             });
     };
     

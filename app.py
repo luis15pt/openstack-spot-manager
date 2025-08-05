@@ -1285,13 +1285,16 @@ def preview_runpod_launch():
     """Preview runpod VM launch command without executing"""
     data = request.json
     hostname = data.get('hostname')
-    image_name = data.get('image_name', 'Ubuntu Server 24.04 LTS R570 CUDA 12.8')  # Default fallback
+    image_name = data.get('image_name')
     image_id = data.get('image_id')
     
     print(f"\n👁️  PREVIEW RUNPOD LAUNCH: {hostname} with image: {image_name}")
     
     if not hostname:
         return jsonify({'error': 'Missing hostname parameter'}), 400
+    
+    if not image_name:
+        return jsonify({'error': 'Missing image_name parameter. Please select an image before launching VM.'}), 400
     
     if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
         return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
@@ -1351,13 +1354,16 @@ def execute_runpod_launch():
     """Execute the runpod VM launch using Hyperstack API"""
     data = request.json
     hostname = data.get('hostname')
-    image_name = data.get('image_name', 'Ubuntu Server 24.04 LTS R570 CUDA 12.8')  # Default fallback
+    image_name = data.get('image_name')
     image_id = data.get('image_id')
     
     print(f"\n🚀 EXECUTING RUNPOD LAUNCH: {hostname} with image: {image_name}")
     
     if not hostname:
         return jsonify({'error': 'Missing hostname parameter'}), 400
+    
+    if not image_name:
+        return jsonify({'error': 'Missing image_name parameter. Please select an image before launching VM.'}), 400
     
     if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
         return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
