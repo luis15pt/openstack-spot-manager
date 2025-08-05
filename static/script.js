@@ -1706,16 +1706,19 @@ function populateContractPanel(contractData) {
         contractHostCount.textContent = contractData.host_count || 0;
     }
     
-    // Calculate total GPU usage across all hosts
+    // Calculate total GPU usage across all hosts using the correct field names
     let totalGpus = 0;
     let usedGpus = 0;
     
     contractData.hosts.forEach(host => {
         if (host.gpu_info) {
-            totalGpus += host.gpu_info.total_gpus || 0;
-            usedGpus += host.gpu_info.used_gpus || 0;
+            // Use the correct field names that match the backend (gpu_capacity, gpu_used)
+            totalGpus += host.gpu_info.gpu_capacity || 8; // Default to 8 GPUs per host
+            usedGpus += host.gpu_info.gpu_used || 0;
         }
     });
+    
+    console.log(`📊 Contract GPU totals: ${usedGpus}/${totalGpus} GPUs across ${contractData.hosts.length} hosts`);
     
     const gpuPercentage = totalGpus > 0 ? Math.round((usedGpus / totalGpus) * 100) : 0;
     
@@ -1734,10 +1737,9 @@ function populateContractPanel(contractData) {
     // Transform contract host data to match the expected format for createHostCard
     const transformedHosts = contractData.hosts.map(host => {
         const gpuInfo = host.gpu_info || {};
-        // The backend logs show "GPU info for CA1-ESC812-180: 8/8 GPUs"
-        // So used_gpus should be the same as total_gpus for fully utilized H100 hosts
-        const totalGpus = gpuInfo.total_gpus || 8; // Default to 8 for H100 hosts
-        const usedGpus = gpuInfo.used_gpus || totalGpus; // If all VMs running, all GPUs used
+        // Use the correct field names that match the backend (gpu_capacity, gpu_used)
+        const totalGpus = gpuInfo.gpu_capacity || 8; // Default to 8 for H100 hosts
+        const usedGpus = gpuInfo.gpu_used || 0; // Use actual GPU usage
         
         console.log(`🔧 Transforming host ${host.hostname}:`);
         console.log(`  - VM Count: ${host.vm_count || 0}`);
@@ -1752,7 +1754,7 @@ function populateContractPanel(contractData) {
             tenant: host.tenant || 'Unknown',
             owner_group: host.tenant === 'Nexgen Cloud' ? 'Nexgen Cloud' : 'Investors',
             gpu_used: usedGpus,
-            gpu_usage_ratio: `${usedGpus}/${totalGpus}`,
+            gpu_usage_ratio: gpuInfo.gpu_usage_ratio || `${usedGpus}/${totalGpus}`,
             nvlinks: host.nvlinks !== false, // Default to true for contract hosts
             variant: contractData.aggregate || contractData.name
         };
@@ -1764,7 +1766,12 @@ function populateContractPanel(contractData) {
             window.Frontend.createHostCard(host, 'contract', contractData.aggregate)
         ).join('');
         
-        contractHosts.innerHTML = hostCards;
+        // Wrap cards in the same structure as other columns for consistent sizing
+        contractHosts.innerHTML = `
+            <div class="host-subgroup-content">
+                ${hostCards}
+            </div>
+        `;
         
         // Initialize drag and drop for the new cards
         if (window.Frontend.initializeDragAndDrop) {

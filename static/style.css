@@ -117,6 +117,15 @@ body {
     min-height: 500px;
 }
 
+/* Adjust card header font sizes for better fit in smaller columns */
+.aggregate-column .card-header h4 {
+    font-size: 1.1rem; /* Slightly smaller header font */
+}
+
+.aggregate-column .card-header small {
+    font-size: 0.8rem; /* Smaller usage text */
+}
+
 .drop-zone {
     min-height: 200px;
     border: 2px dashed #dee2e6;
@@ -346,47 +355,28 @@ body {
     justify-content: space-between;
 }
 
-.host-card {
-    background: white;
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 15px;
-    margin: 10px 5px;
-    cursor: move;
-    transition: all 0.3s ease;
-    position: relative;
-    user-select: none;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    display: block;
-    width: calc(100% - 10px);
-}
 
-.machine-card:hover,
-.host-card:hover {
+.machine-card:hover {
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     transform: translateY(-2px);
 }
 
-.machine-card.selected,
-.host-card.selected {
+.machine-card.selected {
     border-color: #0d6efd;
     background-color: #e7f3ff;
     box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
 }
 
-.machine-card.dragging,
-.host-card.dragging {
+.machine-card.dragging {
     opacity: 0.5;
     transform: rotate(5deg);
 }
 
-.machine-card.has-vms,
-.host-card.has-vms {
+.machine-card.has-vms {
     border-left: 4px solid #dc3545;
 }
 
-.machine-card.pending-operation,
-.host-card.pending-operation {
+.machine-card.pending-operation {
     border: 2px solid #ffc107;
     background: linear-gradient(45deg, #ffffff 25%, #fff3cd 25%, #fff3cd 50%, #ffffff 50%, #ffffff 75%, #fff3cd 75%, #fff3cd);
     background-size: 8px 8px;
@@ -398,8 +388,7 @@ body {
     100% { background-position: 8px 8px; }
 }
 
-.machine-card.pending-operation::after,
-.host-card.pending-operation::after {
+.machine-card.pending-operation::after {
     content: "QUEUED";
     position: absolute;
     top: 4px;
@@ -413,8 +402,7 @@ body {
     z-index: 2;
 }
 
-.machine-card.has-vms .machine-name,
-.host-card.has-vms .host-name {
+.machine-card.has-vms .machine-name {
     color: #dc3545;
     font-weight: bold;
 }
@@ -663,14 +651,12 @@ body {
     z-index: 1;
 }
 
-.machine-card:hover .drag-handle,
-.host-card:hover .drag-handle {
+.machine-card:hover .drag-handle {
     color: #0d6efd;
 }
 
 /* Animation for cards */
-.machine-card,
-.host-card {
+.machine-card {
     animation: fadeIn 0.3s ease-in;
 }
 
@@ -769,10 +755,6 @@ body {
         padding: 12px;
     }
     
-    .host-card {
-        margin: 6px 0;
-        padding: 10px;
-    }
     
     .container-fluid {
         padding: 10px;
@@ -1003,9 +985,6 @@ body {
 }
 
 /* Hover effects for interactive elements */
-.host-card:hover .vm-count {
-    color: #495057;
-}
 
 .clickable-vm-count {
     cursor: pointer;
@@ -2211,39 +2190,38 @@ body {
     font-weight: 500;
 }
 
-/* Static 5-column layout - no dynamic resizing needed */
+/* Static 5-column layout - fitted to screen width */
 .hosts-row {
     display: flex;
     flex-wrap: nowrap; /* Prevent wrapping */
-    overflow-x: auto; /* Allow horizontal scroll if needed */
+    gap: 8px; /* Small gap between columns */
 }
 
 .hosts-row .col-md-2 {
-    width: 20%; /* 5 columns = 20% each */
-    flex: 0 0 20%;
-    max-width: 20%;
-    min-width: 200px; /* Minimum width to prevent columns from being too narrow */
+    width: 19.2%; /* 5 columns with small gaps = ~19.2% each */
+    flex: 1 1 19.2%;
+    max-width: 19.2%;
+    min-width: 160px; /* Reduced minimum width to fit better */
 }
 
 /* Responsive adjustments for 5-column layout */
-@media (max-width: 1400px) {
+@media (max-width: 1200px) {
     .hosts-row {
-        flex-wrap: nowrap;
-        overflow-x: auto;
+        gap: 6px; /* Smaller gap on medium screens */
     }
     
     .hosts-row .col-md-2 {
-        width: 20%;
-        flex: 0 0 20%;
-        max-width: 20%;
-        min-width: 180px;
+        width: 19.4%; /* Slightly larger percentage with smaller gaps */
+        flex: 1 1 19.4%;
+        max-width: 19.4%;
+        min-width: 140px; /* Even smaller minimum for tighter fit */
     }
 }
 
 @media (max-width: 992px) {
     .hosts-row {
         flex-wrap: wrap;
-        overflow-x: visible;
+        gap: 10px;
     }
     
     .hosts-row .col-md-2 {

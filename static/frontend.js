@@ -553,7 +553,7 @@ function createHostCard(host, type, aggregateName = null) {
 // EXACT ORIGINAL setupDragAndDrop function
 function setupDragAndDrop() {
     // Remove existing event listeners to prevent duplicates
-    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
+    document.querySelectorAll('.machine-card').forEach(card => {
         card.removeEventListener('dragstart', handleDragStart);
         card.removeEventListener('dragend', handleDragEnd);
         card.removeEventListener('click', handleHostClick);
@@ -566,8 +566,8 @@ function setupDragAndDrop() {
         zone.removeEventListener('dragleave', handleDragLeave);
     });
     
-    // Add event listeners to both machine cards and host cards
-    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
+    // Add event listeners to machine cards
+    document.querySelectorAll('.machine-card').forEach(card => {
         console.log('🔧 Setting up drag for card:', card.dataset.host, card.dataset.type);
         card.addEventListener('dragstart', handleDragStart);
         card.addEventListener('dragend', handleDragEnd);
@@ -1089,7 +1089,7 @@ function updatePendingOperationsDisplay() {
 
 function updateCardPendingIndicators() {
     // Remove all pending indicators
-    document.querySelectorAll('.machine-card, .host-card').forEach(card => {
+    document.querySelectorAll('.machine-card').forEach(card => {
         card.classList.remove('pending-operation');
     });
     
