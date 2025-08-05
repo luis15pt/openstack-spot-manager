@@ -919,7 +919,8 @@ function updatePendingOperationsDisplay() {
     
     const operationsHtml = pendingOperations.map((op, index) => {
         // Generate individual command operations for this operation
-        const commands = generateIndividualCommandOperations(op);
+        const commands = op.type === 'runpod-launch' && window.Hyperstack?.generateRunpodLaunchCommands ? 
+            window.Hyperstack.generateRunpodLaunchCommands(op) : generateIndividualCommandOperations(op);
         
         const operationTitle = op.type === 'runpod-launch' ? 
             `🚀 Launch VM '${op.vm_name || op.hostname}' on ${op.hostname}` : 
@@ -1396,7 +1397,7 @@ function generateIndividualCommandOperations(operation) {
   -d '{
     "name": "<VM_NAME>",
     "environment_name": "CA1-RunPod", 
-    "image_name": "Ubuntu Server 24.04 LTS R570 CUDA 12.8",
+    "image_name": "${operation.image_name || 'Ubuntu Server 24.04 LTS R570 CUDA 12.8'}",
     "flavor_name": "<GPU_FLAVOR>",
     "assign_floating_ip": true,
     "user_data": "<CLOUD_INIT_SCRIPT_WITH_RUNPOD_API_KEY>"
