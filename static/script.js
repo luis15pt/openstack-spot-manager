@@ -1064,14 +1064,32 @@ function executeRealCommand(operation, command) {
                 const sourceMatch = command.title.match(/Remove host from (.+)/);
                 const targetMatch = command.title.match(/Add host to (.+)/);
                 
-                // Get the operation to determine full migration context
-                const parts = command.id.split('-');
-                const operationIndex = parseInt(parts[parts.length - 1]) || 0; // Extract operation index from end
-                const currentOperation = window.Frontend?.pendingOperations?.[operationIndex];
+                // Try to find the operation by hostname in pending operations
+                let currentOperation = window.Frontend?.pendingOperations?.find(op => op.hostname === hostname);
                 
+                // If not found by hostname, try the old method as fallback
                 if (!currentOperation) {
-                    reject(new Error('Operation context not found for migration'));
-                    return;
+                    const parts = command.id.split('-');
+                    const operationIndex = parseInt(parts[parts.length - 1]) || 0;
+                    currentOperation = window.Frontend?.pendingOperations?.[operationIndex];
+                }
+                
+                // If still not found, try to extract from command title
+                if (!currentOperation) {
+                    const sourceAggregate = sourceMatch ? sourceMatch[1] : '';
+                    const targetAggregate = targetMatch ? targetMatch[1] : '';
+                    
+                    if (sourceAggregate && targetAggregate) {
+                        console.log(`⚠️ Operation context not found in pending operations, creating temporary context for ${hostname}`);
+                        currentOperation = {
+                            hostname: hostname,
+                            sourceAggregate: sourceAggregate,
+                            targetAggregate: targetAggregate
+                        };
+                    } else {
+                        reject(new Error(`Operation context not found for migration. Could not extract source (${sourceAggregate}) or target (${targetAggregate}) aggregate from command title: ${command.title}`));
+                        return;
+                    }
                 }
                 
                 const migrationData = {

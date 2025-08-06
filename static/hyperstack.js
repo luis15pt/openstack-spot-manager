@@ -8,14 +8,21 @@ function executeRunpodLaunch(hostname) {
         window.Logs.addToDebugLog('Hyperstack', `Starting RunPod launch for ${hostname}`, 'info', hostname);
         
         // Get stored operation data to find image information
-        const operation = window.Frontend.pendingOperations.find(op => 
+        let operation = window.Frontend.pendingOperations.find(op => 
             op.hostname === hostname && op.type === 'runpod-launch'
         );
         
+        // If no runpod-launch operation found, check for any operation with this hostname that might have image info
         if (!operation) {
-            console.error(`❌ No runpod-launch operation found for hostname: ${hostname}`);
+            operation = window.Frontend.pendingOperations.find(op => 
+                op.hostname === hostname && op.image_name
+            );
+        }
+        
+        if (!operation) {
+            console.error(`❌ No operation found for hostname: ${hostname}`);
             console.log(`🔍 Available operations:`, window.Frontend.pendingOperations);
-            reject(new Error(`No runpod-launch operation found for hostname: ${hostname}`));
+            reject(new Error(`No VM launch operation found for hostname: ${hostname}. Please use the image selection modal to schedule a VM launch.`));
             return;
         }
         
@@ -24,7 +31,8 @@ function executeRunpodLaunch(hostname) {
         
         if (!operation.image_name) {
             console.error(`❌ No image selected for hostname: ${hostname}`);
-            reject(new Error(`No image selected. Please select an image before launching VM.`));
+            console.log(`🔍 Operation found but missing image_name:`, operation);
+            reject(new Error(`No image selected for ${hostname}. Please select an image before launching VM using the Launch VM button.`));
             return;
         }
         
@@ -64,13 +72,16 @@ function executeRunpodLaunch(hostname) {
             // Execute the launch with image data
             const launchData = { hostname: hostname };
             
-            // Add image data if available from operation
-            if (previewData.image_name) {
-                launchData.image_name = previewData.image_name;
+            // Add image data from the operation (not preview data)
+            if (operation.image_name) {
+                launchData.image_name = operation.image_name;
             }
-            if (previewData.image_id) {
-                launchData.image_id = previewData.image_id;
+            if (operation.image_id) {
+                launchData.image_id = operation.image_id;
             }
+            
+            // Debug: Log what we're sending to backend
+            console.log(`🔍 Launch data being sent to backend:`, launchData);
             
             window.Utils.fetchWithTimeout('/api/execute-runpod-launch', {
                 method: 'POST',
