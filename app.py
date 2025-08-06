@@ -498,18 +498,34 @@ def find_host_current_aggregate(hostname):
         return None
 
 def build_flavor_name(hostname):
-    """Build dynamic flavor name like 'n3-RTX-A6000x8' from hostname"""
+    """Build dynamic flavor name like 'n3-RTX-A6000x8' or 'n3-H100x8-NVLink' from hostname"""
     gpu_type = get_gpu_type_from_hostname_context(hostname)
     gpu_count = get_gpu_count_from_hostname(hostname)
     
+    # Get NVLink info from Netbox
+    netbox_info = get_netbox_tenant(hostname)
+    has_nvlinks = netbox_info.get('nvlinks', False)
+    
+    # Debug logging for flavor selection
+    print(f"🔍 Building flavor for {hostname}: gpu_type={gpu_type}, gpu_count={gpu_count}, has_nvlinks={has_nvlinks}")
+    
     if gpu_type:
-        return f"n3-{gpu_type}x{gpu_count}"
+        base_flavor = f"n3-{gpu_type}x{gpu_count}"
+        # Add NVLink suffix for supported GPU types that have NVLinks
+        if has_nvlinks and gpu_type in ['H100', 'A100']:
+            return f"{base_flavor}-NVLink"
+        return base_flavor
     
     # Fallback: try to extract from hostname pattern if available
     import re
     match = re.search(r'(RTX-A6000|A100|H100|L40)', hostname)
     if match:
-        return f"n3-{match.group(1)}x{gpu_count}"
+        extracted_gpu = match.group(1)
+        base_flavor = f"n3-{extracted_gpu}x{gpu_count}"
+        # Add NVLink suffix for supported GPU types that have NVLinks
+        if has_nvlinks and extracted_gpu in ['H100', 'A100']:
+            return f"{base_flavor}-NVLink"
+        return base_flavor
     
     # Default fallback
     return f"n3-RTX-A6000x{gpu_count}"
