@@ -290,21 +290,40 @@
                                                     <i class="fas fa-eye"></i>
                                                     Customer View - <span id="customerViewContractName"></span>
                                                 </h4>
-                                                <div class="d-flex align-items-center" id="customerViewControls">
-                                                    <div class="me-3">
+                                                <div class="d-flex align-items-center flex-wrap" id="customerViewControls">
+                                                    <div class="me-3 mb-2">
+                                                        <div class="form-check form-switch d-inline-block me-3">
+                                                            <input class="form-check-input" type="checkbox" id="dualContractMode" onchange="customerView.toggleDualContractMode()">
+                                                            <label class="form-check-label text-light" for="dualContractMode">
+                                                                Compare Contracts
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="me-3 mb-2" id="singleContractControls">
                                                         <label for="customerViewContractSelect" class="form-label text-light mb-0 me-2">Contract:</label>
                                                         <select id="customerViewContractSelect" class="form-select form-select-sm d-inline-block" style="width: auto;">
                                                             <!-- Contract options populated dynamically -->
                                                         </select>
                                                     </div>
-                                                    <button class="btn btn-sm btn-outline-light" onclick="toggleCustomerView()" title="Close Customer View">
+                                                    <div class="me-3 mb-2" id="dualContractControls" style="display: none;">
+                                                        <label for="customerViewContract1Select" class="form-label text-light mb-0 me-2">Contract 1:</label>
+                                                        <select id="customerViewContract1Select" class="form-select form-select-sm d-inline-block me-2" style="width: auto;">
+                                                            <!-- Contract options populated dynamically -->
+                                                        </select>
+                                                        <label for="customerViewContract2Select" class="form-label text-light mb-0 me-2">Contract 2:</label>
+                                                        <select id="customerViewContract2Select" class="form-select form-select-sm d-inline-block" style="width: auto;">
+                                                            <!-- Contract options populated dynamically -->
+                                                        </select>
+                                                    </div>
+                                                    <button class="btn btn-sm btn-outline-light mb-2" onclick="toggleCustomerView()" title="Close Customer View">
                                                         <i class="fas fa-compress"></i> Close
                                                     </button>
                                                 </div>
                                             </div>
                                             <!-- Contract Statistics -->
-                                            <div class="mt-2 px-3 pb-2">
-                                                <div class="row text-light">
+                                            <div class="mt-2 px-3 pb-2" id="customerViewStats">
+                                                <!-- Single Contract Stats -->
+                                                <div class="row text-light" id="singleContractStats">
                                                     <div class="col-md-4">
                                                         <small class="d-block">Total GPU Usage</small>
                                                         <strong id="customerViewGpuUsage">0/0 GPUs</strong>
@@ -319,6 +338,56 @@
                                                     <div class="col-md-4">
                                                         <small class="d-block">Hosts in Use</small>
                                                         <strong id="customerViewInUseHosts">0</strong>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Dual Contract Stats -->
+                                                <div id="dualContractStats" style="display: none;">
+                                                    <div class="row text-light">
+                                                        <div class="col-md-6">
+                                                            <div class="border-end border-light pe-3">
+                                                                <small class="d-block"><strong id="contract1Name">Contract 1</strong></small>
+                                                                <div class="mt-2">
+                                                                    <small>GPU Usage:</small>
+                                                                    <strong id="contract1GpuUsage" class="d-block">0/0 GPUs (0%)</strong>
+                                                                    <div class="progress mt-1" style="height: 3px;">
+                                                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="contract1GpuProgressBar"></div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="row mt-2">
+                                                                    <div class="col-6">
+                                                                        <small>Available:</small>
+                                                                        <strong id="contract1AvailableHosts" class="d-block">0</strong>
+                                                                    </div>
+                                                                    <div class="col-6">
+                                                                        <small>In Use:</small>
+                                                                        <strong id="contract1InUseHosts" class="d-block">0</strong>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <div class="ps-3">
+                                                                <small class="d-block"><strong id="contract2Name">Contract 2</strong></small>
+                                                                <div class="mt-2">
+                                                                    <small>GPU Usage:</small>
+                                                                    <strong id="contract2GpuUsage" class="d-block">0/0 GPUs (0%)</strong>
+                                                                    <div class="progress mt-1" style="height: 3px;">
+                                                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="contract2GpuProgressBar"></div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="row mt-2">
+                                                                    <div class="col-6">
+                                                                        <small>Available:</small>
+                                                                        <strong id="contract2AvailableHosts" class="d-block">0</strong>
+                                                                    </div>
+                                                                    <div class="col-6">
+                                                                        <small>In Use:</small>
+                                                                        <strong id="contract2InUseHosts" class="d-block">0</strong>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>

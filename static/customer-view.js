@@ -11,6 +11,11 @@ class CustomerView {
         this.currentGpuType = null;
         this.availableGpuTypes = [];
         this.availableContracts = [];
+        
+        // Dual contract mode
+        this.isDualMode = false;
+        this.contract1Data = null;
+        this.contract2Data = null;
     }
 
     /**
@@ -32,18 +37,25 @@ class CustomerView {
      * Set up event handlers for customer view elements
      */
     setupEventHandlers() {
-        const gpuSelect = document.getElementById('customerViewGpuSelect');
         const contractSelect = document.getElementById('customerViewContractSelect');
-
-        if (gpuSelect) {
-            gpuSelect.addEventListener('change', (e) => {
-                this.onGpuTypeChange(e.target.value);
-            });
-        }
+        const contract1Select = document.getElementById('customerViewContract1Select');
+        const contract2Select = document.getElementById('customerViewContract2Select');
 
         if (contractSelect) {
             contractSelect.addEventListener('change', (e) => {
                 this.onContractChange(e.target.value);
+            });
+        }
+
+        if (contract1Select) {
+            contract1Select.addEventListener('change', (e) => {
+                this.onContract1Change(e.target.value);
+            });
+        }
+
+        if (contract2Select) {
+            contract2Select.addEventListener('change', (e) => {
+                this.onContract2Change(e.target.value);
             });
         }
     }
@@ -130,19 +142,27 @@ class CustomerView {
     }
 
     /**
-     * Populate contract dropdown
+     * Populate contract dropdowns (single and dual mode)
      */
     populateContractSelect() {
-        const contractSelect = document.getElementById('customerViewContractSelect');
-        if (!contractSelect) return;
+        const selects = [
+            'customerViewContractSelect',
+            'customerViewContract1Select', 
+            'customerViewContract2Select'
+        ];
 
-        contractSelect.innerHTML = '<option value="">Select Contract...</option>';
-        
-        this.availableContracts.forEach(contract => {
-            const option = document.createElement('option');
-            option.value = contract.aggregate;
-            option.textContent = `${contract.name} (${contract.host_count} hosts)`;
-            contractSelect.appendChild(option);
+        selects.forEach(selectId => {
+            const contractSelect = document.getElementById(selectId);
+            if (!contractSelect) return;
+
+            contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+            
+            this.availableContracts.forEach(contract => {
+                const option = document.createElement('option');
+                option.value = contract.aggregate;
+                option.textContent = `${contract.name} (${contract.host_count} hosts)`;
+                contractSelect.appendChild(option);
+            });
         });
     }
 
@@ -185,11 +205,216 @@ class CustomerView {
     }
 
     /**
+     * Toggle between single and dual contract mode
+     */
+    toggleDualContractMode() {
+        const dualModeCheckbox = document.getElementById('dualContractMode');
+        const singleControls = document.getElementById('singleContractControls');
+        const dualControls = document.getElementById('dualContractControls');
+        const singleStats = document.getElementById('singleContractStats');
+        const dualStats = document.getElementById('dualContractStats');
+        const contractNameElement = document.getElementById('customerViewContractName');
+
+        this.isDualMode = dualModeCheckbox ? dualModeCheckbox.checked : false;
+
+        if (this.isDualMode) {
+            // Switch to dual mode
+            if (singleControls) singleControls.style.display = 'none';
+            if (dualControls) dualControls.style.display = 'block';
+            if (singleStats) singleStats.style.display = 'none';
+            if (dualStats) dualStats.style.display = 'block';
+            if (contractNameElement) contractNameElement.textContent = 'Comparison';
+
+            console.log('🔄 Switched to dual contract mode');
+            this.clearCustomerView();
+        } else {
+            // Switch to single mode
+            if (singleControls) singleControls.style.display = 'block';
+            if (dualControls) dualControls.style.display = 'none';
+            if (singleStats) singleStats.style.display = 'block';
+            if (dualStats) dualStats.style.display = 'none';
+
+            console.log('🔄 Switched to single contract mode');
+            this.clearCustomerView();
+        }
+    }
+
+    /**
+     * Handle contract 1 selection change (dual mode)
+     */
+    async onContract1Change(contractAggregate) {
+        if (!contractAggregate) {
+            this.contract1Data = null;
+            this.renderDualContractView();
+            return;
+        }
+
+        console.log(`🔄 Contract 1 changed to: ${contractAggregate}`);
+        
+        const selectedContract = this.availableContracts.find(c => c.aggregate === contractAggregate);
+        if (selectedContract) {
+            this.contract1Data = selectedContract;
+            await this.renderDualContractView();
+        }
+    }
+
+    /**
+     * Handle contract 2 selection change (dual mode)
+     */
+    async onContract2Change(contractAggregate) {
+        if (!contractAggregate) {
+            this.contract2Data = null;
+            this.renderDualContractView();
+            return;
+        }
+
+        console.log(`🔄 Contract 2 changed to: ${contractAggregate}`);
+        
+        const selectedContract = this.availableContracts.find(c => c.aggregate === contractAggregate);
+        if (selectedContract) {
+            this.contract2Data = selectedContract;
+            await this.renderDualContractView();
+        }
+    }
+
+    /**
+     * Render the dual contract comparison view
+     */
+    async renderDualContractView() {
+        const contentContainer = document.getElementById('customerViewContent');
+        if (!contentContainer) return;
+
+        console.log('🎨 Rendering dual contract view');
+
+        if (!this.contract1Data && !this.contract2Data) {
+            contentContainer.innerHTML = `
+                <div class="customer-empty-state">
+                    <i class="fas fa-balance-scale fa-3x mb-3"></i>
+                    <h5>Select Contracts to Compare</h5>
+                    <p>Choose contracts from the dropdowns above to compare side-by-side.</p>
+                </div>
+            `;
+            this.clearDualStatistics();
+            return;
+        }
+
+        // Create side-by-side layout
+        let dualHtml = '<div class="row">';
+        
+        // Contract 1 column
+        dualHtml += '<div class="col-md-6">';
+        if (this.contract1Data) {
+            dualHtml += await this.renderSingleContractColumn(this.contract1Data, '1');
+        } else {
+            dualHtml += `
+                <div class="customer-empty-state">
+                    <i class="fas fa-file-contract fa-2x mb-3"></i>
+                    <h6>Select Contract 1</h6>
+                </div>
+            `;
+        }
+        dualHtml += '</div>';
+        
+        // Contract 2 column
+        dualHtml += '<div class="col-md-6 border-start">';
+        if (this.contract2Data) {
+            dualHtml += await this.renderSingleContractColumn(this.contract2Data, '2');
+        } else {
+            dualHtml += `
+                <div class="customer-empty-state">
+                    <i class="fas fa-file-contract fa-2x mb-3"></i>
+                    <h6>Select Contract 2</h6>
+                </div>
+            `;
+        }
+        dualHtml += '</div>';
+        
+        dualHtml += '</div>';
+        contentContainer.innerHTML = dualHtml;
+        
+        // Update dual statistics
+        this.updateDualStatistics();
+        
+        console.log('✅ Dual contract view rendered successfully');
+    }
+
+    /**
+     * Render a single contract column for dual view
+     */
+    async renderSingleContractColumn(contractData, contractNumber) {
+        if (!contractData || !contractData.hosts) return '';
+
+        // Group hosts by available GPUs
+        const hostsByAvailableGpus = this.groupHostsByAvailableGpus(contractData.hosts);
+        const sortedGpuGroups = Object.keys(hostsByAvailableGpus)
+            .sort((a, b) => parseInt(b) - parseInt(a));
+
+        if (sortedGpuGroups.length === 0) {
+            return `
+                <div class="customer-empty-state">
+                    <i class="fas fa-server fa-2x mb-3"></i>
+                    <h6>No devices found</h6>
+                </div>
+            `;
+        }
+
+        let columnHtml = `<div class="mb-3"><h6 class="text-muted">${contractData.name}</h6></div>`;
+        
+        for (const availableGpus of sortedGpuGroups) {
+            const hosts = hostsByAvailableGpus[availableGpus];
+            const availableHosts = hosts.filter(h => !h.has_vms);
+            const inUseHosts = hosts.filter(h => h.has_vms);
+            
+            const headerText = `${availableGpus} Available GPU${availableGpus !== '1' ? 's' : ''}`;
+            const totalCount = hosts.length;
+            const availableCount = availableHosts.length;
+            
+            columnHtml += `
+                <div class="customer-gpu-group mb-3">
+                    <div class="customer-gpu-group-header" style="font-size: 0.9rem; padding: 8px 12px;">
+                        <div>${headerText}</div>
+                        <small>${availableCount}/${totalCount} Devices</small>
+                    </div>
+                    <div class="customer-gpu-group-content" style="max-height: 400px;">
+            `;
+            
+            // Render available devices
+            if (availableHosts.length > 0) {
+                columnHtml += `<div class="mb-2"><small class="text-success"><strong>Available (${availableHosts.length})</strong></small></div>`;
+                for (const host of availableHosts) {
+                    columnHtml += await this.createCustomerDeviceCard(host, true, contractNumber);
+                }
+            }
+            
+            // Render in-use devices  
+            if (inUseHosts.length > 0) {
+                columnHtml += `<div class="mb-2 mt-3"><small class="text-warning"><strong>In Use (${inUseHosts.length})</strong></small></div>`;
+                for (const host of inUseHosts) {
+                    columnHtml += await this.createCustomerDeviceCard(host, false, contractNumber);
+                }
+            }
+            
+            columnHtml += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        return columnHtml;
+    }
+
+    /**
      * Render the customer view with devices grouped by GPU count in vertical columns
      */
     async renderCustomerView(contractData) {
         const contentContainer = document.getElementById('customerViewContent');
         if (!contentContainer) return;
+
+        // Check if we're in dual mode
+        if (this.isDualMode) {
+            await this.renderDualContractView();
+            return;
+        }
 
         console.log('🎨 Rendering customer view for contract:', contractData.name);
 
@@ -338,6 +563,109 @@ class CustomerView {
     }
 
     /**
+     * Update dual contract statistics display
+     */
+    updateDualStatistics() {
+        // Update Contract 1 stats
+        if (this.contract1Data) {
+            this.updateSingleContractStats(this.contract1Data, '1');
+            const nameElement = document.getElementById('contract1Name');
+            if (nameElement) nameElement.textContent = this.contract1Data.name;
+        } else {
+            this.clearSingleContractStats('1');
+        }
+
+        // Update Contract 2 stats
+        if (this.contract2Data) {
+            this.updateSingleContractStats(this.contract2Data, '2');
+            const nameElement = document.getElementById('contract2Name');
+            if (nameElement) nameElement.textContent = this.contract2Data.name;
+        } else {
+            this.clearSingleContractStats('2');
+        }
+    }
+
+    /**
+     * Update statistics for a single contract in dual view
+     */
+    updateSingleContractStats(contractData, contractNumber) {
+        if (!contractData || !contractData.hosts) return;
+
+        let totalGpus = 0;
+        let usedGpus = 0;
+        let availableHosts = 0;
+        let inUseHosts = 0;
+
+        contractData.hosts.forEach(host => {
+            const gpuInfo = host.gpu_info || {};
+            const hostTotalGpus = gpuInfo.gpu_capacity || 8;
+            const hostUsedGpus = gpuInfo.gpu_used || 0;
+            const hasVms = (host.vm_count || 0) > 0;
+
+            totalGpus += hostTotalGpus;
+            usedGpus += hostUsedGpus;
+
+            if (hasVms) {
+                inUseHosts++;
+            } else {
+                availableHosts++;
+            }
+        });
+
+        const gpuUsagePercent = totalGpus > 0 ? Math.round((usedGpus / totalGpus) * 100) : 0;
+
+        // Update elements
+        const elements = {
+            [`contract${contractNumber}GpuUsage`]: `${usedGpus}/${totalGpus} GPUs (${gpuUsagePercent}%)`,
+            [`contract${contractNumber}AvailableHosts`]: availableHosts.toString(),
+            [`contract${contractNumber}InUseHosts`]: inUseHosts.toString()
+        };
+
+        Object.entries(elements).forEach(([id, text]) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = text;
+        });
+
+        const progressBar = document.getElementById(`contract${contractNumber}GpuProgressBar`);
+        if (progressBar) progressBar.style.width = `${gpuUsagePercent}%`;
+
+        console.log(`📊 Contract ${contractNumber} statistics: ${usedGpus}/${totalGpus} GPUs (${gpuUsagePercent}%), ${availableHosts} available, ${inUseHosts} in use`);
+    }
+
+    /**
+     * Clear statistics for a single contract in dual view
+     */
+    clearSingleContractStats(contractNumber) {
+        const elements = {
+            [`contract${contractNumber}GpuUsage`]: '0/0 GPUs (0%)',
+            [`contract${contractNumber}AvailableHosts`]: '0',
+            [`contract${contractNumber}InUseHosts`]: '0'
+        };
+
+        Object.entries(elements).forEach(([id, text]) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = text;
+        });
+
+        const progressBar = document.getElementById(`contract${contractNumber}GpuProgressBar`);
+        if (progressBar) progressBar.style.width = '0%';
+    }
+
+    /**
+     * Clear dual contract statistics
+     */
+    clearDualStatistics() {
+        this.clearSingleContractStats('1');
+        this.clearSingleContractStats('2');
+        
+        const nameElements = ['contract1Name', 'contract2Name'];
+        nameElements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = id === 'contract1Name' ? 'Contract 1' : 'Contract 2';
+        });
+    }
+
+    /**
      * Group hosts by their available GPU count (total - used)
      */
     groupHostsByAvailableGpus(hosts) {
@@ -361,7 +689,7 @@ class CustomerView {
     /**
      * Create a device card for customer view (without owner/nexgen tags)
      */
-    async createCustomerDeviceCard(host, isAvailable) {
+    async createCustomerDeviceCard(host, isAvailable, contractNumber = '') {
         const gpuInfo = host.gpu_info || {};
         const totalGpus = gpuInfo.gpu_capacity || 8;
         const usedGpus = gpuInfo.gpu_used || 0;
