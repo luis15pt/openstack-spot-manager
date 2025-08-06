@@ -2229,21 +2229,15 @@ body {
     border-radius: 8px;
 }
 
-.customer-gpu-groups-container {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 15px;
-    overflow-x: auto;
-    padding: 10px 0;
-}
+/* Removed horizontal container - now using Bootstrap row/col system */
 
 .customer-gpu-group {
-    flex: 0 0 auto;
-    min-width: 280px;
     background: #ffffff;
     border: 1px solid #dee2e6;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    height: fit-content;
+    margin-bottom: 20px;
 }
 
 .customer-gpu-group-header {
@@ -2356,12 +2350,13 @@ body {
 
 /* Responsive adjustments for customer view */
 @media (max-width: 768px) {
-    .customer-gpu-groups-container {
-        flex-wrap: wrap;
-    }
-    
-    .customer-gpu-group {
-        min-width: 100%;
+    #customerViewContainer .row .col-md-6,
+    #customerViewContainer .row .col-md-4,
+    #customerViewContainer .row .col-md-3,
+    #customerViewContainer .row .col-md-2,
+    #customerViewContainer .row .col-md-1 {
+        flex: 0 0 100%;
+        max-width: 100%;
         margin-bottom: 15px;
     }
 }

@@ -185,7 +185,7 @@ class CustomerView {
     }
 
     /**
-     * Render the customer view with devices grouped by GPU count
+     * Render the customer view with devices grouped by GPU count in vertical columns
      */
     async renderCustomerView(contractData) {
         const contentContainer = document.getElementById('customerViewContent');
@@ -193,11 +193,11 @@ class CustomerView {
 
         console.log('🎨 Rendering customer view for contract:', contractData.name);
 
-        // Group hosts by GPU capacity (available GPUs)
-        const hostsByGpuCapacity = this.groupHostsByGpuCapacity(contractData.hosts);
+        // Group hosts by available GPUs (total - used)
+        const hostsByAvailableGpus = this.groupHostsByAvailableGpus(contractData.hosts);
         
-        // Sort by GPU capacity (8 GPUs -> 1 GPU, then available -> in use)
-        const sortedGpuGroups = Object.keys(hostsByGpuCapacity)
+        // Sort by available GPU count (8 -> 1, then available -> in use)
+        const sortedGpuGroups = Object.keys(hostsByAvailableGpus)
             .sort((a, b) => parseInt(b) - parseInt(a));
 
         if (sortedGpuGroups.length === 0) {
@@ -211,45 +211,51 @@ class CustomerView {
             return;
         }
 
-        // Create horizontal GPU groups layout
-        let groupsHtml = '<div class="customer-gpu-groups-container">';
+        // Calculate column width based on number of groups (but ensure minimum width)
+        const numGroups = sortedGpuGroups.length;
+        const colClass = this.calculateColumnClass(numGroups);
+
+        // Create vertical columns layout (Bootstrap-based)
+        let groupsHtml = '<div class="row">';
         
-        for (const gpuCapacity of sortedGpuGroups) {
-            const hosts = hostsByGpuCapacity[gpuCapacity];
+        for (const availableGpus of sortedGpuGroups) {
+            const hosts = hostsByAvailableGpus[availableGpus];
             const availableHosts = hosts.filter(h => !h.has_vms);
             const inUseHosts = hosts.filter(h => h.has_vms);
             
-            // Create group header with GPU count
-            const headerText = `${gpuCapacity} GPU${gpuCapacity !== '1' ? 's' : ''}`;
+            // Create column header with available GPU count
+            const headerText = `${availableGpus} Available GPU${availableGpus !== '1' ? 's' : ''}`;
             const totalCount = hosts.length;
             const availableCount = availableHosts.length;
             
             groupsHtml += `
-                <div class="customer-gpu-group">
-                    <div class="customer-gpu-group-header">
-                        <div>${headerText}</div>
-                        <small>${availableCount}/${totalCount} Available</small>
-                    </div>
-                    <div class="customer-gpu-group-content">
+                <div class="${colClass}">
+                    <div class="customer-gpu-group">
+                        <div class="customer-gpu-group-header">
+                            <div>${headerText}</div>
+                            <small>${availableCount}/${totalCount} Devices</small>
+                        </div>
+                        <div class="customer-gpu-group-content">
             `;
             
             // Render available devices first
             if (availableHosts.length > 0) {
                 groupsHtml += `<div class="mb-2"><small class="text-success"><strong>Available (${availableHosts.length})</strong></small></div>`;
-                availableHosts.forEach(host => {
-                    groupsHtml += this.createCustomerDeviceCard(host, true);
-                });
+                for (const host of availableHosts) {
+                    groupsHtml += await this.createCustomerDeviceCard(host, true);
+                }
             }
             
             // Render in-use devices
             if (inUseHosts.length > 0) {
                 groupsHtml += `<div class="mb-2 mt-3"><small class="text-warning"><strong>In Use (${inUseHosts.length})</strong></small></div>`;
-                inUseHosts.forEach(host => {
-                    groupsHtml += this.createCustomerDeviceCard(host, false);
-                });
+                for (const host of inUseHosts) {
+                    groupsHtml += await this.createCustomerDeviceCard(host, false);
+                }
             }
             
             groupsHtml += `
+                        </div>
                     </div>
                 </div>
             `;
@@ -265,19 +271,32 @@ class CustomerView {
     }
 
     /**
-     * Group hosts by their GPU capacity
+     * Calculate appropriate Bootstrap column class based on number of groups
      */
-    groupHostsByGpuCapacity(hosts) {
+    calculateColumnClass(numGroups) {
+        if (numGroups <= 2) return 'col-md-6';
+        if (numGroups <= 3) return 'col-md-4';
+        if (numGroups <= 4) return 'col-md-3';
+        if (numGroups <= 6) return 'col-md-2';
+        return 'col-md-1'; // For more than 6 groups
+    }
+
+    /**
+     * Group hosts by their available GPU count (total - used)
+     */
+    groupHostsByAvailableGpus(hosts) {
         const grouped = {};
         
         hosts.forEach(host => {
             const gpuInfo = host.gpu_info || {};
-            const capacity = gpuInfo.gpu_capacity || 8; // Default to 8 GPUs
+            const totalGpus = gpuInfo.gpu_capacity || 8; // Default to 8 GPUs
+            const usedGpus = gpuInfo.gpu_used || 0;
+            const availableGpus = totalGpus - usedGpus;
             
-            if (!grouped[capacity]) {
-                grouped[capacity] = [];
+            if (!grouped[availableGpus]) {
+                grouped[availableGpus] = [];
             }
-            grouped[capacity].push(host);
+            grouped[availableGpus].push(host);
         });
         
         return grouped;
@@ -286,35 +305,34 @@ class CustomerView {
     /**
      * Create a device card for customer view (without owner/nexgen tags)
      */
-    createCustomerDeviceCard(host, isAvailable) {
+    async createCustomerDeviceCard(host, isAvailable) {
         const gpuInfo = host.gpu_info || {};
         const totalGpus = gpuInfo.gpu_capacity || 8;
         const usedGpus = gpuInfo.gpu_used || 0;
+        const availableGpus = totalGpus - usedGpus;
         const vmCount = host.vm_count || 0;
         
         // Determine GPU usage badge style
         let badgeClass = 'customer-device-gpu-badge';
-        if (usedGpus === 0) {
-            badgeClass += ''; // Available - green (default)
-        } else if (usedGpus < totalGpus) {
-            badgeClass += ' partial'; // Partially used - yellow
+        if (availableGpus === totalGpus) {
+            badgeClass += ''; // Fully available - green (default)
+        } else if (availableGpus > 0) {
+            badgeClass += ' partial'; // Partially available - yellow
         } else {
             badgeClass += ' full'; // Fully used - red
         }
         
-        // Create VM list if there are VMs
+        // Auto-load VM details if there are VMs
         let vmListHtml = '';
         if (vmCount > 0) {
+            const vmDetails = await this.getVmDetails(host.hostname);
             vmListHtml = `
                 <div class="customer-device-vm-list">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="mb-2">
                         <small class="text-muted"><strong>VMs (${vmCount})</strong></small>
-                        <small class="text-primary cursor-pointer" onclick="customerView.loadVmDetails('${host.hostname}')">
-                            <i class="fas fa-eye"></i> View Details
-                        </small>
                     </div>
-                    <div id="vm-list-${host.hostname}" class="vm-details-placeholder">
-                        <small class="text-muted">Click "View Details" to load VM list</small>
+                    <div id="vm-list-${host.hostname}">
+                        ${vmDetails}
                     </div>
                 </div>
             `;
@@ -326,7 +344,7 @@ class CustomerView {
                  onclick="customerView.selectDevice('${host.hostname}')">
                 <div class="customer-device-header">
                     <div class="customer-device-name">${host.hostname}</div>
-                    <div class="${badgeClass}">${usedGpus}/${totalGpus}</div>
+                    <div class="${badgeClass}">${availableGpus}/${totalGpus}</div>
                 </div>
                 ${vmListHtml}
             </div>
@@ -334,38 +352,29 @@ class CustomerView {
     }
 
     /**
-     * Load VM details for a specific host
+     * Get VM details for a host (auto-loaded)
      */
-    async loadVmDetails(hostname) {
-        const vmContainer = document.getElementById(`vm-list-${hostname}`);
-        if (!vmContainer) return;
-        
+    async getVmDetails(hostname) {
         try {
-            console.log(`🔍 Loading VM details for host: ${hostname}`);
-            vmContainer.innerHTML = '<small class="text-muted">Loading VMs...</small>';
-            
             const response = await fetch(`/api/host-vms/${hostname}`);
             const data = await response.json();
             
             if (data.vms && data.vms.length > 0) {
-                let vmListHtml = '';
-                data.vms.forEach(vm => {
-                    vmListHtml += `
-                        <div class="customer-vm-item">
-                            <span class="customer-vm-name">${vm.name}</span>
-                            <span class="customer-vm-flavor">${vm.flavor}</span>
-                        </div>
-                    `;
-                });
-                vmContainer.innerHTML = vmListHtml;
+                return data.vms.map(vm => `
+                    <div class="customer-vm-item">
+                        <span class="customer-vm-name">${vm.name || vm.Name}</span>
+                        <span class="customer-vm-flavor">${vm.flavor || vm.Flavor}</span>
+                    </div>
+                `).join('');
             } else {
-                vmContainer.innerHTML = '<small class="text-muted">No VMs found</small>';
+                return '<small class="text-muted">No VMs found</small>';
             }
         } catch (error) {
-            console.error('❌ Error loading VM details:', error);
-            vmContainer.innerHTML = '<small class="text-danger">Error loading VMs</small>';
+            console.error(`❌ Error loading VM details for ${hostname}:`, error);
+            return '<small class="text-danger">Error loading VMs</small>';
         }
     }
+
 
     /**
      * Handle device card selection
@@ -413,7 +422,7 @@ class CustomerView {
     /**
      * Toggle customer view visibility
      */
-    toggle() {
+    async toggle() {
         const container = document.getElementById('customerViewContainer');
         const columnsContainer = document.querySelector('.hosts-row');
         const toggleBtn = document.getElementById('customerViewToggleBtn');
@@ -431,14 +440,8 @@ class CustomerView {
                 toggleBtn.title = 'Close Customer View';
             }
             
-            // Sync with current selections if available
-            if (window.currentGpuType && !this.currentGpuType) {
-                const gpuSelect = document.getElementById('customerViewGpuSelect');
-                if (gpuSelect) {
-                    gpuSelect.value = window.currentGpuType;
-                    this.onGpuTypeChange(window.currentGpuType);
-                }
-            }
+            // Use current contract data from main application
+            await this.loadCurrentContractData();
             
             console.log('👁️ Customer view activated');
         } else {
@@ -451,6 +454,122 @@ class CustomerView {
             }
             
             console.log('👁️ Customer view deactivated');
+        }
+    }
+
+    /**
+     * Load current contract data from the main application
+     */
+    async loadCurrentContractData() {
+        // Get current selections from main contract column
+        const contractSelect = document.getElementById('contractColumnSelect');
+        const contractName = document.getElementById('contractName');
+        
+        if (!contractSelect || !contractSelect.value) {
+            this.showSelectContractMessage();
+            return;
+        }
+
+        const selectedContractAggregate = contractSelect.value;
+        const displayedContractName = contractName ? contractName.textContent : '';
+        
+        console.log(`🔄 Loading current contract data: ${selectedContractAggregate}`);
+        
+        try {
+            // Load the contract data from API using current GPU type
+            const currentGpuType = window.currentGpuType;
+            if (!currentGpuType) {
+                this.showSelectGpuMessage();
+                return;
+            }
+
+            const response = await fetch(`/api/contract-aggregates/${currentGpuType}`);
+            const data = await response.json();
+            
+            if (data.contracts) {
+                const selectedContract = data.contracts.find(c => c.aggregate === selectedContractAggregate);
+                if (selectedContract) {
+                    this.currentContractData = selectedContract;
+                    this.currentGpuType = currentGpuType;
+                    
+                    // Update customer view displays
+                    const contractNameElement = document.getElementById('customerViewContractName');
+                    if (contractNameElement) {
+                        contractNameElement.textContent = selectedContract.name;
+                    }
+                    
+                    // Selection controls are already minimal - just show close button
+                    
+                    // Render the customer view
+                    await this.renderCustomerView(selectedContract);
+                } else {
+                    this.showContractNotFoundMessage();
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error loading current contract data:', error);
+            this.showErrorMessage();
+        }
+    }
+
+    /**
+     * Show message when no contract is selected
+     */
+    showSelectContractMessage() {
+        const contentContainer = document.getElementById('customerViewContent');
+        if (contentContainer) {
+            contentContainer.innerHTML = `
+                <div class="customer-empty-state">
+                    <i class="fas fa-file-contract fa-3x mb-3"></i>
+                    <h5>No Contract Selected</h5>
+                    <p>Please select a contract in the main view first, then click the expand button.</p>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Show message when no GPU type is selected
+     */
+    showSelectGpuMessage() {
+        const contentContainer = document.getElementById('customerViewContent');
+        if (contentContainer) {
+            contentContainer.innerHTML = `
+                <div class="customer-empty-state">
+                    <i class="fas fa-microchip fa-3x mb-3"></i>
+                    <h5>No GPU Type Selected</h5>
+                    <p>Please select a GPU type in the main view first.</p>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Show error messages
+     */
+    showContractNotFoundMessage() {
+        const contentContainer = document.getElementById('customerViewContent');
+        if (contentContainer) {
+            contentContainer.innerHTML = `
+                <div class="customer-empty-state">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                    <h5>Contract Not Found</h5>
+                    <p>The selected contract could not be found.</p>
+                </div>
+            `;
+        }
+    }
+
+    showErrorMessage() {
+        const contentContainer = document.getElementById('customerViewContent');
+        if (contentContainer) {
+            contentContainer.innerHTML = `
+                <div class="customer-empty-state">
+                    <i class="fas fa-exclamation-circle fa-3x mb-3"></i>
+                    <h5>Error Loading Data</h5>
+                    <p>There was an error loading the contract data. Please try again.</p>
+                </div>
+            `;
         }
     }
 }
