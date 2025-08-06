@@ -149,7 +149,13 @@ function initializeEventListeners() {
             console.log(`📋 Selected contract from column: ${selectedContract}`);
             loadContractDataForColumn(selectedContract);
         } else {
-            clearContractHosts();
+            // When no contract is selected, reload overall contract statistics
+            console.log(`📋 No contract selected, showing overall statistics`);
+            if (window.currentGpuType) {
+                loadContractAggregatesForColumn(window.currentGpuType);
+            } else {
+                clearContractHosts();
+            }
         }
     });
     
@@ -1588,7 +1594,13 @@ async function loadContractAggregatesForColumn(gpuType) {
                     console.log(`🔄 Restored contract selection: ${currentSelection}`);
                     // Reload the contract data to maintain the display
                     loadContractDataForColumn(currentSelection);
+                } else {
+                    // Current selection no longer exists, show overall contract statistics
+                    loadOverallContractStatistics(data.contracts);
                 }
+            } else {
+                // No specific contract selected, show overall contract statistics
+                loadOverallContractStatistics(data.contracts);
             }
             
             console.log(`✅ Contract aggregates loaded in column successfully`);
@@ -1775,6 +1787,93 @@ function populateContractPanel(contractData) {
     }
     
     console.log(`✅ Contract panel populated with ${contractData.hosts.length} hosts using renderHosts with proper grouping`);
+}
+
+// New function to show overall contract statistics when no specific contract is selected
+function loadOverallContractStatistics(contracts) {
+    console.log(`📊 Loading overall statistics for ${contracts.length} contracts`);
+    
+    const contractName = document.getElementById('contractName');
+    const contractHostCount = document.getElementById('contractHostCount');
+    const contractGpuUsage = document.getElementById('contractGpuUsage');
+    const contractGpuPercent = document.getElementById('contractGpuPercent');
+    const contractGpuProgressBar = document.getElementById('contractGpuProgressBar');
+    const contractHostsList = document.getElementById('contractHostsList');
+    
+    // Calculate totals across all contracts
+    let totalHosts = 0;
+    let totalGpus = 0;
+    let usedGpus = 0;
+    let totalAvailable = 0;
+    let totalInUse = 0;
+    
+    contracts.forEach(contract => {
+        totalHosts += contract.host_count || 0;
+        
+        if (contract.hosts && contract.hosts.length > 0) {
+            contract.hosts.forEach(host => {
+                const gpuInfo = host.gpu_info || {};
+                const hostTotalGpus = gpuInfo.gpu_capacity || 8; // Default to 8 GPUs per host
+                const hostUsedGpus = gpuInfo.gpu_used || 0;
+                const hasVms = (host.vm_count || 0) > 0;
+
+                totalGpus += hostTotalGpus;
+                usedGpus += hostUsedGpus;
+
+                if (hasVms) {
+                    totalInUse++;
+                } else {
+                    totalAvailable++;
+                }
+            });
+        }
+    });
+    
+    const gpuPercentage = totalGpus > 0 ? Math.round((usedGpus / totalGpus) * 100) : 0;
+    
+    // Update header information to show "All Contracts"
+    if (contractName) {
+        contractName.textContent = 'All Contracts';
+    }
+    
+    if (contractHostCount) {
+        contractHostCount.textContent = totalHosts.toString();
+    }
+    
+    if (contractGpuUsage) {
+        contractGpuUsage.textContent = `${usedGpus}/${totalGpus}`;
+    }
+    
+    if (contractGpuPercent) {
+        contractGpuPercent.textContent = `${gpuPercentage}%`;
+    }
+    
+    if (contractGpuProgressBar) {
+        contractGpuProgressBar.style.width = `${gpuPercentage}%`;
+    }
+    
+    // Show summary in the hosts list area
+    if (contractHostsList) {
+        contractHostsList.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-chart-bar fa-3x mb-3"></i>
+                <h6>All Contracts Overview</h6>
+                <div class="row mt-3">
+                    <div class="col-6">
+                        <strong>${totalAvailable}</strong>
+                        <br><small>Available Hosts</small>
+                    </div>
+                    <div class="col-6">
+                        <strong>${totalInUse}</strong>
+                        <br><small>In Use Hosts</small>
+                    </div>
+                </div>
+                <p class="mt-3 small text-muted">Select a specific contract above to view detailed host information.</p>
+            </div>
+        `;
+    }
+    
+    console.log(`📊 Overall contract statistics: ${usedGpus}/${totalGpus} GPUs (${gpuPercentage}%), ${totalAvailable} available, ${totalInUse} in use, across ${contracts.length} contracts`);
 }
 
 window.showVmDetails = showVmDetails;
