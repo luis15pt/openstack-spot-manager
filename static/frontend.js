@@ -20,8 +20,8 @@ function renderAggregateData(data) {
         existingColumns.forEach(col => {
             const columnDiv = col.querySelector('.aggregate-column');
             if (columnDiv && columnDiv.id) {
-                // Keep only the core columns: runpod, spot, and ondemand fallback
-                const keepColumnIds = ['runpodColumn', 'spotColumn', 'ondemandColumn'];
+                // Keep only the core columns: runpod, spot, ondemand fallback, and contract
+                const keepColumnIds = ['runpodColumn', 'spotColumn', 'ondemandColumn', 'contractAggregateColumn'];
                 if (!keepColumnIds.includes(columnDiv.id)) {
                     console.log('🗑️ Global cleanup: Removing variant column:', columnDiv.id);
                     col.remove();
@@ -1163,8 +1163,8 @@ function renderOnDemandVariantColumns(ondemandData) {
         existingColumns.forEach(col => {
             const columnDiv = col.querySelector('.aggregate-column');
             if (columnDiv && columnDiv.id) {
-                // Keep only the core columns: runpod, spot, and ondemand fallback
-                const keepColumnIds = ['runpodColumn', 'spotColumn', 'ondemandColumn'];
+                // Keep only the core columns: runpod, spot, ondemand fallback, and contract
+                const keepColumnIds = ['runpodColumn', 'spotColumn', 'ondemandColumn', 'contractAggregateColumn'];
                 if (!keepColumnIds.includes(columnDiv.id)) {
                     console.log('🗑️ Pre-cleanup: Removing variant column:', columnDiv.id);
                     col.remove();
