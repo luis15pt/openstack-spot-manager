@@ -1173,9 +1173,9 @@ function renderOnDemandVariantColumns(ondemandData) {
         });
     }
     
-    // Calculate total columns: RunPod + OnDemand variants + Spot
+    // Calculate total columns: RunPod + OnDemand variants + Spot + Contract
     const totalVariants = ondemandData.variants ? ondemandData.variants.length : 1;
-    const totalColumns = 1 + totalVariants + 1; // RunPod + variants + Spot
+    const totalColumns = 1 + totalVariants + 1 + 1; // RunPod + variants + Spot + Contract
     const colWidth = Math.floor(12 / totalColumns); // Bootstrap grid is 12 columns
     
     console.log('🔍 Column calculation:', {
@@ -1184,15 +1184,19 @@ function renderOnDemandVariantColumns(ondemandData) {
         colWidth
     });
     
-    // Update RunPod and Spot column widths
+    // Update RunPod, Spot, and Contract column widths
     const runpodColumn = document.querySelector('#runpodColumn').closest('.col-md-2');
     const spotColumn = document.querySelector('#spotColumn').closest('.col-md-2');
+    const contractColumn = document.querySelector('#contractAggregateColumn').closest('.col-md-2');
     
     if (runpodColumn) {
         runpodColumn.className = runpodColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
     }
     if (spotColumn) {
         spotColumn.className = spotColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
+    }
+    if (contractColumn) {
+        contractColumn.className = contractColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
     }
     
     // Check if variants include NVLink differentiation (only split columns for NVLink variants)
