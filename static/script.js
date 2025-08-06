@@ -1555,9 +1555,14 @@ async function loadContractAggregatesForColumn(gpuType) {
     const contractSelect = document.getElementById('contractColumnSelect');
     const contractName = document.getElementById('contractName');
     
+    if (!contractSelect) {
+        console.warn('⚠️ Contract select element not found - contract column may not be loaded yet');
+        return;
+    }
+    
     // Preserve the current selection if any
     const currentSelection = contractSelect ? contractSelect.value : '';
-    
+
     try {
         // Show loading state
         contractSelect.innerHTML = '<option value="">Loading contracts...</option>';
