@@ -267,6 +267,9 @@ class CustomerView {
         // Set up click handlers for device cards
         this.setupDeviceCardHandlers();
         
+        // Update contract statistics
+        this.updateContractStatistics(contractData);
+        
         console.log('✅ Customer view rendered successfully');
     }
 
@@ -279,6 +282,59 @@ class CustomerView {
         if (numGroups <= 4) return 'col-md-3';
         if (numGroups <= 6) return 'col-md-2';
         return 'col-md-1'; // For more than 6 groups
+    }
+
+    /**
+     * Update contract statistics display
+     */
+    updateContractStatistics(contractData) {
+        if (!contractData || !contractData.hosts) return;
+
+        // Calculate statistics from contract data
+        let totalGpus = 0;
+        let usedGpus = 0;
+        let availableHosts = 0;
+        let inUseHosts = 0;
+
+        contractData.hosts.forEach(host => {
+            const gpuInfo = host.gpu_info || {};
+            const hostTotalGpus = gpuInfo.gpu_capacity || 8;
+            const hostUsedGpus = gpuInfo.gpu_used || 0;
+            const hasVms = (host.vm_count || 0) > 0;
+
+            totalGpus += hostTotalGpus;
+            usedGpus += hostUsedGpus;
+
+            if (hasVms) {
+                inUseHosts++;
+            } else {
+                availableHosts++;
+            }
+        });
+
+        const gpuUsagePercent = totalGpus > 0 ? Math.round((usedGpus / totalGpus) * 100) : 0;
+
+        // Update GPU usage display
+        const gpuUsageElement = document.getElementById('customerViewGpuUsage');
+        const gpuProgressBar = document.getElementById('customerViewGpuProgressBar');
+        if (gpuUsageElement) {
+            gpuUsageElement.textContent = `${usedGpus}/${totalGpus} GPUs (${gpuUsagePercent}%)`;
+        }
+        if (gpuProgressBar) {
+            gpuProgressBar.style.width = `${gpuUsagePercent}%`;
+        }
+
+        // Update host counts
+        const availableHostsElement = document.getElementById('customerViewAvailableHosts');
+        const inUseHostsElement = document.getElementById('customerViewInUseHosts');
+        if (availableHostsElement) {
+            availableHostsElement.textContent = availableHosts.toString();
+        }
+        if (inUseHostsElement) {
+            inUseHostsElement.textContent = inUseHosts.toString();
+        }
+
+        console.log(`📊 Contract statistics: ${usedGpus}/${totalGpus} GPUs (${gpuUsagePercent}%), ${availableHosts} available, ${inUseHosts} in use`);
     }
 
     /**
@@ -415,8 +471,31 @@ class CustomerView {
                 </div>
             `;
         }
+        
+        // Clear statistics
+        this.clearStatistics();
+        
         this.currentContractData = null;
         this.selectedDevice = null;
+    }
+
+    /**
+     * Clear contract statistics display
+     */
+    clearStatistics() {
+        const elements = [
+            { id: 'customerViewGpuUsage', text: '0/0 GPUs (0%)' },
+            { id: 'customerViewAvailableHosts', text: '0' },
+            { id: 'customerViewInUseHosts', text: '0' }
+        ];
+
+        elements.forEach(({ id, text }) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = text;
+        });
+
+        const progressBar = document.getElementById('customerViewGpuProgressBar');
+        if (progressBar) progressBar.style.width = '0%';
     }
 
     /**
@@ -440,8 +519,8 @@ class CustomerView {
                 toggleBtn.title = 'Close Customer View';
             }
             
-            // Use current contract data from main application
-            await this.loadCurrentContractData();
+            // Initialize customer view with current data and populate contract options
+            await this.initializeCustomerView();
             
             console.log('👁️ Customer view activated');
         } else {
@@ -454,6 +533,33 @@ class CustomerView {
             }
             
             console.log('👁️ Customer view deactivated');
+        }
+    }
+
+    /**
+     * Initialize customer view with current data and load available contracts
+     */
+    async initializeCustomerView() {
+        const currentGpuType = window.currentGpuType;
+        if (!currentGpuType) {
+            this.showSelectGpuMessage();
+            return;
+        }
+
+        this.currentGpuType = currentGpuType;
+        
+        // Load all contracts for this GPU type
+        await this.loadContracts(currentGpuType);
+        
+        // Try to use the current selected contract
+        const contractSelect = document.getElementById('contractColumnSelect');
+        if (contractSelect && contractSelect.value) {
+            // Set the customer view dropdown to current selection
+            const customerContractSelect = document.getElementById('customerViewContractSelect');
+            if (customerContractSelect) {
+                customerContractSelect.value = contractSelect.value;
+                await this.onContractChange(contractSelect.value);
+            }
         }
     }
 
