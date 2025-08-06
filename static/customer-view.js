@@ -728,13 +728,17 @@ class CustomerView {
         console.log('📊 Loading overall statistics for all contracts and base aggregates');
 
         try {
+            console.log(`📊 Loading overall statistics for GPU type: ${this.currentGpuType}`);
+            
             // Get base aggregate data (on-demand, runpod, spot)
             const baseAggregateResponse = await fetch(`/api/aggregates/${this.currentGpuType}`);
             const baseAggregateData = await baseAggregateResponse.json();
+            console.log('📊 Base aggregate data:', baseAggregateData);
 
             // Get all contract data
             const contractResponse = await fetch(`/api/contract-aggregates/${this.currentGpuType}`);
             const contractData = await contractResponse.json();
+            console.log('📊 Contract data:', contractData);
 
             // Calculate overall statistics
             let totalGpus = 0;
@@ -743,12 +747,14 @@ class CustomerView {
             let inUseHosts = 0;
 
             // Process base aggregate data (on-demand, runpod, spot)
+            console.log('📊 Processing base aggregate data');
             if (baseAggregateData.ondemand && baseAggregateData.ondemand.hosts) {
                 const stats = this.calculateHostStats(baseAggregateData.ondemand.hosts);
                 totalGpus += stats.totalGpus;
                 usedGpus += stats.usedGpus;
                 availableHosts += stats.availableHosts;
                 inUseHosts += stats.inUseHosts;
+                console.log(`  └─ OnDemand: ${stats.totalGpus} total GPUs, ${stats.usedGpus} used GPUs`);
             }
 
             if (baseAggregateData.runpod && baseAggregateData.runpod.hosts) {
@@ -757,6 +763,7 @@ class CustomerView {
                 usedGpus += stats.usedGpus;
                 availableHosts += stats.availableHosts;
                 inUseHosts += stats.inUseHosts;
+                console.log(`  └─ Runpod: ${stats.totalGpus} total GPUs, ${stats.usedGpus} used GPUs`);
             }
 
             if (baseAggregateData.spot && baseAggregateData.spot.hosts) {
@@ -765,23 +772,62 @@ class CustomerView {
                 usedGpus += stats.usedGpus;
                 availableHosts += stats.availableHosts;
                 inUseHosts += stats.inUseHosts;
+                console.log(`  └─ Spot: ${stats.totalGpus} total GPUs, ${stats.usedGpus} used GPUs`);
             }
 
             // Process all contract data
             if (contractData.contracts && contractData.contracts.length > 0) {
-                contractData.contracts.forEach(contract => {
-                    if (contract.hosts && contract.hosts.length > 0) {
+                console.log(`📊 Processing ${contractData.contracts.length} contracts for overall statistics`);
+                
+                // For overall statistics, we need to load each contract's detailed data
+                for (const contract of contractData.contracts) {
+                    console.log(`📋 Contract: ${contract.name} - ${contract.host_count} hosts`);
+                    
+                    // Skip contracts with no hosts
+                    if (contract.host_count === 0) {
+                        console.log(`  └─ Skipping ${contract.name} (0 hosts)`);
+                        continue;
+                    }
+                    
+                    // If the contract has hosts but no host details, we need to load them
+                    if (contract.host_count > 0 && (!contract.hosts || contract.hosts.length === 0)) {
+                        console.log(`  └─ Loading detailed data for ${contract.name}`);
+                        try {
+                            // The contract data in the list may not have full host details
+                            // We need to get it from the same API but ensure we have host details
+                            const detailedResponse = await fetch(`/api/contract-aggregates/${this.currentGpuType}`);
+                            const detailedData = await detailedResponse.json();
+                            const detailedContract = detailedData.contracts.find(c => c.aggregate === contract.aggregate);
+                            
+                            if (detailedContract && detailedContract.hosts && detailedContract.hosts.length > 0) {
+                                const stats = this.calculateHostStats(detailedContract.hosts);
+                                totalGpus += stats.totalGpus;
+                                usedGpus += stats.usedGpus;
+                                availableHosts += stats.availableHosts;
+                                inUseHosts += stats.inUseHosts;
+                                console.log(`  └─ Added ${stats.totalGpus} total GPUs, ${stats.usedGpus} used GPUs from detailed data`);
+                            }
+                        } catch (error) {
+                            console.error(`  └─ Error loading detailed data for ${contract.name}:`, error);
+                        }
+                    } else if (contract.hosts && contract.hosts.length > 0) {
+                        // Contract already has host details
                         const stats = this.calculateHostStats(contract.hosts);
                         totalGpus += stats.totalGpus;
                         usedGpus += stats.usedGpus;
                         availableHosts += stats.availableHosts;
                         inUseHosts += stats.inUseHosts;
+                        console.log(`  └─ Added ${stats.totalGpus} total GPUs, ${stats.usedGpus} used GPUs from existing data`);
                     }
-                });
+                }
+            } else {
+                console.log('📊 No contract data found');
             }
 
             // Update the display with overall statistics
             const gpuUsagePercent = totalGpus > 0 ? Math.round((usedGpus / totalGpus) * 100) : 0;
+            
+            console.log(`📊 FINAL TOTALS: ${usedGpus}/${totalGpus} GPUs (${gpuUsagePercent}%), ${availableHosts} available, ${inUseHosts} in use`);
 
             // Update single contract stats (used when not in dual mode)
             const gpuUsageElement = document.getElementById('customerViewGpuUsage');
