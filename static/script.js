@@ -105,6 +105,13 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🔧 Initializing event listeners...');
     initializeEventListeners();
     
+    // Main content is now always visible (no d-none class in HTML)
+    console.log('👁️ Main content and contract column are visible by default');
+    
+    // Initialize contract column with available contracts
+    console.log('📋 Initializing contract column...');
+    initializeContractColumn();
+    
     console.log('📊 Loading GPU types...');
     window.OpenStack.loadGpuTypes();
     
@@ -129,7 +136,8 @@ function initializeEventListeners() {
             // Load contract aggregates for the contract column
             loadContractAggregatesForColumn(selectedType);
         } else {
-            window.Frontend.hideMainContent();
+            // Don't hide main content - keep contract column visible
+            // Just clear the other columns data but keep contract column available
             clearContractColumn();
         }
     });
@@ -1773,10 +1781,63 @@ window.showVmDetails = showVmDetails;
 window.removePendingOperation = removePendingOperation;
 window.updateControlButtons = updateControlButtons;
 window.pollVmStatus = pollVmStatus;
+// Initialize contract column on page load
+async function initializeContractColumn() {
+    console.log('📋 Loading available contracts for column initialization...');
+    
+    const contractSelect = document.getElementById('contractColumnSelect');
+    if (!contractSelect) {
+        console.error('❌ Contract select element not found');
+        return;
+    }
+    
+    try {
+        // First get available GPU types
+        const gpuTypesResponse = await fetch('/api/gpu-types');
+        const gpuTypesData = await gpuTypesResponse.json();
+        
+        if (gpuTypesData.status === 'success' && gpuTypesData.data && gpuTypesData.data.length > 0) {
+            // Use the first GPU type to get contract aggregates
+            const firstGpuType = gpuTypesData.data[0].name;
+            console.log(`📋 Loading contracts for GPU type: ${firstGpuType}`);
+            
+            const contractsResponse = await fetch(`/api/contract-aggregates/${firstGpuType}`);
+            const contractsData = await contractsResponse.json();
+            
+            if (contractsData.status === 'success' && contractsData.data && contractsData.data.length > 0) {
+                console.log(`📋 Found ${contractsData.data.length} available contracts`);
+                
+                // Clear existing options except the default
+                contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+                
+                // Add contract options
+                contractsData.data.forEach(contractData => {
+                    const option = document.createElement('option');
+                    option.value = contractData.aggregate;
+                    option.textContent = contractData.aggregate;
+                    contractSelect.appendChild(option);
+                });
+                
+                console.log('✅ Contract column initialized with available contracts');
+            } else {
+                console.log('ℹ️ No contracts available for this GPU type');
+            }
+        } else {
+            console.log('ℹ️ No GPU types available');
+        }
+    } catch (error) {
+        console.error('❌ Error initializing contract column:', error);
+        if (window.Logs) {
+            window.Logs.addToDebugLog('Contract', `Error initializing contract column: ${error.message}`, 'error');
+        }
+    }
+}
+
 window.loadContractAggregatesForColumn = loadContractAggregatesForColumn;
 window.loadContractDataForColumn = loadContractDataForColumn;
 window.clearContractColumn = clearContractColumn;
 window.clearContractHosts = clearContractHosts;
 window.populateContractPanel = populateContractPanel;
+window.initializeContractColumn = initializeContractColumn;
 
 console.log('✅ OpenStack Spot Manager main script loaded');

@@ -693,7 +693,9 @@ function showLoading(show, message = 'Loading...', step = 'Initializing...', pro
     
     if (show) {
         loadingIndicator.classList.remove('d-none');
-        mainContent.classList.add('d-none');
+        // ALWAYS keep main content visible so contract column stays visible
+        // Don't hide main content during loading - just show loading indicator
+        mainContent.classList.remove('d-none');
     } else {
         loadingIndicator.classList.add('d-none');
         mainContent.classList.remove('d-none');
@@ -709,7 +711,8 @@ function showMainContent() {
 }
 
 function hideMainContent() {
-    document.getElementById('mainContent').classList.add('d-none');
+    // NO-OP: Never hide main content to keep contract column always visible
+    console.log('⚠️ hideMainContent() called but ignored to keep contract column visible');
 }
 
 function showNotification(message, type = 'info') {
