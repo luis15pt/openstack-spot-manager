@@ -7,15 +7,9 @@ class CustomerView {
     constructor() {
         this.isActive = false;
         this.selectedDevice = null;
-        this.currentContractData = null;
         this.currentGpuType = null;
-        this.availableGpuTypes = [];
         this.availableContracts = [];
-        
-        // Dual contract mode
-        this.isDualMode = false;
-        this.contract1Data = null;
-        this.contract2Data = null;
+        this.selectedContracts = []; // Array of selected contract data (max 2)
     }
 
     /**
@@ -37,25 +31,12 @@ class CustomerView {
      * Set up event handlers for customer view elements
      */
     setupEventHandlers() {
-        const contractSelect = document.getElementById('customerViewContractSelect');
-        const contract1Select = document.getElementById('customerViewContract1Select');
-        const contract2Select = document.getElementById('customerViewContract2Select');
-
-        if (contractSelect) {
-            contractSelect.addEventListener('change', (e) => {
-                this.onContractChange(e.target.value);
-            });
-        }
-
-        if (contract1Select) {
-            contract1Select.addEventListener('change', (e) => {
-                this.onContract1Change(e.target.value);
-            });
-        }
-
-        if (contract2Select) {
-            contract2Select.addEventListener('change', (e) => {
-                this.onContract2Change(e.target.value);
+        // Prevent dropdown from closing when clicking on checkboxes
+        const dropdownMenu = document.getElementById('contractMultiSelectMenu');
+        if (dropdownMenu) {
+            dropdownMenu.addEventListener('click', (e) => {
+                // Don't close dropdown when clicking inside
+                e.stopPropagation();
             });
         }
     }
@@ -142,39 +123,109 @@ class CustomerView {
     }
 
     /**
-     * Populate contract dropdowns (single and dual mode)
+     * Populate contract multi-select dropdown with checkboxes
      */
     populateContractSelect() {
-        const selects = [
-            'customerViewContractSelect',
-            'customerViewContract1Select', 
-            'customerViewContract2Select'
-        ];
+        const dropdownMenu = document.getElementById('contractMultiSelectMenu');
+        if (!dropdownMenu) return;
 
-        selects.forEach(selectId => {
-            const contractSelect = document.getElementById(selectId);
-            if (!contractSelect) return;
+        dropdownMenu.innerHTML = '';
+        
+        if (this.availableContracts.length === 0) {
+            dropdownMenu.innerHTML = '<li><span class="dropdown-item-text text-muted">No contracts available</span></li>';
+            return;
+        }
 
-            contractSelect.innerHTML = '<option value="">Select Contract...</option>';
-            
-            this.availableContracts.forEach(contract => {
-                const option = document.createElement('option');
-                option.value = contract.aggregate;
-                option.textContent = `${contract.name} (${contract.host_count} hosts)`;
-                contractSelect.appendChild(option);
-            });
+        // Add contracts as checkbox items
+        this.availableContracts.forEach(contract => {
+            const listItem = document.createElement('li');
+            listItem.innerHTML = `
+                <div class="form-check dropdown-item">
+                    <input class="form-check-input" type="checkbox" value="${contract.aggregate}" id="contract_${contract.aggregate}" onchange="customerView.onContractCheckChange('${contract.aggregate}')">
+                    <label class="form-check-label w-100" for="contract_${contract.aggregate}">
+                        ${contract.name} <small class="text-muted">(${contract.host_count} hosts)</small>
+                    </label>
+                </div>
+            `;
+            dropdownMenu.appendChild(listItem);
         });
+
+        // Add clear all option
+        const clearItem = document.createElement('li');
+        clearItem.innerHTML = '<hr class="dropdown-divider">';
+        dropdownMenu.appendChild(clearItem);
+
+        const clearAllItem = document.createElement('li');
+        clearAllItem.innerHTML = `
+            <button class="dropdown-item text-danger" onclick="customerView.clearAllContracts()">
+                <i class="fas fa-times"></i> Clear All
+            </button>
+        `;
+        dropdownMenu.appendChild(clearAllItem);
     }
 
     /**
-     * Clear contract dropdown
+     * Handle contract checkbox change
      */
-    clearContractSelect() {
-        const contractSelect = document.getElementById('customerViewContractSelect');
-        if (contractSelect) {
-            contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+    onContractCheckChange(contractAggregate) {
+        const checkbox = document.getElementById(`contract_${contractAggregate}`);
+        if (!checkbox) return;
+
+        if (checkbox.checked) {
+            // Check if we already have 2 contracts selected
+            if (this.selectedContracts.length >= 2) {
+                checkbox.checked = false;
+                alert('You can select a maximum of 2 contracts.');
+                return;
+            }
+
+            // Add contract to selected list
+            const contract = this.availableContracts.find(c => c.aggregate === contractAggregate);
+            if (contract) {
+                this.selectedContracts.push(contract);
+                console.log(`✅ Added contract: ${contract.name}`);
+            }
+        } else {
+            // Remove contract from selected list
+            this.selectedContracts = this.selectedContracts.filter(c => c.aggregate !== contractAggregate);
+            console.log(`❌ Removed contract: ${contractAggregate}`);
         }
-        this.clearCustomerView();
+
+        // Update UI and render view
+        this.updateSelectedContractsDisplay();
+        this.renderSelectedContracts();
+    }
+
+    /**
+     * Clear all selected contracts
+     */
+    clearAllContracts() {
+        // Uncheck all checkboxes
+        this.availableContracts.forEach(contract => {
+            const checkbox = document.getElementById(`contract_${contract.aggregate}`);
+            if (checkbox) checkbox.checked = false;
+        });
+
+        // Clear selected contracts
+        this.selectedContracts = [];
+        this.updateSelectedContractsDisplay();
+        this.renderSelectedContracts();
+    }
+
+    /**
+     * Update the dropdown button text to show selected contracts
+     */
+    updateSelectedContractsDisplay() {
+        const selectedText = document.getElementById('selectedContractsText');
+        if (!selectedText) return;
+
+        if (this.selectedContracts.length === 0) {
+            selectedText.textContent = 'Select Contracts...';
+        } else if (this.selectedContracts.length === 1) {
+            selectedText.textContent = this.selectedContracts[0].name;
+        } else {
+            selectedText.textContent = `${this.selectedContracts[0].name} & ${this.selectedContracts[1].name}`;
+        }
     }
 
     /**
@@ -183,6 +234,8 @@ class CustomerView {
     async onContractChange(contractAggregate) {
         if (!contractAggregate) {
             this.clearCustomerView();
+            // Show overall statistics when no specific contract is selected
+            await this.updateOverallStatistics();
             return;
         }
 
@@ -410,13 +463,14 @@ class CustomerView {
         const contentContainer = document.getElementById('customerViewContent');
         if (!contentContainer) return;
 
-        // Check if we're in dual mode
-        if (this.isDualMode) {
-            await this.renderDualContractView();
-            return;
-        }
-
         console.log('🎨 Rendering customer view for contract:', contractData.name);
+
+        // Show single contract stats, hide dual stats
+        const singleStats = document.getElementById('singleContractStats');
+        const dualStats = document.getElementById('dualContractStats');
+        
+        if (singleStats) singleStats.style.display = 'block';
+        if (dualStats) dualStats.style.display = 'none';
 
         // Group hosts by available GPUs (total - used)
         const hostsByAvailableGpus = this.groupHostsByAvailableGpus(contractData.hosts);
@@ -666,6 +720,146 @@ class CustomerView {
     }
 
     /**
+     * Update overall statistics (all contracts + base aggregates)
+     */
+    async updateOverallStatistics() {
+        if (!this.currentGpuType) return;
+
+        console.log('📊 Loading overall statistics for all contracts and base aggregates');
+
+        try {
+            // Get base aggregate data (on-demand, runpod, spot)
+            const baseAggregateResponse = await fetch(`/api/aggregates/${this.currentGpuType}`);
+            const baseAggregateData = await baseAggregateResponse.json();
+
+            // Get all contract data
+            const contractResponse = await fetch(`/api/contract-aggregates/${this.currentGpuType}`);
+            const contractData = await contractResponse.json();
+
+            // Calculate overall statistics
+            let totalGpus = 0;
+            let usedGpus = 0;
+            let availableHosts = 0;
+            let inUseHosts = 0;
+
+            // Process base aggregate data (on-demand, runpod, spot)
+            if (baseAggregateData.ondemand && baseAggregateData.ondemand.hosts) {
+                const stats = this.calculateHostStats(baseAggregateData.ondemand.hosts);
+                totalGpus += stats.totalGpus;
+                usedGpus += stats.usedGpus;
+                availableHosts += stats.availableHosts;
+                inUseHosts += stats.inUseHosts;
+            }
+
+            if (baseAggregateData.runpod && baseAggregateData.runpod.hosts) {
+                const stats = this.calculateHostStats(baseAggregateData.runpod.hosts);
+                totalGpus += stats.totalGpus;
+                usedGpus += stats.usedGpus;
+                availableHosts += stats.availableHosts;
+                inUseHosts += stats.inUseHosts;
+            }
+
+            if (baseAggregateData.spot && baseAggregateData.spot.hosts) {
+                const stats = this.calculateHostStats(baseAggregateData.spot.hosts);
+                totalGpus += stats.totalGpus;
+                usedGpus += stats.usedGpus;
+                availableHosts += stats.availableHosts;
+                inUseHosts += stats.inUseHosts;
+            }
+
+            // Process all contract data
+            if (contractData.contracts && contractData.contracts.length > 0) {
+                contractData.contracts.forEach(contract => {
+                    if (contract.hosts && contract.hosts.length > 0) {
+                        const stats = this.calculateHostStats(contract.hosts);
+                        totalGpus += stats.totalGpus;
+                        usedGpus += stats.usedGpus;
+                        availableHosts += stats.availableHosts;
+                        inUseHosts += stats.inUseHosts;
+                    }
+                });
+            }
+
+            // Update the display with overall statistics
+            const gpuUsagePercent = totalGpus > 0 ? Math.round((usedGpus / totalGpus) * 100) : 0;
+
+            // Update single contract stats (used when not in dual mode)
+            const gpuUsageElement = document.getElementById('customerViewGpuUsage');
+            const gpuProgressBar = document.getElementById('customerViewGpuProgressBar');
+            const availableHostsElement = document.getElementById('customerViewAvailableHosts');
+            const inUseHostsElement = document.getElementById('customerViewInUseHosts');
+
+            if (gpuUsageElement) {
+                gpuUsageElement.textContent = `${usedGpus}/${totalGpus} GPUs (${gpuUsagePercent}%)`;
+            }
+            if (gpuProgressBar) {
+                gpuProgressBar.style.width = `${gpuUsagePercent}%`;
+            }
+            if (availableHostsElement) {
+                availableHostsElement.textContent = availableHosts.toString();
+            }
+            if (inUseHostsElement) {
+                inUseHostsElement.textContent = inUseHosts.toString();
+            }
+
+            // Update contract name to show "Overall"
+            const contractNameElement = document.getElementById('customerViewContractName');
+            if (contractNameElement && !this.isDualMode) {
+                contractNameElement.textContent = 'Overall';
+            }
+
+            console.log(`📊 Overall statistics: ${usedGpus}/${totalGpus} GPUs (${gpuUsagePercent}%), ${availableHosts} available, ${inUseHosts} in use`);
+            
+            // Show message in content area when in overall view
+            if (!this.isDualMode) {
+                const contentContainer = document.getElementById('customerViewContent');
+                if (contentContainer) {
+                    contentContainer.innerHTML = `
+                        <div class="customer-empty-state">
+                            <i class="fas fa-chart-bar fa-3x mb-3"></i>
+                            <h5>Overall Statistics View</h5>
+                            <p>Showing statistics for all contracts and base aggregates.</p>
+                            <p class="text-muted">Select a specific contract from the dropdown to view detailed device information.</p>
+                        </div>
+                    `;
+                }
+            }
+
+        } catch (error) {
+            console.error('❌ Error loading overall statistics:', error);
+            this.showErrorMessage();
+        }
+    }
+
+    /**
+     * Calculate statistics for a group of hosts
+     */
+    calculateHostStats(hosts) {
+        let totalGpus = 0;
+        let usedGpus = 0;
+        let availableHosts = 0;
+        let inUseHosts = 0;
+
+        hosts.forEach(host => {
+            const gpuInfo = host.gpu_info || {};
+            const hostTotalGpus = gpuInfo.gpu_capacity || 8; // Default to 8 GPUs
+            const hostUsedGpus = gpuInfo.gpu_used || 0;
+            const hasVms = (host.vm_count || 0) > 0;
+
+            totalGpus += hostTotalGpus;
+            usedGpus += hostUsedGpus;
+
+            if (hasVms) {
+                inUseHosts++;
+            } else {
+                availableHosts++;
+            }
+        });
+
+        return { totalGpus, usedGpus, availableHosts, inUseHosts };
+    }
+
+    /**
      * Group hosts by their available GPU count (total - used)
      */
     groupHostsByAvailableGpus(hosts) {
@@ -865,7 +1059,7 @@ class CustomerView {
     }
 
     /**
-     * Initialize customer view with current data and load available contracts
+     * Initialize customer view with current data (no reloading)
      */
     async initializeCustomerView() {
         const currentGpuType = window.currentGpuType;
@@ -876,18 +1070,130 @@ class CustomerView {
 
         this.currentGpuType = currentGpuType;
         
-        // Load all contracts for this GPU type
+        // Load contracts list (just the list, not full data)
         await this.loadContracts(currentGpuType);
         
-        // Try to use the current selected contract
+        // If a contract is already selected in main view, pre-select it
         const contractSelect = document.getElementById('contractColumnSelect');
         if (contractSelect && contractSelect.value) {
-            // Set the customer view dropdown to current selection
-            const customerContractSelect = document.getElementById('customerViewContractSelect');
-            if (customerContractSelect) {
-                customerContractSelect.value = contractSelect.value;
-                await this.onContractChange(contractSelect.value);
+            // Find and auto-select the current contract
+            const currentContract = this.availableContracts.find(c => c.aggregate === contractSelect.value);
+            if (currentContract) {
+                this.selectedContracts = [currentContract];
+                
+                // Check the checkbox
+                const checkbox = document.getElementById(`contract_${currentContract.aggregate}`);
+                if (checkbox) checkbox.checked = true;
+                
+                this.updateSelectedContractsDisplay();
+                this.renderSelectedContracts();
             }
+        } else {
+            // Show overall statistics when no contracts selected
+            await this.updateOverallStatistics();
+        }
+    }
+
+    /**
+     * Render the selected contracts (1 or 2 contracts)
+     */
+    async renderSelectedContracts() {
+        const contentContainer = document.getElementById('customerViewContent');
+        if (!contentContainer) return;
+
+        if (this.selectedContracts.length === 0) {
+            // Show overall view
+            await this.updateOverallStatistics();
+            return;
+        }
+
+        if (this.selectedContracts.length === 1) {
+            // Single contract view
+            await this.renderSingleContract(this.selectedContracts[0]);
+        } else {
+            // Dual contract view
+            await this.renderDualContracts();
+        }
+    }
+
+    /**
+     * Render a single contract
+     */
+    async renderSingleContract(contract) {
+        console.log('🎨 Rendering single contract view:', contract.name);
+        
+        // Update contract name
+        const contractNameElement = document.getElementById('customerViewContractName');
+        if (contractNameElement) {
+            contractNameElement.textContent = contract.name;
+        }
+
+        // Update statistics
+        this.updateContractStatistics(contract);
+
+        // Render devices in regular single-contract layout
+        await this.renderCustomerView(contract);
+    }
+
+    /**
+     * Render two contracts side-by-side
+     */
+    async renderDualContracts() {
+        console.log('🎨 Rendering dual contracts view');
+        
+        const contentContainer = document.getElementById('customerViewContent');
+        if (!contentContainer) return;
+
+        // Update contract name
+        const contractNameElement = document.getElementById('customerViewContractName');
+        if (contractNameElement) {
+            contractNameElement.textContent = `${this.selectedContracts[0].name} & ${this.selectedContracts[1].name}`;
+        }
+
+        // Create side-by-side layout
+        let dualHtml = '<div class="row">';
+        
+        // Contract 1 column
+        dualHtml += '<div class="col-md-6">';
+        dualHtml += await this.renderSingleContractColumn(this.selectedContracts[0], '1');
+        dualHtml += '</div>';
+        
+        // Contract 2 column
+        dualHtml += '<div class="col-md-6 border-start">';
+        dualHtml += await this.renderSingleContractColumn(this.selectedContracts[1], '2');
+        dualHtml += '</div>';
+        
+        dualHtml += '</div>';
+        contentContainer.innerHTML = dualHtml;
+
+        // Update dual statistics
+        this.updateDualContractsStatistics();
+        
+        console.log('✅ Dual contracts view rendered successfully');
+    }
+
+    /**
+     * Update statistics for dual contracts
+     */
+    updateDualContractsStatistics() {
+        // Show dual stats, hide single stats
+        const singleStats = document.getElementById('singleContractStats');
+        const dualStats = document.getElementById('dualContractStats');
+        
+        if (singleStats) singleStats.style.display = 'none';
+        if (dualStats) dualStats.style.display = 'block';
+
+        // Update stats for each contract
+        if (this.selectedContracts[0]) {
+            this.updateSingleContractStats(this.selectedContracts[0], '1');
+            const nameElement = document.getElementById('contract1Name');
+            if (nameElement) nameElement.textContent = this.selectedContracts[0].name;
+        }
+
+        if (this.selectedContracts[1]) {
+            this.updateSingleContractStats(this.selectedContracts[1], '2');
+            const nameElement = document.getElementById('contract2Name');
+            if (nameElement) nameElement.textContent = this.selectedContracts[1].name;
         }
     }
 
