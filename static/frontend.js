@@ -1288,10 +1288,14 @@ function renderOnDemandVariantColumns(ondemandData) {
                     this.disabled = false;
                 }, 1000);
                 
-                // Refresh the entire aggregate data (could be optimized in the future)
+                // Refresh only the on-demand aggregate data (optimized)
                 const selectedType = document.getElementById('gpuTypeSelect').value;
-                if (selectedType) {
-                    window.OpenStack?.loadAggregateData(selectedType);
+                if (selectedType && window.loadSpecificAggregateData) {
+                    window.loadSpecificAggregateData(selectedType, 'ondemand')
+                        .catch(error => {
+                            console.error('❌ Error refreshing variant column:', error);
+                            window.Frontend?.showNotification(`Error refreshing variant: ${error.message}`, 'error');
+                        });
                 }
             });
         });
