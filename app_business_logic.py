@@ -14,6 +14,8 @@ import time
 command_log = []
 _openstack_connection = None
 _tenant_cache = {}
+_tenant_cache_timestamps = {}
+TENANT_CACHE_TTL = 1800  # 30 minutes - tenant info changes less frequently
 
 # Configuration constants
 NETBOX_URL = os.getenv('NETBOX_URL')
@@ -1117,3 +1119,61 @@ def attach_firewall_to_vm(vm_id, vm_name, delay_seconds=180):
         print(f"⚠️ No CA1 firewall ID configured - firewall attachment will be skipped for {vm_name}")
     else:
         print(f"🌍 VM {vm_name} is not in Canada - firewall attachment will be skipped")
+
+# =============================================================================
+# NETBOX CACHE MANAGEMENT FUNCTIONS
+# =============================================================================
+
+def is_tenant_cache_valid(hostname):
+    """Check if tenant cache entry is still valid"""
+    global _tenant_cache_timestamps
+    
+    if hostname not in _tenant_cache_timestamps:
+        return False
+    
+    return (time.time() - _tenant_cache_timestamps[hostname]) < TENANT_CACHE_TTL
+
+def get_netbox_tenant_with_ttl(hostname, force_refresh=False):
+    """Get tenant information with TTL caching and optional force refresh"""
+    global _tenant_cache, _tenant_cache_timestamps
+    
+    # Skip cache if force refresh requested
+    if not force_refresh and hostname in _tenant_cache and is_tenant_cache_valid(hostname):
+        return _tenant_cache[hostname]
+    
+    # Cache miss, expired, or force refresh - use existing bulk function for single host
+    print(f"🔍 {'Force refreshing' if force_refresh else 'Cache miss for'} NetBox lookup: {hostname}")
+    result = get_netbox_tenants_bulk([hostname])
+    
+    # Update timestamp for this hostname
+    _tenant_cache_timestamps[hostname] = time.time()
+    
+    return result[hostname]
+
+def clear_netbox_cache(hostname=None):
+    """Clear NetBox cache for specific hostname or all hostnames"""
+    global _tenant_cache, _tenant_cache_timestamps
+    
+    if hostname:
+        # Clear specific hostname
+        cleared = []
+        if hostname in _tenant_cache:
+            del _tenant_cache[hostname]
+            cleared.append('tenant')
+        if hostname in _tenant_cache_timestamps:
+            del _tenant_cache_timestamps[hostname]
+        return cleared
+    else:
+        # Clear all cache
+        tenant_count = len(_tenant_cache)
+        _tenant_cache.clear()
+        _tenant_cache_timestamps.clear()
+        return tenant_count
+
+def get_netbox_cache_stats():
+    """Get current NetBox cache statistics"""
+    return {
+        'tenant_cache_size': len(_tenant_cache),
+        'cache_timestamps': len(_tenant_cache_timestamps),
+        'cache_ttl_seconds': TENANT_CACHE_TTL
+    }

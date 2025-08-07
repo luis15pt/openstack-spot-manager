@@ -1458,3 +1458,111 @@ power_state:
         except Exception as e:
             print(f"❌ Error fetching Hyperstack images: {e}")
             return jsonify({'success': False, 'error': str(e)})
+
+    # =============================================================================
+    # CACHE MANAGEMENT ENDPOINTS
+    # =============================================================================
+
+    @app.route('/api/refresh-all-data', methods=['POST'])
+    def refresh_all_data():
+        """Clear all caches and refresh all currently loaded data"""
+        try:
+            # Import cache functions
+            from modules.aggregate_operations import clear_host_aggregate_cache, get_host_cache_stats, discover_gpu_aggregates
+            from app_business_logic import clear_netbox_cache, get_netbox_cache_stats
+            
+            # Clear all caches and get counts
+            host_cache_count = clear_host_aggregate_cache()
+            netbox_cache_count = clear_netbox_cache()
+            
+            print("🔄 Refreshing all cached data...")
+            
+            # Force refresh of aggregate discovery to rebuild GPU aggregate mapping
+            gpu_aggregates = discover_gpu_aggregates()
+            
+            return jsonify({
+                'success': True,
+                'message': 'All caches cleared and data refreshed',
+                'cleared': {
+                    'host_aggregate_cache': host_cache_count,
+                    'netbox_cache': netbox_cache_count,
+                    'gpu_aggregates_discovered': len(gpu_aggregates)
+                },
+                'timestamp': datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            print(f"❌ Error refreshing all data: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/clear-cache', methods=['POST'])
+    def clear_all_caches():
+        """Clear all application caches without refreshing data"""
+        try:
+            # Import cache functions
+            from modules.aggregate_operations import clear_host_aggregate_cache
+            from app_business_logic import clear_netbox_cache
+            
+            # Clear all caches and get counts
+            host_cache_count = clear_host_aggregate_cache()
+            netbox_cache_count = clear_netbox_cache()
+            
+            return jsonify({
+                'success': True,
+                'message': 'All caches cleared successfully',
+                'cleared': {
+                    'host_aggregate_cache': host_cache_count,
+                    'netbox_cache': netbox_cache_count
+                }
+            })
+            
+        except Exception as e:
+            print(f"❌ Error clearing caches: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/clear-cache/<hostname>', methods=['POST'])
+    def clear_host_cache(hostname):
+        """Clear cache for specific hostname"""
+        try:
+            # Import cache functions
+            from modules.aggregate_operations import clear_host_aggregate_cache
+            from app_business_logic import clear_netbox_cache
+            
+            # Clear caches for specific hostname
+            host_cleared = clear_host_aggregate_cache(hostname)
+            netbox_cleared = clear_netbox_cache(hostname)
+            
+            all_cleared = host_cleared + netbox_cleared
+            
+            return jsonify({
+                'success': True,
+                'message': f'Cache cleared for {hostname}',
+                'hostname': hostname,
+                'cleared': all_cleared
+            })
+            
+        except Exception as e:
+            print(f"❌ Error clearing cache for {hostname}: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/cache-status')
+    def get_cache_status():
+        """Get current cache statistics"""
+        try:
+            # Import cache functions
+            from modules.aggregate_operations import get_host_cache_stats
+            from app_business_logic import get_netbox_cache_stats
+            
+            host_stats = get_host_cache_stats()
+            netbox_stats = get_netbox_cache_stats()
+            
+            return jsonify({
+                'success': True,
+                'host_aggregate_cache': host_stats,
+                'netbox_cache': netbox_stats,
+                'total_cached_hosts': host_stats['host_aggregate_cache_size'] + netbox_stats['tenant_cache_size']
+            })
+            
+        except Exception as e:
+            print(f"❌ Error getting cache status: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500

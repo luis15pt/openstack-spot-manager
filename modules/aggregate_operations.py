@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 
 import re
+import time
 from .openstack_operations import get_openstack_connection, find_aggregate_by_name
 from .utility_functions import get_gpu_count_from_hostname, get_gpu_type_from_aggregate
+
+# Cache for host-to-aggregate mappings
+_host_aggregate_cache = {}
+_host_cache_timestamps = {}
+HOST_CACHE_TTL = 3600  # 1 hour - aggregates don't change frequently
 
 def discover_gpu_aggregates():
     """Dynamically discover GPU aggregates from OpenStack with variant support and contract aggregates"""
@@ -242,3 +248,109 @@ def build_flavor_name(hostname):
     
     # Default fallback
     return f"n3-RTX-A6000x{gpu_count}"
+
+# =============================================================================
+# OPTIMIZED CACHE FUNCTIONS
+# =============================================================================
+
+def get_host_aggregate_direct(hostname):
+    """Find which aggregate a specific host belongs to without scanning all aggregates"""
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            return None
+        
+        # Early termination - stop as soon as we find the host
+        for agg in conn.compute.aggregates():
+            if hostname in (agg.hosts or []):
+                print(f"✅ Found {hostname} in aggregate: {agg.name}")
+                return agg.name
+        
+        print(f"⚠️ Host {hostname} not found in any aggregate")
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error finding aggregate for hostname {hostname}: {e}")
+        return None
+
+def get_host_aggregate_with_ttl(hostname, force_refresh=False):
+    """Get aggregate for specific host with TTL caching and optional force refresh"""
+    global _host_aggregate_cache, _host_cache_timestamps
+    
+    now = time.time()
+    
+    # Skip cache if force refresh requested
+    if not force_refresh:
+        # Check if cached and still valid
+        if (hostname in _host_aggregate_cache and 
+            hostname in _host_cache_timestamps and 
+            (now - _host_cache_timestamps[hostname]) < HOST_CACHE_TTL):
+            return _host_aggregate_cache[hostname]
+    
+    # Cache miss, expired, or force refresh - fetch fresh data
+    print(f"🔍 {'Force refreshing' if force_refresh else 'Cache miss for'} aggregate lookup: {hostname}")
+    aggregate = get_host_aggregate_direct(hostname)
+    
+    # Update cache
+    _host_aggregate_cache[hostname] = aggregate
+    _host_cache_timestamps[hostname] = now
+    
+    return aggregate
+
+def get_gpu_type_from_hostname_context_optimized(hostname, force_refresh=False):
+    """Optimized version that uses cached host-to-aggregate lookup"""
+    try:
+        aggregate_name = get_host_aggregate_with_ttl(hostname, force_refresh)
+        if not aggregate_name:
+            return None
+        
+        # Extract GPU type from aggregate name
+        import re
+        match = re.match(r'^([A-Z0-9-]+)-n3', aggregate_name)
+        if match:
+            return match.group(1)
+        
+        # Handle contract aggregates
+        if re.search(r'contract', aggregate_name, re.IGNORECASE):
+            # Look for GPU types in the aggregate name
+            for possible_gpu in ['H100-SXM5', 'H100', 'A100', 'RTX-A6000', 'L40', 'A4000']:
+                if possible_gpu in aggregate_name:
+                    return possible_gpu
+        
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error getting GPU type for hostname {hostname}: {e}")
+        return None
+
+def find_host_current_aggregate_optimized(hostname, force_refresh=False):
+    """Optimized version that uses cached lookup instead of scanning all aggregates"""
+    return get_host_aggregate_with_ttl(hostname, force_refresh)
+
+def clear_host_aggregate_cache(hostname=None):
+    """Clear cache for specific hostname or all hostnames"""
+    global _host_aggregate_cache, _host_cache_timestamps
+    
+    if hostname:
+        # Clear specific hostname
+        cleared = []
+        if hostname in _host_aggregate_cache:
+            del _host_aggregate_cache[hostname]
+            cleared.append('aggregate')
+        if hostname in _host_cache_timestamps:
+            del _host_cache_timestamps[hostname]
+        return cleared
+    else:
+        # Clear all cache
+        host_count = len(_host_aggregate_cache)
+        _host_aggregate_cache.clear()
+        _host_cache_timestamps.clear()
+        return host_count
+
+def get_host_cache_stats():
+    """Get current cache statistics"""
+    return {
+        'host_aggregate_cache_size': len(_host_aggregate_cache),
+        'cache_timestamps': len(_host_cache_timestamps),
+        'cache_ttl_seconds': HOST_CACHE_TTL
+    }
