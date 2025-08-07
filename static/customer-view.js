@@ -47,7 +47,7 @@ class CustomerView {
     async loadGpuTypes() {
         try {
             console.log('🔍 Loading GPU types for customer view');
-            const response = await fetch('/api/gpu-types');
+            const response = await window.Utils.fetchWithTimeout('/api/gpu-types', {}, 20000);
             const data = await response.json();
             
             if (data.status === 'success' && data.data) {

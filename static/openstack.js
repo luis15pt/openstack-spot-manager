@@ -162,7 +162,7 @@ function loadGpuTypes() {
     window.Logs.addToDebugLog('OpenStack', 'Loading available GPU types', 'info');
     
     console.log('🌐 Making API call to /api/gpu-types...');
-    window.Utils.fetchWithTimeout('/api/gpu-types', {}, 10000)
+    window.Utils.fetchWithTimeout('/api/gpu-types', {}, 20000)
         .then(window.Utils.checkResponse)
         .then(response => response.json())
         .then(data => {

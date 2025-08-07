@@ -2055,7 +2055,7 @@ async function initializeContractColumn() {
     
     try {
         // First get available GPU types
-        const gpuTypesResponse = await fetch('/api/gpu-types');
+        const gpuTypesResponse = await window.Utils.fetchWithTimeout('/api/gpu-types', {}, 20000);
         const gpuTypesData = await gpuTypesResponse.json();
         
         if (gpuTypesData.status === 'success' && gpuTypesData.data && gpuTypesData.data.length > 0) {
