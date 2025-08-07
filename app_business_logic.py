@@ -10,6 +10,9 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
+# Import parallel agents functionality
+from modules.parallel_agents import get_all_data_parallel, clear_parallel_cache
+
 # Global variables and configuration
 command_log = []
 _openstack_connection = None
