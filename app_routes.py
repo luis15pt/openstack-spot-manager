@@ -854,6 +854,9 @@ power_state:
             "count": 1
         }
         
+        # Build command for logging (with masked API key) - define before try block
+        masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines -H 'api_key: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"name\": \"{hostname}\", \"flavor_name\": \"{flavor_name}\", ...}}'"
+        
         try:
             # Make the API call to Hyperstack
             headers = {
@@ -865,11 +868,8 @@ power_state:
                 f"{HYPERSTACK_API_URL}/core/virtual-machines",
                 headers=headers,
                 json=payload,
-                timeout=30
+                timeout=120  # Increased timeout to 2 minutes for VM creation
             )
-            
-            # Build command for logging (with masked API key)
-            masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines -H 'api_key: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"name\": \"{hostname}\", \"flavor_name\": \"{flavor_name}\", ...}}'"
             
             if response.status_code in [200, 201]:
                 result_data = response.json()
@@ -929,7 +929,7 @@ power_state:
                 return jsonify({'error': error_msg}), response.status_code
                 
         except requests.exceptions.Timeout:
-            error_msg = f'Timeout launching VM {hostname} - request took longer than 30 seconds'
+            error_msg = f'Timeout launching VM {hostname} - request took longer than 2 minutes'
             log_command(masked_command, {
                 'success': False,
                 'stdout': '',
