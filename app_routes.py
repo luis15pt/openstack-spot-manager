@@ -1,0 +1,1456 @@
+#!/usr/bin/env python3
+
+from flask import render_template, jsonify, request
+import json
+import requests
+import time
+import threading
+
+# Import all business logic functions
+from app_business_logic import *
+
+def register_routes(app):
+    """Register all routes with the Flask app"""
+    
+    @app.route('/')
+    def index():
+        return render_template('index.html')
+
+    @app.route('/api/gpu-types')
+    def get_gpu_types():
+        """Get available GPU types from discovered aggregates"""
+        gpu_aggregates = discover_gpu_aggregates()
+        return jsonify({
+            'gpu_types': list(gpu_aggregates.keys()),
+            'aggregates': gpu_aggregates
+        })
+
+    @app.route('/api/contract-aggregates/<gpu_type>')
+    def get_contract_aggregates(gpu_type):
+        """Get contract aggregates for a specific GPU type"""
+        try:
+            gpu_aggregates = discover_gpu_aggregates()
+            
+            if gpu_type not in gpu_aggregates:
+                return jsonify({'error': f'GPU type {gpu_type} not found'}), 400
+            
+            contracts = gpu_aggregates[gpu_type].get('contracts', [])
+            
+            # Get detailed information for each contract aggregate
+            contract_details = []
+            for contract in contracts:
+                aggregate_name = contract['aggregate']
+                hosts = get_aggregate_hosts(aggregate_name)
+                
+                # Get host details with tenant information (optimized for contracts)
+                host_details = []
+                if hosts:
+                    print(f"📋 Loading data for {len(hosts)} hosts in contract {aggregate_name}")
+                    tenant_info = get_netbox_tenants_bulk(hosts)
+                    vm_counts = get_bulk_vm_counts(hosts, max_workers=20)  # Increase workers
+                    gpu_info = get_bulk_gpu_info(hosts, max_workers=20)    # Increase workers
+                    
+                    for host in hosts:
+                        host_detail = {
+                            'hostname': host,
+                            'tenant': tenant_info.get(host, {}).get('tenant', 'Unknown'),
+                            'owner_group': tenant_info.get(host, {}).get('owner_group', 'Investors'),
+                            'vm_count': vm_counts.get(host, 0),
+                            'gpu_info': gpu_info.get(host, {'gpu_used': 0, 'gpu_capacity': 8, 'gpu_usage_ratio': '0/8'})
+                        }
+                        host_details.append(host_detail)
+                
+                contract_details.append({
+                    'name': aggregate_name,
+                    'aggregate': aggregate_name,
+                    'hosts': host_details,
+                    'host_count': len(hosts)
+                })
+            
+            return jsonify({
+                'gpu_type': gpu_type,
+                'contracts': contract_details
+            })
+            
+        except Exception as e:
+            print(f"❌ Error getting contract aggregates for {gpu_type}: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/aggregates/<gpu_type>/<aggregate_type>')
+    def get_specific_aggregate_data(gpu_type, aggregate_type):
+        """Get data for a specific aggregate type (runpod, ondemand, or spot)"""
+        gpu_aggregates = discover_gpu_aggregates()
+        
+        if gpu_type not in gpu_aggregates:
+            return jsonify({'error': 'Invalid GPU type'}), 400
+        
+        if aggregate_type not in ['runpod', 'ondemand', 'spot']:
+            return jsonify({'error': 'Invalid aggregate type. Must be runpod, ondemand, or spot'}), 400
+        
+        config = gpu_aggregates[gpu_type]
+        print(f"🎯 Loading specific aggregate data: {aggregate_type} for {gpu_type}")
+        
+        all_hostnames = []
+        result_data = {}
+        
+        # Initialize variables
+        runpod_hosts = []
+        spot_hosts = []
+        ondemand_hosts = []
+        
+        # Get hosts for the specific aggregate type
+        if aggregate_type == 'runpod' and config.get('runpod'):
+            runpod_hosts = get_aggregate_hosts(config['runpod'])
+            all_hostnames.extend(runpod_hosts)
+            
+        elif aggregate_type == 'spot' and config.get('spot'):
+            spot_hosts = get_aggregate_hosts(config['spot'])
+            all_hostnames.extend(spot_hosts)
+            
+        elif aggregate_type == 'ondemand':
+            if config.get('ondemand_variants'):
+                for variant in config['ondemand_variants']:
+                    variant_hosts = get_aggregate_hosts(variant['aggregate'])
+                    ondemand_hosts.extend(variant_hosts)
+                    all_hostnames.extend(variant_hosts)
+            elif config.get('ondemand'):
+                ondemand_hosts = get_aggregate_hosts(config['ondemand'])
+                all_hostnames.extend(ondemand_hosts)
+        
+        # Get bulk data for all hosts
+        tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
+        vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
+        
+        # Get GPU info for spot and ondemand only
+        gpu_hosts = spot_hosts if aggregate_type == 'spot' else (ondemand_hosts if aggregate_type == 'ondemand' else [])
+        gpu_info_bulk = get_bulk_gpu_info(gpu_hosts) if gpu_hosts else {}
+        
+        # Helper function to calculate GPU summary statistics
+        def calculate_gpu_summary(data):
+            total_used = sum(host.get('gpu_used', 0) for host in data)
+            total_capacity = sum(host.get('gpu_capacity', 0) for host in data)
+            return {
+                'gpu_used': total_used,
+                'gpu_capacity': total_capacity,
+                'gpu_usage_ratio': f"{total_used}/{total_capacity}"
+            }
+        
+        # Helper function to process hosts with consistent data structure (same as main function)
+        def process_hosts(hosts, aggregate_type):
+            processed = []
+            for host in hosts:
+                vm_count = vm_counts_bulk.get(host, 0)
+                tenant_info = tenant_info_bulk[host]
+                
+                # Get GPU information for Spot and On-Demand only
+                if aggregate_type in ['spot', 'ondemand']:
+                    gpu_info = gpu_info_bulk.get(host, {'gpu_used': 0, 'gpu_capacity': 8, 'gpu_usage_ratio': '0/8'})
+                    host_data = {
+                        'name': host,
+                        'vm_count': vm_count,
+                        'has_vms': vm_count > 0,
+                        'tenant': tenant_info['tenant'],
+                        'owner_group': tenant_info['owner_group'],
+                        'nvlinks': tenant_info['nvlinks'],
+                        'gpu_used': gpu_info['gpu_used'],
+                        'gpu_capacity': gpu_info['gpu_capacity'],
+                        'gpu_usage_ratio': gpu_info['gpu_usage_ratio']
+                    }
+                    
+                    # Add variant info for ondemand hosts
+                    if aggregate_type == 'ondemand' and 'ondemand_host_variants' in locals():
+                        host_data['variant'] = ondemand_host_variants.get(host, '')
+                        
+                else:
+                    # RunPod hosts (no GPU info needed)
+                    host_data = {
+                        'name': host,
+                        'vm_count': vm_count,
+                        'has_vms': vm_count > 0,
+                        'tenant': tenant_info['tenant'],
+                        'owner_group': tenant_info['owner_group'],
+                        'nvlinks': tenant_info['nvlinks']
+                    }
+                
+                processed.append(host_data)
+            
+            return processed
+        
+        # Process hosts for the specific aggregate type
+        if aggregate_type == 'runpod' and config.get('runpod'):
+            processed_hosts = process_hosts(runpod_hosts, 'runpod')
+            
+            result_data = {
+                'type': 'runpod',
+                'name': config['runpod'],
+                'hosts': processed_hosts
+            }
+            
+        elif aggregate_type == 'spot' and config.get('spot'):
+            processed_hosts = process_hosts(spot_hosts, 'spot')
+            
+            result_data = {
+                'type': 'spot',
+                'name': config['spot'],
+                'hosts': processed_hosts,
+                'gpu_summary': calculate_gpu_summary(processed_hosts)
+            }
+            
+        elif aggregate_type == 'ondemand':
+            ondemand_hosts = []
+            ondemand_host_variants = {}
+            variants_info = []
+            
+            if config.get('ondemand_variants'):
+                for variant in config['ondemand_variants']:
+                    variant_hosts = get_aggregate_hosts(variant['aggregate'])
+                    ondemand_hosts.extend(variant_hosts)
+                    # Track which variant each host belongs to
+                    for host in variant_hosts:
+                        ondemand_host_variants[host] = variant['aggregate']
+                        
+                    variants_info.append({
+                        'variant': variant['variant'],
+                        'aggregate': variant['aggregate']
+                    })
+                        
+            elif config.get('ondemand'):
+                # Fallback for single on-demand aggregate
+                ondemand_hosts = get_aggregate_hosts(config['ondemand'])
+                for host in ondemand_hosts:
+                    ondemand_host_variants[host] = config['ondemand']
+                    
+                variants_info.append({
+                    'variant': config['ondemand'],
+                    'aggregate': config['ondemand']
+                })
+            
+            processed_hosts = process_hosts(ondemand_hosts, 'ondemand')
+            
+            result_data = {
+                'type': 'ondemand',
+                'name': config.get('ondemand_variants', [{}])[0].get('variant', 'On-Demand') if config.get('ondemand_variants') else config.get('ondemand', 'On-Demand'),
+                'hosts': processed_hosts,
+                'variants': variants_info,
+                'gpu_summary': calculate_gpu_summary(processed_hosts)
+            }
+        
+        else:
+            return jsonify({'error': f'No configuration found for {aggregate_type} aggregate'}), 404
+        
+        return jsonify(result_data)
+
+    @app.route('/api/aggregates/<gpu_type>')
+    def get_aggregate_data(gpu_type):
+        """Get aggregate data for a specific GPU type with three-column layout: On-Demand, Runpod, Spot"""
+        gpu_aggregates = discover_gpu_aggregates()
+        
+        if gpu_type not in gpu_aggregates:
+            return jsonify({'error': 'Invalid GPU type'}), 400
+        
+        config = gpu_aggregates[gpu_type]
+        
+        # Collect all hostnames for bulk NetBox lookup
+        all_hostnames = []
+        
+        # Get hosts for each aggregate type
+        ondemand_hosts = []
+        runpod_hosts = []
+        spot_hosts = []
+        
+        # Handle multiple on-demand variants (like A100-n3 and A100-n3-NVLink)
+        ondemand_host_variants = {}  # Track which variant each host belongs to
+        if config.get('ondemand_variants'):
+            for variant in config['ondemand_variants']:
+                variant_hosts = get_aggregate_hosts(variant['aggregate'])
+                ondemand_hosts.extend(variant_hosts)
+                all_hostnames.extend(variant_hosts)
+                # Track which variant each host belongs to
+                for host in variant_hosts:
+                    ondemand_host_variants[host] = variant['variant']
+        elif config.get('ondemand'):
+            # Fallback for single on-demand aggregate
+            ondemand_hosts = get_aggregate_hosts(config['ondemand'])
+            all_hostnames.extend(ondemand_hosts)
+            for host in ondemand_hosts:
+                ondemand_host_variants[host] = config['ondemand']
+        
+        if config.get('runpod'):
+            runpod_hosts = get_aggregate_hosts(config['runpod'])
+            all_hostnames.extend(runpod_hosts)
+        
+        if config.get('spot'):
+            spot_hosts = get_aggregate_hosts(config['spot'])
+            all_hostnames.extend(spot_hosts)
+        
+        # Bulk NetBox lookup for all hostnames
+        tenant_info_bulk = get_netbox_tenants_bulk(all_hostnames)
+        
+        # Bulk VM count lookup for all hostnames (concurrent processing)
+        vm_counts_bulk = get_bulk_vm_counts(all_hostnames)
+        
+        # Bulk GPU info lookup for spot and ondemand hosts only (concurrent processing)
+        gpu_hosts = []
+        gpu_hosts.extend(ondemand_hosts)
+        gpu_hosts.extend(spot_hosts)
+        gpu_info_bulk = get_bulk_gpu_info(gpu_hosts) if gpu_hosts else {}
+        
+        def process_hosts(hosts, aggregate_type):
+            """Helper function to process hosts with consistent data structure"""
+            processed = []
+            for host in hosts:
+                vm_count = vm_counts_bulk.get(host, 0)
+                tenant_info = tenant_info_bulk[host]
+                
+                # Get GPU information for Spot and On-Demand only
+                if aggregate_type in ['spot', 'ondemand']:
+                    gpu_info = gpu_info_bulk.get(host, {
+                        'gpu_used': 0,
+                        'gpu_capacity': 8,
+                        'vm_count': vm_count,
+                        'gpu_usage_ratio': "0/8"
+                    })
+                    host_data = {
+                        'name': host,
+                        'vm_count': vm_count,
+                        'has_vms': vm_count > 0,
+                        'tenant': tenant_info['tenant'],
+                        'owner_group': tenant_info['owner_group'],
+                        'nvlinks': tenant_info['nvlinks'],
+                        'gpu_used': gpu_info['gpu_used'],
+                        'gpu_capacity': gpu_info['gpu_capacity'],
+                        'gpu_usage_ratio': gpu_info['gpu_usage_ratio']
+                    }
+                    # Add variant information for on-demand hosts
+                    if aggregate_type == 'ondemand' and host in ondemand_host_variants:
+                        host_data['variant'] = ondemand_host_variants[host]
+                else:
+                    # For Runpod, hosts are fully utilized
+                    host_data = {
+                        'name': host,
+                        'vm_count': vm_count,
+                        'has_vms': vm_count > 0,
+                        'tenant': tenant_info['tenant'],
+                        'owner_group': tenant_info['owner_group'],
+                        'nvlinks': tenant_info['nvlinks']
+                    }
+                
+                processed.append(host_data)
+            return processed
+        
+        # Process all three aggregate types
+        processing_start = time.time()
+        print(f"🏗️ Processing {len(ondemand_hosts)} ondemand hosts...")
+        process_start = time.time()
+        ondemand_data = process_hosts(ondemand_hosts, 'ondemand')
+        print(f"✅ Ondemand processing completed in {time.time() - process_start:.2f}s")
+        
+        print(f"🏗️ Processing {len(runpod_hosts)} runpod hosts...")
+        process_start = time.time()
+        runpod_data = process_hosts(runpod_hosts, 'runpod')
+        print(f"✅ Runpod processing completed in {time.time() - process_start:.2f}s")
+        
+        print(f"🏗️ Processing {len(spot_hosts)} spot hosts...")
+        process_start = time.time()
+        spot_data = process_hosts(spot_hosts, 'spot')
+        print(f"✅ Spot processing completed in {time.time() - process_start:.2f}s")
+        
+        print(f"🏁 All host processing completed in {time.time() - processing_start:.2f}s")
+        
+        # Calculate GPU summary statistics for On-Demand and Spot only
+        def calculate_gpu_summary(data):
+            total_used = sum(host.get('gpu_used', 0) for host in data)
+            total_capacity = sum(host.get('gpu_capacity', 0) for host in data)
+            return {
+                'gpu_used': total_used,
+                'gpu_capacity': total_capacity,
+                'gpu_usage_ratio': f"{total_used}/{total_capacity}"
+            }
+        
+        ondemand_gpu_summary = calculate_gpu_summary(ondemand_data)
+        spot_gpu_summary = calculate_gpu_summary(spot_data)
+        
+        # Overall GPU summary (On-Demand + Spot)
+        total_gpu_used = ondemand_gpu_summary['gpu_used'] + spot_gpu_summary['gpu_used']
+        total_gpu_capacity = ondemand_gpu_summary['gpu_capacity'] + spot_gpu_summary['gpu_capacity']
+        gpu_usage_percentage = round((total_gpu_used / total_gpu_capacity * 100) if total_gpu_capacity > 0 else 0, 1)
+        
+        # Build on-demand name display
+        ondemand_name = config.get('ondemand', 'N/A')
+        if config.get('ondemand_variants') and len(config['ondemand_variants']) > 1:
+            variant_names = [variant['variant'] for variant in config['ondemand_variants']]
+            ondemand_name = f"{gpu_type}-n3 ({len(variant_names)} variants)"
+        elif config.get('ondemand_variants') and len(config['ondemand_variants']) == 1:
+            ondemand_name = config['ondemand_variants'][0]['variant']
+        
+        return jsonify({
+            'gpu_type': gpu_type,
+            'ondemand': {
+                'name': ondemand_name,
+                'hosts': ondemand_data,
+                'gpu_summary': ondemand_gpu_summary,
+                'variants': config.get('ondemand_variants', [])
+            },
+            'runpod': {
+                'name': config.get('runpod', 'N/A'),
+                'hosts': runpod_data
+            },
+            'spot': {
+                'name': config.get('spot', 'N/A'),
+                'hosts': spot_data,
+                'gpu_summary': spot_gpu_summary
+            },
+            'gpu_overview': {
+                'total_gpu_used': total_gpu_used,
+                'total_gpu_capacity': total_gpu_capacity,
+                'gpu_usage_ratio': f"{total_gpu_used}/{total_gpu_capacity}",
+                'gpu_usage_percentage': gpu_usage_percentage
+            }
+        })
+
+    @app.route('/api/host-vms/<hostname>')
+    def get_host_vm_details(hostname):
+        """Get detailed VM information for a host"""
+        vms = get_host_vms(hostname)
+        return jsonify({
+            'hostname': hostname,
+            'vms': vms,
+            'count': len(vms)
+        })
+
+    @app.route('/api/preview-migration', methods=['POST'])
+    def preview_migration():
+        """Preview migration commands without executing"""
+        data = request.json
+        host = data.get('host')
+        source_aggregate = data.get('source_aggregate')
+        target_aggregate = data.get('target_aggregate')
+        
+        print(f"\n👁️  PREVIEW MIGRATION: {host} from {source_aggregate} to {target_aggregate}")
+        
+        if not all([host, source_aggregate, target_aggregate]):
+            return jsonify({'error': 'Missing required parameters'}), 400
+        
+        commands = [
+            f"openstack aggregate remove host {source_aggregate} {host}",
+            f"openstack aggregate add host {target_aggregate} {host}"
+        ]
+        
+        print("📋 COMMANDS TO BE EXECUTED:")
+        for i, command in enumerate(commands, 1):
+            print(f"   {i}. {command}")
+        
+        # Log the preview (but don't execute)
+        for command in commands:
+            log_command(command, {'success': None, 'stdout': '', 'stderr': '', 'returncode': None}, 'preview')
+        
+        return jsonify({
+            'commands': commands,
+            'host': host,
+            'source': source_aggregate,
+            'target': target_aggregate
+        })
+
+    @app.route('/api/execute-migration', methods=['POST'])
+    def execute_migration():
+        """Execute the migration commands using OpenStack SDK"""
+        data = request.json
+        host = data.get('host')
+        source_aggregate = data.get('source_aggregate')
+        target_aggregate = data.get('target_aggregate')
+        
+        print(f"\n🚀 EXECUTING MIGRATION: {host} from {source_aggregate} to {target_aggregate}")
+        
+        if not all([host, target_aggregate]):
+            return jsonify({'error': 'Missing required parameters (host and target_aggregate)'}), 400
+        
+        # Find the ACTUAL current aggregate the host is in (instead of trusting source_aggregate)
+        actual_source_aggregate = find_host_current_aggregate(host)
+        if not actual_source_aggregate:
+            return jsonify({'error': f'Host {host} not found in any aggregate'}), 404
+        
+        print(f"🔍 Verified: {host} is actually in aggregate: {actual_source_aggregate}")
+        
+        # Use the actual source aggregate instead of the passed one
+        source_aggregate = actual_source_aggregate
+        
+        # Check if host has VMs and source is spot aggregate
+        if 'spot' in source_aggregate.lower():
+            vm_count = get_host_vm_count(host)
+            if vm_count > 0:
+                return jsonify({
+                    'error': f'Host {host} has {vm_count} running VMs. Cannot migrate from spot aggregate.',
+                    'vm_count': vm_count
+                }), 400
+        
+        try:
+            conn = get_openstack_connection()
+            if not conn:
+                return jsonify({'error': 'No OpenStack connection available'}), 500
+            
+            results = []
+            
+            # Remove from source aggregate
+            remove_command = f"openstack aggregate remove host {source_aggregate} {host}"
+            try:
+                source_agg = find_aggregate_by_name(conn, source_aggregate)
+                if not source_agg:
+                    return jsonify({'error': f'Source aggregate {source_aggregate} not found'}), 404
+                
+                conn.compute.remove_host_from_aggregate(source_agg, host)
+                
+                results.append({
+                    'command': remove_command,
+                    'success': True,
+                    'output': f'Successfully removed {host} from {source_aggregate}'
+                })
+                
+                # Log the successful command
+                log_command(remove_command, {
+                    'success': True,
+                    'stdout': f'Successfully removed {host} from {source_aggregate}',
+                    'stderr': '',
+                    'returncode': 0
+                }, 'executed')
+                
+            except Exception as e:
+                error_msg = f'Failed to remove {host} from {source_aggregate}: {str(e)}'
+                results.append({
+                    'command': remove_command,
+                    'success': False,
+                    'output': error_msg
+                })
+                
+                # Log the failed command
+                log_command(remove_command, {
+                    'success': False,
+                    'stdout': '',
+                    'stderr': error_msg,
+                    'returncode': 1
+                }, 'error')
+                
+                return jsonify({
+                    'error': 'Failed to remove host from source aggregate',
+                    'results': results
+                }), 500
+            
+            # Add to target aggregate
+            add_command = f"openstack aggregate add host {target_aggregate} {host}"
+            try:
+                target_agg = find_aggregate_by_name(conn, target_aggregate)
+                if not target_agg:
+                    return jsonify({'error': f'Target aggregate {target_aggregate} not found'}), 404
+                
+                conn.compute.add_host_to_aggregate(target_agg, host)
+                
+                results.append({
+                    'command': add_command,
+                    'success': True,
+                    'output': f'Successfully added {host} to {target_aggregate}'
+                })
+                
+                # Log the successful command
+                log_command(add_command, {
+                    'success': True,
+                    'stdout': f'Successfully added {host} to {target_aggregate}',
+                    'stderr': '',
+                    'returncode': 0
+                }, 'executed')
+                
+            except Exception as e:
+                error_msg = f'Failed to add {host} to {target_aggregate}: {str(e)}'
+                results.append({
+                    'command': add_command,
+                    'success': False,
+                    'output': error_msg
+                })
+                
+                # Log the failed command
+                log_command(add_command, {
+                    'success': False,
+                    'stdout': '',
+                    'stderr': error_msg,
+                    'returncode': 1
+                }, 'error')
+                
+                return jsonify({
+                    'error': 'Failed to add host to target aggregate',
+                    'results': results
+                }), 500
+            
+            return jsonify({
+                'success': True,
+                'results': results,
+                'message': f'Successfully migrated {host} from {source_aggregate} to {target_aggregate}'
+            })
+            
+        except Exception as e:
+            error_msg = f'Migration failed: {str(e)}'
+            print(f"❌ {error_msg}")
+            return jsonify({'error': error_msg}), 500
+
+    @app.route('/api/get-target-aggregate', methods=['POST'])
+    def get_target_aggregate():
+        """Determine the correct target aggregate based on source hostname and target type"""
+        data = request.json
+        hostname = data.get('hostname')
+        target_type = data.get('target_type')
+        target_variant = data.get('target_variant')
+        
+        if not hostname or not target_type:
+            return jsonify({'error': 'Missing hostname or target_type'}), 400
+        
+        # Get GPU type from hostname context
+        gpu_type = get_gpu_type_from_hostname_context(hostname)
+        if not gpu_type:
+            return jsonify({'error': f'Could not determine GPU type for hostname {hostname}'}), 404
+        
+        # Get aggregate configuration for this GPU type
+        gpu_aggregates = discover_gpu_aggregates()
+        config = gpu_aggregates.get(gpu_type)
+        if not config:
+            return jsonify({'error': f'No configuration found for GPU type {gpu_type}'}), 404
+        
+        # Determine target aggregate based on target type
+        target_aggregate = None
+        if target_type == 'spot' and config.get('spot'):
+            target_aggregate = config['spot']
+        elif target_type == 'runpod' and config.get('runpod'):
+            target_aggregate = config['runpod']
+        elif target_type == 'ondemand' and config.get('ondemand_variants'):
+            if target_variant:
+                # Use specific variant if provided
+                variant_info = next((v for v in config['ondemand_variants'] if v['aggregate'] == target_variant), None)
+                if variant_info:
+                    target_aggregate = variant_info['aggregate']
+            else:
+                # Use first available variant as fallback
+                target_aggregate = config['ondemand_variants'][0]['aggregate']
+        
+        if not target_aggregate:
+            return jsonify({'error': f'No target aggregate found for GPU type {gpu_type} and target type {target_type}'}), 404
+        
+        return jsonify({
+            'hostname': hostname,
+            'gpu_type': gpu_type,
+            'target_type': target_type,
+            'target_aggregate': target_aggregate
+        })
+
+    @app.route('/api/command-log')
+    def get_command_log():
+        """Get the command execution log"""
+        return jsonify({
+            'commands': command_log,
+            'count': len(command_log)
+        })
+
+    @app.route('/api/clear-log', methods=['POST'])
+    def clear_command_log():
+        """Clear the command execution log"""
+        global command_log
+        command_log = []
+        return jsonify({'message': 'Command log cleared'})
+
+    @app.route('/api/preview-runpod-launch', methods=['POST'])
+    def preview_runpod_launch():
+        """Preview runpod VM launch command without executing"""
+        data = request.json
+        hostname = data.get('hostname')
+        image_name = data.get('image_name')
+        image_id = data.get('image_id')
+        
+        print(f"\n👁️  PREVIEW RUNPOD LAUNCH: {hostname} with image: {image_name}")
+        
+        if not hostname:
+            return jsonify({'error': 'Missing hostname parameter'}), 400
+        
+        if not image_name:
+            return jsonify({'error': 'Missing image_name parameter. Please select an image before launching VM.'}), 400
+        
+        if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
+            return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
+        
+        # Build dynamic flavor name
+        flavor_name = build_flavor_name(hostname)
+        gpu_type = get_gpu_type_from_hostname_context(hostname)
+        
+        # Build the curl command for preview (with masked API keys)
+        masked_hyperstack_key = mask_api_key(HYPERSTACK_API_KEY)
+        masked_runpod_key = mask_api_key(RUNPOD_API_KEY)
+        
+        # Create user_data with masked API key for preview
+        user_data_preview = '"Content-Type: multipart/mixed...api_key=' + masked_runpod_key + '...power_state: reboot"'
+        
+        curl_command = f"""curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines \\
+  -H "api_key: {masked_hyperstack_key}" \\
+  -H "Content-Type: application/json" \\
+  -d '{{
+    "name": "{hostname}",
+    "environment_name": "CA1-RunPod",
+    "image_name": "{image_name}",
+    "volume_name": "",
+    "flavor_name": "{flavor_name}",
+    "assign_floating_ip": true,
+    "security_rules": [{{
+      "direction": "ingress",
+      "protocol": "tcp",
+      "ethertype": "IPv4",
+      "port_range_min": 22,
+      "port_range_max": 22,
+      "remote_ip_prefix": "0.0.0.0/0"
+    }}],
+    "key_name": "Fleio",
+    "user_data": {user_data_preview},
+    "labels": [],
+    "count": 1
+  }}'"""
+        
+        print("📋 COMMAND TO BE EXECUTED:")
+        print(f"   Launch VM '{hostname}' with flavor '{flavor_name}'")
+        
+        # Log the preview (but don't execute)
+        log_command(curl_command, {'success': None, 'stdout': '', 'stderr': '', 'returncode': None}, 'preview')
+        
+        return jsonify({
+            'command': curl_command,
+            'hostname': hostname,
+            'vm_name': hostname,
+            'flavor_name': flavor_name,
+            'gpu_type': gpu_type,
+            'api_url': HYPERSTACK_API_URL
+        })
+
+    @app.route('/api/execute-runpod-launch', methods=['POST'])
+    def execute_runpod_launch():
+        """Execute the runpod VM launch using Hyperstack API"""
+        data = request.json
+        hostname = data.get('hostname')
+        image_name = data.get('image_name')
+        image_id = data.get('image_id')
+        
+        print(f"\n🚀 EXECUTING RUNPOD LAUNCH: {hostname} with image: {image_name}")
+        
+        if not hostname:
+            return jsonify({'error': 'Missing hostname parameter'}), 400
+        
+        if not image_name:
+            return jsonify({'error': 'Missing image_name parameter. Please select an image before launching VM.'}), 400
+        
+        if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
+            return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
+        
+        # Build dynamic flavor name
+        flavor_name = build_flavor_name(hostname)
+        
+        # Build the complete user_data with actual API key
+        user_data_content = """Content-Type: multipart/mixed; boundary="==BOUNDARY=="
+MIME-Version: 1.0
+
+--==BOUNDARY==
+Content-Disposition: form-data; name="yaml-script"
+Content-Type: text/cloud-config; charset="us-ascii"
+
+#cloud-config
+# Upgrade packages
+package_update: true
+# package_upgrade: true
+packages:
+  # needed as we are using it to extract the hash ID from an API query
+  - jq
+
+write_files:
+  - path: /etc/runpod/config.json
+    owner: ubuntu:ubuntu
+    permissions: '0644'
+    content: |
+      {
+        "publicNetwork": {
+          "publicIp": "",
+          "ports": [10000, 50000]
+        }
+      }
+
+
+
+
+runcmd:
+  # Remove disk so we can use it later on in the script
+  - sudo umount /ephemeral
+  - sudo sed -i '/^ephemeral0.*\\/ephemeral/s/^/#/' /etc/fstab
+  - sudo sed -i '/^\\/dev\\/vdb.*\\/ephemeral/s/^/#/' /etc/fstab
+  - rm -f /etc/cloud/cloud.cfg.d/91_ephemeral.cfg
+
+#cloud-config
+  # Download Runpod's script
+  - sudo wget https://s.runpod.io/host-amd -O /home/ubuntu/rp
+
+  # Enable execution of the script
+  - sudo chmod +x /home/ubuntu/rp
+
+  # Execute the following as a script block to handle variables properly
+  - |
+      # Get hostname
+      HOSTNAME=$(uname -n)
+
+      # Create a machine via API command on Runpod and set its name as it was set in OpenStack
+      installCert=$(curl --request POST --header "content-type: application/json" \\
+        --url "https://api.runpod.io/graphql?api_key=""" + RUNPOD_API_KEY + """" \\
+        --data "{\\"query\\":\\"mutation Mutation{machineAdd(input:{name:\\\\\\"$HOSTNAME\\\\\\"}){\\\\nid\\\\ninstallCert}}\\",\\"variables\\":{}}")
+
+      # Clean up the output of the last line to only include the hash ID
+      installCertValue=$(echo $installCert | jq -r '.data.machineAdd.installCert')
+
+      # Install Runpod's script using the hash ID generated by the API
+      echo -e "\\nDisk\\n/dev/vdb\\nY" | sudo /home/ubuntu/rp --secret=$installCertValue --hostname=$HOSTNAME --gpu-kind=NVIDIA install
+
+      # Get the public IP and store it
+      PUBLIC_IP=$(curl https://ifconfig.me)
+
+      # Change owner of the config.json file for the next part to work
+      sudo chown ubuntu:ubuntu /etc/runpod/config.json
+
+      # Update the config.json file with the public IP
+      echo "{\\"publicNetwork\\": {\\"publicIp\\": \\"$PUBLIC_IP\\", \\"ports\\": [10000, 50000]}}" > /etc/runpod/config.json
+
+      # Output a summary of the variables set during the script
+      echo "The Hostname is $HOSTNAME, the public IP is $PUBLIC_IP, and the cert ID is $installCertValue"
+
+power_state:
+  delay: "+2"
+  mode: reboot
+  message: Rebooting now, cloud-init complete
+  timeout: 30
+
+
+--==BOUNDARY==--
+"""
+        
+        # Build the payload with selected image
+        payload = {
+            "name": hostname,
+            "environment_name": "CA1-RunPod",
+            "image_name": image_name,
+            "volume_name": "",
+            "flavor_name": flavor_name,
+            "assign_floating_ip": True,
+            "security_rules": [
+                {
+                    "direction": "ingress",
+                    "protocol": "tcp",
+                    "ethertype": "IPv4",
+                    "port_range_min": 22,
+                    "port_range_max": 22,
+                    "remote_ip_prefix": "0.0.0.0/0"
+                }
+            ],
+            "key_name": "Fleio",
+            "user_data": user_data_content,
+            "labels": [],
+            "count": 1
+        }
+        
+        try:
+            # Make the API call to Hyperstack
+            headers = {
+                'api_key': HYPERSTACK_API_KEY,
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.post(
+                f"{HYPERSTACK_API_URL}/core/virtual-machines",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            # Build command for logging (with masked API key)
+            masked_command = f"curl -X POST {HYPERSTACK_API_URL}/core/virtual-machines -H 'api_key: {mask_api_key(HYPERSTACK_API_KEY)}' -d '{{\"name\": \"{hostname}\", \"flavor_name\": \"{flavor_name}\", ...}}'"
+            
+            if response.status_code in [200, 201]:
+                result_data = response.json()
+                
+                # Extract VM ID from response
+                vm_id = None
+                if result_data.get('instances') and len(result_data['instances']) > 0:
+                    vm_id = result_data['instances'][0].get('id')
+                    print(f"🆔 Extracted VM ID: {vm_id} for VM {hostname}")
+                
+                # Log the successful command
+                log_command(masked_command, {
+                    'success': True,
+                    'stdout': f'Successfully launched VM {hostname} with flavor {flavor_name} (ID: {vm_id})',
+                    'stderr': '',
+                    'returncode': 0
+                }, 'executed')
+                
+                # Note: Storage network attachment is now handled by frontend commands
+                # attach_runpod_storage_network(hostname, delay_seconds=120)  # Disabled to prevent conflicts
+                
+                # Schedule firewall attachment after 180 seconds (Hyperstack API) - Canada hosts only
+                firewall_scheduled = False
+                if vm_id and hostname.startswith('CA1-') and HYPERSTACK_FIREWALL_CA1_ID:
+                    attach_firewall_to_vm(vm_id, hostname, delay_seconds=180)
+                    firewall_scheduled = True
+                elif vm_id and hostname.startswith('CA1-'):
+                    print(f"⚠️ No CA1 firewall ID configured - firewall attachment will be skipped for {hostname}")
+                elif vm_id:
+                    print(f"🌍 VM {hostname} is not in Canada - firewall attachment will be skipped")
+                else:
+                    print(f"⚠️ No VM ID found in response - skipping firewall attachment for {hostname}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully launched VM {hostname} on Hyperstack',
+                    'vm_name': hostname,
+                    'vm_id': vm_id,
+                    'flavor_name': flavor_name,
+                    'response': result_data,
+                    'storage_network_scheduled': False,  # Now handled by frontend commands
+                    'firewall_scheduled': firewall_scheduled
+                })
+            else:
+                error_msg = f'Failed to launch VM {hostname}: HTTP {response.status_code}'
+                if response.text:
+                    error_msg += f' - {response.text}'
+                
+                # Log the failed command
+                log_command(masked_command, {
+                    'success': False,
+                    'stdout': '',
+                    'stderr': error_msg,
+                    'returncode': response.status_code
+                }, 'error')
+                
+                return jsonify({'error': error_msg}), response.status_code
+                
+        except requests.exceptions.Timeout:
+            error_msg = f'Timeout launching VM {hostname} - request took longer than 30 seconds'
+            log_command(masked_command, {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': -1
+            }, 'timeout')
+            return jsonify({'error': error_msg}), 408
+            
+        except Exception as e:
+            error_msg = f'Launch failed for VM {hostname}: {str(e)}'
+            print(f"❌ {error_msg}")
+            
+            # Log the failed command
+            log_command(masked_command, {
+                'success': False,
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': -1
+            }, 'error')
+            
+            return jsonify({'error': error_msg}), 500
+
+    # OpenStack SDK endpoints for network operations
+    @app.route('/api/openstack/network/show', methods=['POST'])
+    def openstack_network_show():
+        """Find network by name using OpenStack SDK"""
+        try:
+            data = request.get_json()
+            network_name = data.get('network_name')
+            
+            if not network_name:
+                return jsonify({'success': False, 'error': 'Network name is required'})
+            
+            print(f"🌐 Looking up network: {network_name}")
+            
+            conn = get_openstack_connection()
+            if not conn:
+                return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+            
+            # Find the network
+            network = conn.network.find_network(network_name)
+            if not network:
+                return jsonify({'success': False, 'error': f'Network {network_name} not found'})
+            
+            print(f"✅ Found network {network_name} with ID: {network.id}")
+            return jsonify({'success': True, 'network_id': network.id})
+            
+        except Exception as e:
+            print(f"❌ Error finding network: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+
+    @app.route('/api/openstack/port/create', methods=['POST'])
+    def openstack_port_create():
+        """Create port on network using OpenStack SDK"""
+        try:
+            data = request.get_json()
+            network_name = data.get('network_name')
+            port_name = data.get('port_name')
+            
+            if not network_name or not port_name:
+                return jsonify({'success': False, 'error': 'Network name and port name are required'})
+            
+            print(f"🌐 Creating port {port_name} on network {network_name}")
+            
+            conn = get_openstack_connection()
+            if not conn:
+                return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+            
+            # Find the network
+            network = conn.network.find_network(network_name)
+            if not network:
+                return jsonify({'success': False, 'error': f'Network {network_name} not found'})
+            
+            # Create the port
+            port = conn.network.create_port(
+                network_id=network.id,
+                name=port_name
+            )
+            
+            print(f"✅ Created port {port_name} with ID: {port.id}")
+            return jsonify({'success': True, 'port_id': port.id})
+            
+        except Exception as e:
+            print(f"❌ Error creating port: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+
+    @app.route('/api/openstack/server/add-network', methods=['POST'])
+    def openstack_server_add_network():
+        """Attach network to server using OpenStack SDK (server add network approach)"""
+        try:
+            data = request.get_json()
+            server_name = data.get('server_name')
+            network_name = data.get('network_name')
+            
+            if not server_name or not network_name:
+                return jsonify({'success': False, 'error': 'Server name and network name are required'})
+            
+            print(f"🌐 Attaching network {network_name} to server {server_name}")
+            
+            conn = get_openstack_connection()
+            if not conn:
+                return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+            
+            # First get server list with all projects to find UUID - matching your example command
+            # openstack server list --all-projects --name {server_name}
+            servers = list(conn.compute.servers(all_projects=True, name=server_name))
+            
+            if not servers:
+                return jsonify({'success': False, 'error': f'Server {server_name} not found'})
+            
+            if len(servers) > 1:
+                print(f"⚠️ Multiple servers found with name {server_name}, using first one")
+            
+            server = servers[0]
+            server_uuid = server.id
+            print(f"📋 Found server {server_name} with UUID: {server_uuid}")
+            
+            # Find the network
+            network = conn.network.find_network(network_name)
+            if not network:
+                return jsonify({'success': False, 'error': f'Network {network_name} not found'})
+            
+            print(f"📋 Found network {network_name} with UUID: {network.id}")
+            
+            # Wait 10 seconds after server is found to ensure networking stack is fully initialized
+            print(f"⏳ Waiting 10 seconds for server {server_name} networking to fully initialize...")
+            time.sleep(10)
+            
+            # Attach the network to the server using server UUID with improved retry logic
+            # This is equivalent to: openstack server add network {server_uuid} {network_name}
+            max_retries = 12  # 12 attempts = 120 seconds maximum wait time
+            retry_delay = 10  # seconds between retries
+            retry_log = []
+            
+            print(f"🔄 Starting network attachment with retry loop (10s intervals, 120s timeout)")
+            
+            for attempt in range(max_retries):
+                try:
+                    conn.compute.create_server_interface(server_uuid, net_id=network.id)
+                    success_msg = f"✅ Attached network {network_name} to server {server_name} (UUID: {server_uuid})"
+                    if attempt > 0:
+                        success_msg += f" (succeeded on attempt {attempt + 1} after {attempt * retry_delay}s)"
+                    print(success_msg)
+                    break
+                except Exception as attach_error:
+                    error_str = str(attach_error).lower()
+                    elapsed_time = attempt * retry_delay
+                    
+                    # Check for various states that indicate we should retry
+                    should_retry = (
+                        "vm_state building" in error_str or
+                        "failed to attach network adapter" in error_str or
+                        "server error" in error_str or
+                        "task_state" in error_str or
+                        "instance is not ready" in error_str
+                    )
+                    
+                    if should_retry and attempt < max_retries - 1:
+                        retry_msg = f"⏳ Network attachment failed (VM not ready), retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries}, elapsed: {elapsed_time}s)"
+                        print(retry_msg)
+                        retry_log.append(f"Attempt {attempt + 1}: {str(attach_error)}")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        # Either not a retryable error, or we've exhausted retries
+                        total_elapsed = elapsed_time + retry_delay if attempt == max_retries - 1 else elapsed_time
+                        error_details = f"Failed after {attempt + 1} attempts over {total_elapsed}s: {str(attach_error)}"
+                        if retry_log:
+                            error_details = "\n".join(retry_log) + f"\nFinal error: {str(attach_error)}"
+                        
+                        # Log the failed command with detailed retry information
+                        log_command(f'openstack server add network {server_uuid} "{network_name}"', {
+                            'success': False,
+                            'stdout': '',
+                            'stderr': error_details,
+                            'returncode': 1
+                        }, 'executed')
+                        
+                        raise attach_error
+            
+            # Log the successful command with retry details if applicable
+            stdout_msg = f'Network {network_name} successfully attached to server {server_name} (UUID: {server_uuid})'
+            if retry_log:
+                stdout_msg = "\n".join(retry_log) + f"\n{stdout_msg}"
+                
+            log_command(f'openstack server add network {server_uuid} "{network_name}"', {
+                'success': True,
+                'stdout': stdout_msg,
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+            return jsonify({'success': True, 'message': f'Network {network_name} attached to server {server_name}'})
+            
+        except Exception as e:
+            error_msg = f"❌ Error attaching network: {e}"
+            print(error_msg)
+            
+            # Log the failed command (if not already logged above)
+            if 'server_uuid' in locals():
+                log_command(f'openstack server add network {server_uuid} "{network_name}"', {
+                    'success': False,
+                    'stdout': '',
+                    'stderr': error_msg,
+                    'returncode': 1
+                }, 'executed')
+            
+            return jsonify({'success': False, 'error': str(e)})
+
+    @app.route('/api/openstack/server/get-uuid', methods=['POST'])
+    def openstack_server_get_uuid():
+        """Get server UUID by name using OpenStack SDK"""
+        try:
+            data = request.get_json()
+            server_name = data.get('server_name')
+            
+            if not server_name:
+                return jsonify({'success': False, 'error': 'Server name is required'})
+            
+            print(f"🔍 Looking up UUID for server: {server_name}")
+            
+            conn = get_openstack_connection()
+            if not conn:
+                return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+            
+            # Get server list with all projects to find UUID - matching openstack server list --all-projects --name
+            servers = list(conn.compute.servers(all_projects=True, name=server_name))
+            
+            if not servers:
+                return jsonify({'success': False, 'error': f'Server {server_name} not found'})
+            
+            if len(servers) > 1:
+                print(f"⚠️ Multiple servers found with name {server_name}, using first one")
+            
+            server = servers[0]
+            server_uuid = server.id
+            print(f"✅ Found server {server_name} with UUID: {server_uuid}")
+            
+            # Log the command
+            log_command(f'openstack server list --all-projects --name "{server_name}" -c ID -f value', {
+                'success': True,
+                'stdout': f'Server UUID: {server_uuid}',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+            return jsonify({
+                'success': True, 
+                'server_uuid': server_uuid,
+                'server_name': server_name,
+                'status': server.status
+            })
+            
+        except Exception as e:
+            print(f"❌ Error getting server UUID: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+
+    @app.route('/api/openstack/server/status', methods=['POST'])
+    def openstack_server_status():
+        """Get current server status by name using OpenStack SDK"""
+        try:
+            data = request.get_json()
+            server_name = data.get('server_name')
+            
+            if not server_name:
+                return jsonify({'success': False, 'error': 'Server name is required'})
+            
+            print(f"🔍 Checking status for server: {server_name}")
+            
+            conn = get_openstack_connection()
+            if not conn:
+                return jsonify({'success': False, 'error': 'OpenStack connection failed'})
+            
+            # Get server list with all projects to find server by name
+            servers = list(conn.compute.servers(all_projects=True, name=server_name))
+            
+            if not servers:
+                return jsonify({'success': False, 'error': f'Server {server_name} not found'})
+            
+            if len(servers) > 1:
+                print(f"⚠️ Multiple servers found with name {server_name}, using first one")
+            
+            server = servers[0]
+            
+            # Get fresh server details to ensure status is current
+            server = conn.compute.get_server(server.id)
+            
+            print(f"📊 Server {server_name} status: {server.status}")
+            
+            return jsonify({
+                'success': True,
+                'server_name': server_name,
+                'server_uuid': server.id,
+                'status': server.status,
+                'power_state': getattr(server, 'power_state', None),
+                'task_state': getattr(server, 'task_state', None),
+                'vm_state': getattr(server, 'vm_state', None)
+            })
+            
+        except Exception as e:
+            print(f"❌ Error getting server status: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+
+    @app.route('/api/hyperstack/firewall/get-attachments', methods=['POST'])
+    def hyperstack_firewall_get_attachments():
+        """Get current VM attachments for a firewall"""
+        try:
+            data = request.get_json()
+            firewall_id = data.get('firewall_id', HYPERSTACK_FIREWALL_CA1_ID)
+            
+            if not firewall_id:
+                return jsonify({'success': False, 'error': 'No firewall ID configured'})
+            
+            print(f"🔍 Getting firewall attachments for firewall ID: {firewall_id}")
+            
+            # Get current attachments using existing function
+            existing_vm_ids = get_firewall_current_attachments(firewall_id)
+            
+            # Log the command
+            log_command(f'curl -X GET https://infrahub-api.nexgencloud.com/v1/core/firewalls/{firewall_id}', {
+                'success': True,
+                'stdout': f'Retrieved {len(existing_vm_ids)} VM attachments: {", ".join(map(str, existing_vm_ids))}',
+                'stderr': '',
+                'returncode': 0
+            }, 'executed')
+            
+            return jsonify({
+                'success': True,
+                'firewall_id': firewall_id,
+                'vm_ids': existing_vm_ids,
+                'count': len(existing_vm_ids)
+            })
+            
+        except Exception as e:
+            print(f"❌ Error getting firewall attachments: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+
+    @app.route('/api/hyperstack/firewall/update-attachments', methods=['POST'])
+    def hyperstack_firewall_update_attachments():
+        """Update firewall with new VM attachments"""
+        try:
+            data = request.get_json()
+            firewall_id = data.get('firewall_id', HYPERSTACK_FIREWALL_CA1_ID)
+            new_vm_id = data.get('vm_id')
+            
+            if not firewall_id:
+                return jsonify({'success': False, 'error': 'No firewall ID configured'})
+            
+            if not new_vm_id:
+                return jsonify({'success': False, 'error': 'VM ID is required'})
+            
+            print(f"🔥 Adding VM ID {new_vm_id} to firewall {firewall_id}")
+            
+            # Get current attachments
+            existing_vm_ids = get_firewall_current_attachments(firewall_id)
+            print(f"📋 Current VMs on firewall: {existing_vm_ids}")
+            
+            # Add new VM ID to the list
+            if new_vm_id not in existing_vm_ids:
+                updated_vm_ids = existing_vm_ids + [new_vm_id]
+                print(f"➕ Adding VM ID {new_vm_id} to firewall attachments")
+            else:
+                updated_vm_ids = existing_vm_ids
+                print(f"ℹ️ VM ID {new_vm_id} already attached to firewall")
+            
+            # Update firewall with all VMs (existing + new)
+            headers = {
+                'api_key': HYPERSTACK_API_KEY,
+                'Content-Type': 'application/json'
+            }
+            
+            payload = {
+                'vms': updated_vm_ids
+            }
+            
+            response = requests.post(
+                f'{HYPERSTACK_API_URL}/core/firewalls/{firewall_id}/update-attachments',
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                print(f"✅ Successfully updated firewall {firewall_id} with VM ID {new_vm_id}")
+                
+                # Log the command
+                log_command(f'curl -X POST https://infrahub-api.nexgencloud.com/v1/core/firewalls/{firewall_id}/update-attachments', {
+                    'success': True,
+                    'stdout': f'Successfully updated firewall {firewall_id} with {len(updated_vm_ids)} VMs: {", ".join(map(str, updated_vm_ids))}',
+                    'stderr': '',
+                    'returncode': 0
+                }, 'executed')
+                
+                return jsonify({
+                    'success': True,
+                    'firewall_id': firewall_id,
+                    'vm_id': new_vm_id,
+                    'total_vms': len(updated_vm_ids),
+                    'vm_list': updated_vm_ids
+                })
+            else:
+                error_msg = f'Failed to update firewall: HTTP {response.status_code}'
+                if response.text:
+                    error_msg += f' - {response.text}'
+                print(f"❌ {error_msg}")
+                return jsonify({'success': False, 'error': error_msg})
+            
+        except Exception as e:
+            print(f"❌ Error updating firewall attachments: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+
+    @app.route('/api/hyperstack/images')
+    def hyperstack_list_images():
+        """Get available images from Hyperstack API with optional filtering"""
+        try:
+            if not HYPERSTACK_API_KEY:
+                return jsonify({'success': False, 'error': 'Hyperstack API key not configured'})
+            
+            # Get optional query parameters
+            region = request.args.get('region')
+            include_public = request.args.get('include_public', 'true').lower() == 'true'
+            search = request.args.get('search')
+            page = request.args.get('page')
+            per_page = request.args.get('per_page')
+            
+            print("🖼️ Fetching available images from Hyperstack...")
+            if region:
+                print(f"  📍 Region filter: {region}")
+            if search:
+                print(f"  🔍 Search filter: {search}")
+            
+            headers = {
+                'api_key': HYPERSTACK_API_KEY,
+                'Content-Type': 'application/json'
+            }
+            
+            # Build query parameters
+            params = {}
+            if region:
+                params['region'] = region
+            if not include_public:
+                params['include_public'] = 'false'
+            if search:
+                params['search'] = search
+            if page:
+                params['page'] = page
+            if per_page:
+                params['per_page'] = per_page
+            
+            response = requests.get(
+                f'{HYPERSTACK_API_URL}/core/images',
+                headers=headers,
+                params=params,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                image_groups = data.get('images', [])
+                
+                # Flatten the nested structure for easier frontend consumption
+                formatted_images = []
+                total_count = 0
+                
+                for group in image_groups:
+                    region_name = group.get('region_name', 'Unknown')
+                    group_type = group.get('type', 'Unknown')
+                    logo = group.get('logo', '')
+                    green_status = group.get('green_status', 'UNKNOWN')
+                    
+                    # Get images from this group
+                    group_images = group.get('images', [])
+                    
+                    for image in group_images:
+                        formatted_images.append({
+                            'id': image.get('id'),
+                            'name': image.get('name'),
+                            'type': group_type,  # Use group type
+                            'version': image.get('version'),
+                            'region_name': region_name,  # Use group region
+                            'size': image.get('size'),
+                            'display_size': image.get('display_size'),
+                            'description': image.get('description', ''),
+                            'is_public': image.get('is_public', True),
+                            'created_at': image.get('created_at'),
+                            'logo': logo,
+                            'green_status': green_status,
+                            'snapshot': image.get('snapshot'),
+                            'labels': image.get('labels', [])
+                        })
+                        total_count += 1
+                
+                # Sort by region first, then type, then name for easier selection
+                formatted_images.sort(key=lambda x: (x['region_name'], x['type'], x['name']))
+                
+                print(f"✅ Retrieved {total_count} images from {len(image_groups)} groups from Hyperstack")
+                
+                # Debug: Log all unique regions found
+                unique_regions = set()
+                for group in image_groups:
+                    region_name = group.get('region_name', 'Unknown')
+                    unique_regions.add(region_name)
+                print(f"🌍 Available regions in API response: {', '.join(sorted(unique_regions))}")
+                
+                # Log the command
+                log_command('curl -X GET https://infrahub-api.nexgencloud.com/v1/core/images', {
+                    'success': True,
+                    'stdout': f'Retrieved {total_count} available images from {len(image_groups)} groups',
+                    'stderr': '',
+                    'returncode': 0
+                }, 'executed')
+                
+                return jsonify({
+                    'success': True,
+                    'images': formatted_images,
+                    'count': total_count,
+                    'groups': len(image_groups)
+                })
+            else:
+                error_msg = f'Failed to fetch images: HTTP {response.status_code}'
+                if response.text:
+                    error_msg += f' - {response.text}'
+                print(f"❌ {error_msg}")
+                return jsonify({'success': False, 'error': error_msg})
+            
+        except Exception as e:
+            print(f"❌ Error fetching Hyperstack images: {e}")
+            return jsonify({'success': False, 'error': str(e)})

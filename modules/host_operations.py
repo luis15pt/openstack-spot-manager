@@ -56,7 +56,7 @@ def get_host_gpu_info_with_debug(hostname):
             'gpu_usage_ratio': "0/8"
         }
 
-def get_bulk_gpu_info(hostnames, max_workers=10):
+def get_bulk_gpu_info(hostnames, max_workers=20):
     """Get GPU info for multiple hosts concurrently"""
     if not hostnames:
         return {}
@@ -127,7 +127,7 @@ def get_host_vm_count_with_debug(hostname):
         print(f"❌ VM count failed for {hostname} after {elapsed:.2f}s: {e}")
         return hostname, 0
 
-def get_bulk_vm_counts(hostnames, max_workers=10):
+def get_bulk_vm_counts(hostnames, max_workers=20):
     """Get VM counts for multiple hosts concurrently"""
     start_time = time.time()
     print(f"🚀 Starting bulk VM count check for {len(hostnames)} hosts with {max_workers} workers...")

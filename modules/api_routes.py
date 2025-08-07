@@ -57,8 +57,8 @@ def register_routes(app):
                 host_details = []
                 if hosts:
                     tenant_info = get_netbox_tenants_bulk(hosts)
-                    vm_counts = get_bulk_vm_counts(hosts, max_workers=5)
-                    gpu_info = get_bulk_gpu_info(hosts, max_workers=5)
+                    vm_counts = get_bulk_vm_counts(hosts, max_workers=20)
+                    gpu_info = get_bulk_gpu_info(hosts, max_workers=20)
                     
                     for host in hosts:
                         host_detail = {
