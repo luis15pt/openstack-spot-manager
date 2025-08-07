@@ -10,22 +10,52 @@ from .openstack_operations import get_openstack_connection
 # Global cache for parallel agent results
 _parallel_cache = {}
 _cache_timestamps = {}
+_cache_lock = threading.Lock()
+_active_requests = {}  # Track active requests to prevent duplicates
 PARALLEL_CACHE_TTL = 600  # 10 minutes - balance between freshness and performance
 
 def get_all_data_parallel():
     """
     Master function that runs all 4 agents in parallel and returns organized results
+    Thread-safe with locking to prevent duplicate requests
     """
-    start_time = time.time()
-    print("🚀 Starting parallel data collection from all agents...")
-    
-    # Check if we have valid cached data
     cache_key = "all_parallel_data"
+    
+    # First check cache without lock (fast path)
     if cache_key in _parallel_cache and cache_key in _cache_timestamps:
         age = time.time() - _cache_timestamps[cache_key]
         if age < PARALLEL_CACHE_TTL:
             print(f"✅ Using cached parallel data (age: {age:.1f}s)")
             return _parallel_cache[cache_key]
+    
+    # Need to acquire lock for cache miss or expired cache
+    with _cache_lock:
+        # Double-check cache after acquiring lock (another thread might have populated it)
+        if cache_key in _parallel_cache and cache_key in _cache_timestamps:
+            age = time.time() - _cache_timestamps[cache_key]
+            if age < PARALLEL_CACHE_TTL:
+                print(f"✅ Using cached parallel data (age: {age:.1f}s)")
+                return _parallel_cache[cache_key]
+        
+        # Check if another thread is already working on this request
+        if cache_key in _active_requests:
+            print("⏳ Another thread is already collecting data, waiting...")
+            # Wait for the other thread to complete (max 30 seconds)
+            for i in range(30):
+                time.sleep(1)
+                if cache_key in _parallel_cache and cache_key in _cache_timestamps:
+                    age = time.time() - _cache_timestamps[cache_key]
+                    if age < PARALLEL_CACHE_TTL:
+                        print(f"✅ Using data collected by another thread (age: {age:.1f}s)")
+                        return _parallel_cache[cache_key]
+            print("⚠️ Timeout waiting for other thread, proceeding with own request")
+        
+        # Mark this request as active
+        _active_requests[cache_key] = threading.current_thread().ident
+        
+    try:
+        start_time = time.time()
+        print("🚀 Starting parallel data collection from all agents...")
     
     # Run all agents in parallel
     with ThreadPoolExecutor(max_workers=4) as executor:
@@ -49,17 +79,22 @@ def get_all_data_parallel():
                 print(f"❌ {agent_name.title()} Agent failed: {e}")
                 results[agent_name] = {}
     
-    total_time = time.time() - start_time
-    print(f"🏁 All parallel agents completed in {total_time:.2f}s")
-    
-    # Organize the results
-    organized_data = organize_parallel_results(results)
-    
-    # Cache the results
-    _parallel_cache[cache_key] = organized_data
-    _cache_timestamps[cache_key] = time.time()
-    
-    return organized_data
+        total_time = time.time() - start_time
+        print(f"🏁 All parallel agents completed in {total_time:.2f}s")
+        
+        # Organize the results
+        organized_data = organize_parallel_results(results)
+        
+        # Cache the results
+        _parallel_cache[cache_key] = organized_data
+        _cache_timestamps[cache_key] = time.time()
+        
+        return organized_data
+        
+    finally:
+        # Clean up active request tracking
+        with _cache_lock:
+            _active_requests.pop(cache_key, None)
 
 def netbox_agent():
     """Agent 1: Get ALL NetBox device data in bulk"""
