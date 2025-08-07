@@ -1126,6 +1126,7 @@ function executeRealCommand(operation, command) {
                 console.log(`🔑 Using stored UUID for ${hostname}: ${serverUuid}`);
                 
                 // Use the actual backend endpoint that handles UUID lookup properly
+                // Backend can take up to 120s with retries, so use 140s timeout
                 window.Utils.fetchWithTimeout('/api/openstack/server/add-network', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1133,7 +1134,7 @@ function executeRealCommand(operation, command) {
                         server_name: hostname,  // Backend will do UUID lookup again for safety
                         network_name: "RunPod-Storage-Canada-1"
                     })
-                }, 30000)
+                }, 140000)
                 .then(window.Utils.checkResponse)
                 .then(response => response.json())
                 .then(data => {
