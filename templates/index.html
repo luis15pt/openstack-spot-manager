@@ -31,6 +31,25 @@
                                     <option value="">Select GPU Type...</option>
                                 </select>
                                 
+                                <!-- Cache Management Controls -->
+                                <div class="row mt-3">
+                                    <div class="col-md-8">
+                                        <div class="btn-group" role="group" aria-label="Cache management">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" id="refresh-all-btn" title="Clear all caches and refresh current data">
+                                                <i class="fas fa-sync-alt"></i> Refresh All Data
+                                            </button>
+                                            <button type="button" class="btn btn-outline-warning btn-sm" id="clear-cache-btn" title="Clear caches without refreshing data">
+                                                <i class="fas fa-trash"></i> Clear Cache
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <small class="text-muted" id="cache-status">
+                                            <i class="fas fa-database"></i> Cache: Loading...
+                                        </small>
+                                    </div>
+                                </div>
+                                
                                 <div class="d-flex justify-content-between align-items-center mt-2">
                                     <small class="form-text text-muted">
                                         <i class="fas fa-info-circle"></i> 
@@ -813,6 +832,7 @@
     <!-- Modular JavaScript files -->
     <script src="{{ url_for('static', filename='utils.js') }}"></script>
     <script src="{{ url_for('static', filename='logs.js') }}"></script>
+    <script src="{{ url_for('static', filename='cache-manager.js') }}"></script>
     <script src="{{ url_for('static', filename='hyperstack.js') }}"></script>
     <script src="{{ url_for('static', filename='openstack.js') }}"></script>
     <script src="{{ url_for('static', filename='frontend.js') }}"></script>

@@ -2360,3 +2360,109 @@ body {
         margin-bottom: 15px;
     }
 }
+
+/* =============================================================================
+   CACHE MANAGEMENT STYLES
+   ============================================================================= */
+
+/* Cache notification styles */
+.cache-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+    min-width: 300px;
+    max-width: 500px;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease-in-out;
+}
+
+.cache-notification.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.cache-notification .notification-content {
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cache-notification.success .notification-content {
+    background-color: #28a745;
+    border-left: 4px solid #1e7e34;
+}
+
+.cache-notification.error .notification-content {
+    background-color: #dc3545;
+    border-left: 4px solid #bd2130;
+}
+
+.cache-notification.warning .notification-content {
+    background-color: #ffc107;
+    color: #212529;
+    border-left: 4px solid #d39e00;
+}
+
+.cache-notification.info .notification-content {
+    background-color: #17a2b8;
+    border-left: 4px solid #117a8b;
+}
+
+.cache-notification .btn-close {
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.7;
+    font-size: 1.2em;
+    cursor: pointer;
+    margin-left: auto;
+}
+
+.cache-notification .btn-close:hover {
+    opacity: 1;
+}
+
+/* Cache status styling */
+#cache-status {
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#cache-status i {
+    opacity: 0.7;
+}
+
+/* Cache control buttons */
+.btn-group .btn-sm {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.75rem;
+}
+
+.btn-group .btn:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.btn-group .btn:last-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.btn-group .btn:not(:first-child):not(:last-child) {
+    border-radius: 0;
+}
+
+/* Loading state for cache buttons */
+.btn[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
