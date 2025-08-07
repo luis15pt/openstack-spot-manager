@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Enhanced fallback with more debugging
     setTimeout(function() {
-        console.log('\n================== 3-SECOND FALLBACK CHECK ==================');
+        console.log('\n================== 25-SECOND FALLBACK CHECK ==================');
         const select = document.getElementById('gpuTypeSelect');
         const mainContent = document.getElementById('mainContent');
         
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('SCRIPT.JS: Main Content visibility:', mainContent ? !mainContent.classList.contains('d-none') : 'N/A');
         
         if (select && select.options.length <= 1) {
-            console.warn('⚠️ SCRIPT.JS: No GPU types loaded after 3 seconds - showing fallback');
+            console.warn('⚠️ SCRIPT.JS: No GPU types loaded after 25 seconds - showing fallback');
             console.error('SCRIPT.JS: This indicates API calls failed or modules didn\'t initialize properly');
             const option = document.createElement('option');
             option.textContent = 'Loading failed - Check browser console';
@@ -257,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('  - OpenStack:', window.OpenStack ? '✅' : '❌');
         console.log('  - Frontend:', window.Frontend ? '✅' : '❌');
         console.log('========================================================\n');
-    }, 3000);
+    }, 25000);
 });
 
 // Initialize event listeners
