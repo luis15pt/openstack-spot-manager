@@ -696,74 +696,267 @@
                         <!-- System Info Tab -->
                         <div class="tab-pane fade" id="system-info" role="tabpanel">
                             <div class="row mt-3">
-                                <div class="col-12">
-                                    <div class="card">
+                                <!-- Loading Status Column -->
+                                <div class="col-md-4">
+                                    <div class="card mb-3">
                                         <div class="card-header">
-                                            <h5 class="mb-0">
-                                                <i class="fas fa-info-circle"></i> System Information
-                                            </h5>
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-microchip text-primary"></i> GPU Data Loading Status
+                                            </h6>
                                         </div>
                                         <div class="card-body">
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <div class="card">
-                                                        <div class="card-header">
-                                                            <h6 class="mb-0">
-                                                                <i class="fas fa-microchip text-primary"></i> GPU Data Loading Status
-                                                            </h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div id="gpuLoadingStatus">
-                                                                <div class="system-info-item">
-                                                                    <strong>GPU Types:</strong>
-                                                                    <span id="gpuTypesStatus">
-                                                                        <i class="fas fa-spinner fa-spin text-warning"></i> Loading...
-                                                                    </span>
-                                                                </div>
-                                                                <div class="system-info-item">
-                                                                    <strong>Parallel Data Collection:</strong>
-                                                                    <span id="parallelDataStatus">
-                                                                        <i class="fas fa-spinner fa-spin text-info"></i> In progress...
-                                                                    </span>
-                                                                </div>
-                                                                <div class="system-info-item">
-                                                                    <strong>Cache Status:</strong>
-                                                                    <span id="systemCacheStatus">
-                                                                        <i class="fas fa-database text-secondary"></i> Initializing...
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
+                                            <div id="gpuLoadingStatus">
+                                                <div class="system-info-item">
+                                                    <strong>GPU Types:</strong>
+                                                    <span id="gpuTypesStatus">
+                                                        <i class="fas fa-spinner fa-spin text-warning"></i> Loading...
+                                                    </span>
                                                 </div>
-                                                <div class="col-md-6">
-                                                    <div class="card">
-                                                        <div class="card-header">
-                                                            <h6 class="mb-0">
-                                                                <i class="fas fa-chart-line text-success"></i> System Statistics
-                                                            </h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div id="systemStats">
-                                                                <div class="system-info-item">
-                                                                    <strong>Parallel Data:</strong>
-                                                                    <span id="parallelStats">⚡ Parallel: 0 hosts, 0 aggs, 0 types</span>
-                                                                </div>
-                                                                <div class="system-info-item">
-                                                                    <strong>Cache Info:</strong>
-                                                                    <span id="cacheStats">(0 host cache, 0 netbox, 0 parallel)</span>
-                                                                </div>
-                                                                <div class="system-info-item">
-                                                                    <strong>Last Update:</strong>
-                                                                    <span id="lastUpdateTime">Never</span>
-                                                                </div>
-                                                                <div class="system-info-item">
-                                                                    <strong>Session Duration:</strong>
-                                                                    <span id="sessionDuration">0s</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
+                                                <div class="system-info-item">
+                                                    <strong>Parallel Data Collection:</strong>
+                                                    <span id="parallelDataStatus">
+                                                        <i class="fas fa-spinner fa-spin text-info"></i> In progress...
+                                                    </span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Cache Status:</strong>
+                                                    <span id="systemCacheStatus">
+                                                        <i class="fas fa-database text-secondary"></i> Initializing...
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="card mb-3">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-network-wired text-info"></i> NetBox Information
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="netboxInfo">
+                                                <div class="system-info-item">
+                                                    <strong>Connection:</strong>
+                                                    <span id="netboxConnection">
+                                                        <i class="fas fa-spinner fa-spin text-warning"></i> Checking...
+                                                    </span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Total Devices:</strong>
+                                                    <span id="netboxDevices">0</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>API Response Time:</strong>
+                                                    <span id="netboxResponseTime">N/A</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Last Sync:</strong>
+                                                    <span id="netboxLastSync">Never</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-clock text-warning"></i> Performance Metrics
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="performanceMetrics">
+                                                <div class="system-info-item">
+                                                    <strong>Session Duration:</strong>
+                                                    <span id="sessionDuration">0s</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Last Update:</strong>
+                                                    <span id="lastUpdateTime">Never</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Cache Age:</strong>
+                                                    <span id="cacheAge">N/A</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Load Time:</strong>
+                                                    <span id="totalLoadTime">N/A</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Statistics Column -->
+                                <div class="col-md-4">
+                                    <div class="card mb-3">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-chart-line text-success"></i> System Statistics
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="systemStats">
+                                                <div class="system-info-item">
+                                                    <strong>Parallel Data:</strong>
+                                                    <span id="parallelStats">⚡ Parallel: 0 hosts, 0 aggs, 0 types</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Cache Info:</strong>
+                                                    <span id="cacheStats">(0 host cache, 0 netbox, 0 parallel)</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Active GPU Type:</strong>
+                                                    <span id="activeGpuType">None selected</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Available Types:</strong>
+                                                    <span id="availableGpuTypes">0</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="card mb-3">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-server text-primary"></i> OpenStack Information
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="openstackInfo">
+                                                <div class="system-info-item">
+                                                    <strong>Connection:</strong>
+                                                    <span id="openstackConnection">
+                                                        <i class="fas fa-spinner fa-spin text-warning"></i> Checking...
+                                                    </span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Region:</strong>
+                                                    <span id="openstackRegion">N/A</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Project:</strong>
+                                                    <span id="openstackProject">N/A</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>API Version:</strong>
+                                                    <span id="openstackVersion">N/A</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-cubes text-info"></i> Hyperstack Integration
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="hyperstackInfo">
+                                                <div class="system-info-item">
+                                                    <strong>API Status:</strong>
+                                                    <span id="hyperstackStatus">Unknown</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Firewall Rules:</strong>
+                                                    <span id="hyperstackFirewall">N/A</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Available Flavors:</strong>
+                                                    <span id="hyperstackFlavors">0</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Last Response:</strong>
+                                                    <span id="hyperstackLastResponse">Never</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Detailed Breakdown Column -->
+                                <div class="col-md-4">
+                                    <div class="card mb-3">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-layer-group text-warning"></i> Aggregate Breakdown
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="aggregateBreakdown">
+                                                <div class="system-info-item">
+                                                    <strong>On-Demand:</strong>
+                                                    <span id="ondemandAggregates">0 aggregates</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Spot Instances:</strong>
+                                                    <span id="spotAggregates">0 aggregates</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>RunPod:</strong>
+                                                    <span id="runpodAggregates">0 aggregates</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Contracts:</strong>
+                                                    <span id="contractAggregates">0 aggregates</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="card mb-3">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-file-contract text-success"></i> Contract Details
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="contractDetails">
+                                                <div class="system-info-item">
+                                                    <strong>Active Contracts:</strong>
+                                                    <span id="activeContracts">0</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Contract Types:</strong>
+                                                    <span id="contractTypes">N/A</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Available Hosts:</strong>
+                                                    <span id="contractHosts">0</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Utilization:</strong>
+                                                    <span id="contractUtilization">N/A</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-database text-secondary"></i> Cache Details
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="cacheDetails">
+                                                <div class="system-info-item">
+                                                    <strong>Host Cache:</strong>
+                                                    <span id="hostCacheDetails">0 entries</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>NetBox Cache:</strong>
+                                                    <span id="netboxCacheDetails">0 entries</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Parallel Cache:</strong>
+                                                    <span id="parallelCacheDetails">0 entries</span>
+                                                </div>
+                                                <div class="system-info-item">
+                                                    <strong>Cache TTL:</strong>
+                                                    <span id="cacheTtl">10 minutes</span>
                                                 </div>
                                             </div>
                                         </div>

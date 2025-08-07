@@ -270,6 +270,13 @@ function initializeEventListeners() {
         if (selectedType) {
             window.currentGpuType = selectedType;
             console.log(`📊 Loading data for GPU type: ${selectedType}`);
+            
+            // Update System Info tab with active GPU type
+            const activeGpuType = document.getElementById('activeGpuType');
+            if (activeGpuType) {
+                activeGpuType.innerHTML = `<i class="fas fa-microchip text-primary"></i> ${selectedType}`;
+            }
+            
             window.OpenStack.loadAggregateData(selectedType);
             
             // Load contract aggregates for the contract column
@@ -1727,13 +1734,40 @@ async function loadContractAggregatesForColumn(gpuType) {
         contractSelect.disabled = true;
         if (contractName) contractName.textContent = '';
         
-        const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-        }, 30000);
+        // Try to use already loaded data first (no API calls needed!)
+        let data = null;
+        if (window.OpenStack && typeof window.OpenStack.getContractAggregatesDirectly === 'function') {
+            data = window.OpenStack.getContractAggregatesDirectly(gpuType);
+            if (data) {
+                console.log('🚀 Using already loaded data - NO API CALL NEEDED');
+                // Show instant loading state since data is already available
+                contractSelect.innerHTML = '<option value="">Using loaded data...</option>';
+                // Minimal delay just for visual feedback
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
         
-        const result = await window.Utils.checkResponse(response);
-        const data = await result.json();
+        // Fallback to cache if direct method didn't work
+        if (!data && window.OpenStack && typeof window.OpenStack.getContractAggregatesFromCache === 'function') {
+            data = window.OpenStack.getContractAggregatesFromCache(gpuType);
+            if (data) {
+                console.log('✅ Using cached contract data - no API call needed');
+                contractSelect.innerHTML = '<option value="">Loading from cache...</option>';
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+        
+        // Fall back to API call if cache is not available
+        if (!data) {
+            console.log('📡 Cache miss - making API call for contract data');
+            const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            }, 30000);
+            
+            const result = await window.Utils.checkResponse(response);
+            data = await result.json();
+        }
         
         console.log(`📊 Found ${data.contracts?.length || 0} contract aggregates for ${gpuType}`);
         
@@ -1833,13 +1867,42 @@ async function loadContractDataForColumn(contractAggregate) {
             contractHostsList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 small">Loading contract data...</p></div>';
         }
         
-        const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-        }, 30000);
+        // Try to use already loaded data first (no API calls needed!)
+        let data = null;
+        if (window.OpenStack && typeof window.OpenStack.getContractAggregatesDirectly === 'function') {
+            data = window.OpenStack.getContractAggregatesDirectly(gpuType);
+            if (data) {
+                console.log('🚀 Using already loaded data for column - NO API CALL NEEDED');
+                if (contractHostsList) {
+                    contractHostsList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 small">Using loaded data...</p></div>';
+                }
+                await new Promise(resolve => setTimeout(resolve, 25));
+            }
+        }
         
-        const result = await window.Utils.checkResponse(response);
-        const data = await result.json();
+        // Fallback to cache if direct method didn't work
+        if (!data && window.OpenStack && typeof window.OpenStack.getContractAggregatesFromCache === 'function') {
+            data = window.OpenStack.getContractAggregatesFromCache(gpuType);
+            if (data) {
+                console.log('✅ Using cached contract data for column - no API call needed');
+                if (contractHostsList) {
+                    contractHostsList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 small">Loading from cache...</p></div>';
+                }
+                await new Promise(resolve => setTimeout(resolve, 75));
+            }
+        }
+        
+        // Fall back to API call if cache is not available
+        if (!data) {
+            console.log('📡 Cache miss - making API call for contract column data');
+            const response = await window.Utils.fetchWithTimeout(`/api/contract-aggregates/${gpuType}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            }, 30000);
+            
+            const result = await window.Utils.checkResponse(response);
+            data = await result.json();
+        }
         
         // Find the selected contract
         const selectedContract = data.contracts.find(contract => contract.aggregate === contractAggregate);
