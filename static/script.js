@@ -2,10 +2,17 @@
 // Coordinates between modules and handles application initialization
 
 // Application state - store directly on window for proper module access
+console.log('📄 SCRIPT.JS: Script file loaded, setting up global state');
 window.backgroundLoadingStarted = false;
 window.currentGpuType = '';
 window.gpuDataCache = new Map(); // Cache for loaded GPU data
 window.backgroundLoadingInProgress = false;
+console.log('🎯 SCRIPT.JS: Global state initialized');
+
+// Debug: Log when each script loads
+if (!window.scriptLoadOrder) window.scriptLoadOrder = [];
+window.scriptLoadOrder.push('script.js loaded');
+console.log('📅 SCRIPT.JS: Load order so far:', window.scriptLoadOrder);
 
 // Function declarations need to be available before DOM ready
 function startBackgroundLoading(currentGpuType) {
@@ -78,23 +85,87 @@ function startBackgroundLoading(currentGpuType) {
 window.startBackgroundLoading = startBackgroundLoading;
 
 // Initialize the application
+// Add early debugging
+console.log('📄 SCRIPT.JS: About to add DOMContentLoaded listener');
+console.log('🕰 SCRIPT.JS: Current time:', new Date().toISOString());
+console.log('🌍 SCRIPT.JS: Document readyState:', document.readyState);
+console.log('🗺 SCRIPT.JS: Current URL:', window.location.href);
+
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Initializing OpenStack Spot Manager');
-    console.log('🕰 DOM loaded at:', new Date().toISOString());
+    console.log('
+================== DOM CONTENT LOADED ==================');
+    console.log('🚀 SCRIPT.JS: DOMContentLoaded event fired!');
+    console.log('🚀 SCRIPT.JS: Initializing OpenStack Spot Manager');
+    console.log('🕰 SCRIPT.JS: DOM loaded at:', new Date().toISOString());
+    console.log('🇺 SCRIPT.JS: User Agent:', navigator.userAgent);
+    console.log('======================================================\n');
     
-    // Debug: Check if modules are loaded
-    console.log('📋 Checking module availability:');
-    console.log('  - window.Utils:', typeof window.Utils, window.Utils ? '✅' : '❌');
-    console.log('  - window.Logs:', typeof window.Logs, window.Logs ? '✅' : '❌');
-    console.log('  - window.OpenStack:', typeof window.OpenStack, window.OpenStack ? '✅' : '❌');
-    console.log('  - window.Frontend:', typeof window.Frontend, window.Frontend ? '✅' : '❌');
-    console.log('  - window.Hyperstack:', typeof window.Hyperstack, window.Hyperstack ? '✅' : '❌');
+    // Enhanced module availability check
+    console.log('\n================== MODULE AVAILABILITY CHECK ==================');
+    const modules = ['Utils', 'Logs', 'OpenStack', 'Frontend', 'Hyperstack'];
+    let moduleErrors = [];
     
-    // Debug: Check critical DOM elements
-    console.log('🎯 Checking critical DOM elements:');
-    console.log('  - gpuTypeSelect:', document.getElementById('gpuTypeSelect') ? '✅' : '❌');
-    console.log('  - loadingIndicator:', document.getElementById('loadingIndicator') ? '✅' : '❌');
-    console.log('  - mainContent:', document.getElementById('mainContent') ? '✅' : '❌');
+    modules.forEach(moduleName => {
+        const moduleExists = window[moduleName];
+        const status = moduleExists ? '✅' : '❌';
+        console.log(`SCRIPT.JS: window.${moduleName}:`, typeof window[moduleName], status);
+        
+        if (!moduleExists) {
+            moduleErrors.push(moduleName);
+            console.error(`❌ CRITICAL: ${moduleName} module not loaded!`);
+        } else {
+            console.log(`✅ SCRIPT.JS: ${moduleName} module loaded successfully`);
+            // Check if module has expected functions
+            if (moduleName === 'Logs' && typeof window[moduleName].addToDebugLog !== 'function') {
+                console.error(`❌ ${moduleName} module loaded but missing addToDebugLog function`);
+            }
+            if (moduleName === 'OpenStack' && typeof window[moduleName].loadGpuTypes !== 'function') {
+                console.error(`❌ ${moduleName} module loaded but missing loadGpuTypes function`);
+            }
+        }
+    });
+    
+    if (moduleErrors.length > 0) {
+        console.error('\n⚠️ SCRIPT.JS: MODULE LOADING ERRORS:');
+        console.error('SCRIPT.JS: Missing modules:', moduleErrors.join(', '));
+        console.error('SCRIPT.JS: This will cause functionality issues!');
+    } else {
+        console.log('✅ SCRIPT.JS: All required modules loaded successfully!');
+    }
+    
+    // Enhanced DOM elements check
+    console.log('\n================== DOM ELEMENTS CHECK ==================');
+    const criticalElements = [
+        'gpuTypeSelect',
+        'loadingIndicator', 
+        'mainContent',
+        'loadingMessage',
+        'backgroundLoadingStatus'
+    ];
+    
+    let domErrors = [];
+    criticalElements.forEach(elementId => {
+        const element = document.getElementById(elementId);
+        const status = element ? '✅' : '❌';
+        console.log(`SCRIPT.JS: Element ${elementId}:`, status, element ? '(found)' : '(NOT FOUND)');
+        if (!element) {
+            domErrors.push(elementId);
+            console.error(`❌ CRITICAL: Element with ID '${elementId}' not found in DOM!`);
+        }
+    });
+    
+    if (domErrors.length > 0) {
+        console.error('\n⚠️ SCRIPT.JS: DOM ERRORS:');
+        console.error('SCRIPT.JS: Missing elements:', domErrors.join(', '));
+        console.error('SCRIPT.JS: Template may not be loading correctly!');
+        console.error('SCRIPT.JS: Document body content:', document.body.innerHTML.length > 0 ? `HAS CONTENT (${document.body.innerHTML.length} chars)` : 'EMPTY');
+        console.error('SCRIPT.JS: Document title:', document.title);
+        console.error('SCRIPT.JS: HTML structure preview:', document.body.innerHTML.substring(0, 200) + '...');
+    } else {
+        console.log('✅ SCRIPT.JS: All critical DOM elements found!');
+    }
+    
+    console.log('========================================================\n');
     
     if (!window.Logs) {
         console.error('❌ Logs module not loaded! Continuing with limited functionality...');
@@ -156,15 +227,27 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🐛 Initializing debug tab...');
     window.Logs.initializeDebugTab();
     
-    console.log('✅ Application initialization complete');
+    console.log('✅ SCRIPT.JS: Application initialization complete');
+    console.log('\n================== INITIALIZATION COMPLETE ==================');
+    console.log('SCRIPT.JS: Current window.currentGpuType:', window.currentGpuType);
+    console.log('SCRIPT.JS: GPU Data Cache size:', window.gpuDataCache.size);
+    console.log('SCRIPT.JS: Background loading started:', window.backgroundLoadingStarted);
+    console.log('========================================================\n');
     
-    // Fallback: If nothing is visible after 3 seconds, show an error message
+    // Enhanced fallback with more debugging
     setTimeout(function() {
+        console.log('\n================== 3-SECOND FALLBACK CHECK ==================');
         const select = document.getElementById('gpuTypeSelect');
         const mainContent = document.getElementById('mainContent');
         
+        console.log('SCRIPT.JS: GPU Select element:', select ? '✅' : '❌');
+        console.log('SCRIPT.JS: GPU Select options count:', select ? select.options.length : 'N/A');
+        console.log('SCRIPT.JS: Main Content element:', mainContent ? '✅' : '❌');
+        console.log('SCRIPT.JS: Main Content visibility:', mainContent ? !mainContent.classList.contains('d-none') : 'N/A');
+        
         if (select && select.options.length <= 1) {
-            console.warn('⚠️ No GPU types loaded after 3 seconds - showing fallback');
+            console.warn('⚠️ SCRIPT.JS: No GPU types loaded after 3 seconds - showing fallback');
+            console.error('SCRIPT.JS: This indicates API calls failed or modules didn\'t initialize properly');
             const option = document.createElement('option');
             option.textContent = 'Loading failed - Check browser console';
             option.disabled = true;
@@ -173,9 +256,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Make sure main content is visible
         if (mainContent && mainContent.classList.contains('d-none')) {
-            console.log('👁️ Forcing main content to be visible');
+            console.log('👁️ SCRIPT.JS: Forcing main content to be visible');
             mainContent.classList.remove('d-none');
         }
+        
+        // Log final state
+        console.log('SCRIPT.JS: Final module states:');
+        console.log('  - Logs:', window.Logs ? '✅' : '❌');
+        console.log('  - OpenStack:', window.OpenStack ? '✅' : '❌');
+        console.log('  - Frontend:', window.Frontend ? '✅' : '❌');
+        console.log('========================================================\n');
     }, 3000);
 });
 

@@ -1727,3 +1727,9 @@ window.Frontend = {
     refreshAffectedColumns,
     createHostCard
 };
+
+// Debug: Log when Frontend module is exported
+console.log('📄 FRONTEND.JS: Module loaded, Frontend object exported');
+if (!window.scriptLoadOrder) window.scriptLoadOrder = [];
+window.scriptLoadOrder.push('frontend.js loaded');
+console.log('📅 FRONTEND.JS: Load order so far:', window.scriptLoadOrder);

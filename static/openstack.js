@@ -521,6 +521,12 @@ function executeNetworkCommand(command) {
     });
 }
 
+// Debug: Log when OpenStack module is being exported
+console.log('📄 OPENSTACK.JS: Module loaded, exporting OpenStack object');
+if (!window.scriptLoadOrder) window.scriptLoadOrder = [];
+window.scriptLoadOrder.push('openstack.js loaded');
+console.log('📅 OPENSTACK.JS: Load order so far:', window.scriptLoadOrder);
+
 // Export OpenStack functions
 window.OpenStack = {
     executeHostMigration,
