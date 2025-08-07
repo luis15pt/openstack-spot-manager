@@ -56,28 +56,28 @@ def get_all_data_parallel():
     try:
         start_time = time.time()
         print("🚀 Starting parallel data collection from all agents...")
-    
-    # Run all agents in parallel
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        # Submit all agent tasks
-        futures = {
-            'netbox': executor.submit(netbox_agent),
-            'aggregates': executor.submit(aggregate_agent), 
-            'vm_counts': executor.submit(vm_count_agent),
-            'gpu_info': executor.submit(gpu_info_agent)
-        }
         
-        # Collect results as they complete
-        results = {}
-        for agent_name, future in futures.items():
-            try:
-                agent_start = time.time()
-                results[agent_name] = future.result()
-                agent_time = time.time() - agent_start
-                print(f"✅ {agent_name.title()} Agent completed in {agent_time:.2f}s")
-            except Exception as e:
-                print(f"❌ {agent_name.title()} Agent failed: {e}")
-                results[agent_name] = {}
+        # Run all agents in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            # Submit all agent tasks
+            futures = {
+                'netbox': executor.submit(netbox_agent),
+                'aggregates': executor.submit(aggregate_agent), 
+                'vm_counts': executor.submit(vm_count_agent),
+                'gpu_info': executor.submit(gpu_info_agent)
+            }
+            
+            # Collect results as they complete
+            results = {}
+            for agent_name, future in futures.items():
+                try:
+                    agent_start = time.time()
+                    results[agent_name] = future.result()
+                    agent_time = time.time() - agent_start
+                    print(f"✅ {agent_name.title()} Agent completed in {agent_time:.2f}s")
+                except Exception as e:
+                    print(f"❌ {agent_name.title()} Agent failed: {e}")
+                    results[agent_name] = {}
     
         total_time = time.time() - start_time
         print(f"🏁 All parallel agents completed in {total_time:.2f}s")
