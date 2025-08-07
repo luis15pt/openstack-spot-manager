@@ -129,15 +129,17 @@ window.CacheManager = (function() {
                     cacheStatusEl.title = tooltip;
                     
                     // Update System Info tab with cache statistics
-                    updateSystemInfoFromCache({
-                        totalHosts,
-                        totalAggregates, 
-                        totalGpuTypes,
-                        hostCache,
-                        netboxCache,
-                        parallelCache,
-                        cacheMethod
-                    });
+                    if (window.SystemInfo && typeof window.SystemInfo.updateSystemInfoFromCache === 'function') {
+                        window.SystemInfo.updateSystemInfoFromCache({
+                            totalHosts,
+                            totalAggregates, 
+                            totalGpuTypes,
+                            hostCache,
+                            netboxCache,
+                            parallelCache,
+                            cacheMethod
+                        });
+                    }
                 }
             }
         } catch (error) {
@@ -306,64 +308,6 @@ window.CacheManager = (function() {
         console.log('✅ Cache Manager initialized');
     }
 
-    // Update System Info tab with comprehensive cache statistics
-    function updateSystemInfoFromCache(cacheData) {
-        // Update basic cache stats
-        const cacheStats = document.getElementById('cacheStats');
-        if (cacheStats) {
-            cacheStats.textContent = `(${cacheData.hostCache} host cache, ${cacheData.netboxCache} netbox${cacheData.parallelCache > 0 ? `, ${cacheData.parallelCache} parallel` : ''})`;
-        }
-        
-        // Update parallel stats with host count
-        const parallelStats = document.getElementById('parallelStats');
-        if (parallelStats && cacheData.cacheMethod === 'parallel_agents') {
-            parallelStats.textContent = `⚡ Parallel: ${cacheData.totalHosts} hosts, ${cacheData.totalAggregates} aggs, ${cacheData.totalGpuTypes} types`;
-        }
-        
-        // Update detailed cache information
-        const hostCacheDetails = document.getElementById('hostCacheDetails');
-        const netboxCacheDetails = document.getElementById('netboxCacheDetails');
-        const parallelCacheDetails = document.getElementById('parallelCacheDetails');
-        const netboxDevices = document.getElementById('netboxDevices');
-        const cacheAge = document.getElementById('cacheAge');
-        
-        if (hostCacheDetails) {
-            hostCacheDetails.textContent = `${cacheData.hostCache} entries`;
-        }
-        if (netboxCacheDetails) {
-            netboxCacheDetails.textContent = `${cacheData.netboxCache} entries`;
-        }
-        if (parallelCacheDetails) {
-            parallelCacheDetails.textContent = `${cacheData.parallelCache} entries`;
-        }
-        if (netboxDevices && cacheData.netboxCache > 0) {
-            netboxDevices.textContent = cacheData.netboxCache;
-        }
-        
-        // Update NetBox connection status
-        const netboxConnection = document.getElementById('netboxConnection');
-        const netboxLastSync = document.getElementById('netboxLastSync');
-        if (netboxConnection && cacheData.netboxCache > 0) {
-            netboxConnection.innerHTML = `<i class="fas fa-check-circle text-success"></i> Connected`;
-        }
-        if (netboxLastSync) {
-            netboxLastSync.textContent = new Date().toLocaleTimeString();
-        }
-        
-        // Update cache age information
-        if (cacheAge) {
-            const now = new Date();
-            cacheAge.textContent = '< 1 minute'; // Since we just updated
-        }
-        
-        // Update performance metrics
-        const netboxResponseTime = document.getElementById('netboxResponseTime');
-        if (netboxResponseTime && cacheData.netboxCache > 0) {
-            // Estimate response time based on cache size (rough approximation)
-            const estimatedTime = Math.max(100, Math.min(2000, cacheData.netboxCache * 2));
-            netboxResponseTime.textContent = `~${estimatedTime}ms`;
-        }
-    }
 
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
