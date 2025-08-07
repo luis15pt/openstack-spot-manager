@@ -80,26 +80,53 @@ window.startBackgroundLoading = startBackgroundLoading;
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Initializing OpenStack Spot Manager');
+    console.log('🕰 DOM loaded at:', new Date().toISOString());
     
     // Debug: Check if modules are loaded
     console.log('📋 Checking module availability:');
-    console.log('  - window.Utils:', typeof window.Utils);
-    console.log('  - window.Logs:', typeof window.Logs);
-    console.log('  - window.OpenStack:', typeof window.OpenStack);
-    console.log('  - window.Frontend:', typeof window.Frontend);
-    console.log('  - window.Hyperstack:', typeof window.Hyperstack);
+    console.log('  - window.Utils:', typeof window.Utils, window.Utils ? '✅' : '❌');
+    console.log('  - window.Logs:', typeof window.Logs, window.Logs ? '✅' : '❌');
+    console.log('  - window.OpenStack:', typeof window.OpenStack, window.OpenStack ? '✅' : '❌');
+    console.log('  - window.Frontend:', typeof window.Frontend, window.Frontend ? '✅' : '❌');
+    console.log('  - window.Hyperstack:', typeof window.Hyperstack, window.Hyperstack ? '✅' : '❌');
+    
+    // Debug: Check critical DOM elements
+    console.log('🎯 Checking critical DOM elements:');
+    console.log('  - gpuTypeSelect:', document.getElementById('gpuTypeSelect') ? '✅' : '❌');
+    console.log('  - loadingIndicator:', document.getElementById('loadingIndicator') ? '✅' : '❌');
+    console.log('  - mainContent:', document.getElementById('mainContent') ? '✅' : '❌');
     
     if (!window.Logs) {
-        console.error('❌ Logs module not loaded!');
-        return;
+        console.error('❌ Logs module not loaded! Continuing with limited functionality...');
+        // Create a dummy Logs object to prevent errors
+        window.Logs = {
+            addToDebugLog: function(module, message, level) {
+                console.log(`[${module}] ${level.toUpperCase()}: ${message}`);
+            },
+            initializeDebugTab: function() {
+                console.log('Debug tab initialization skipped - Logs module not available');
+            }
+        };
     }
     
     window.Logs.addToDebugLog('System', 'Application starting up', 'info');
     
     if (!window.OpenStack) {
-        console.error('❌ OpenStack module not loaded!');
-        window.Logs.addToDebugLog('System', 'OpenStack module not loaded', 'error');
-        return;
+        console.error('❌ OpenStack module not loaded! Creating fallback...');
+        window.Logs.addToDebugLog('System', 'OpenStack module not loaded - using fallback', 'error');
+        // Create a minimal fallback to prevent complete failure
+        window.OpenStack = {
+            loadGpuTypes: function() {
+                console.error('OpenStack module not loaded - cannot load GPU types');
+                const select = document.getElementById('gpuTypeSelect');
+                if (select) {
+                    const option = document.createElement('option');
+                    option.textContent = 'Error: OpenStack module not loaded';
+                    option.disabled = true;
+                    select.appendChild(option);
+                }
+            }
+        };
     }
     
     console.log('🔧 Initializing event listeners...');
@@ -130,6 +157,26 @@ document.addEventListener('DOMContentLoaded', function() {
     window.Logs.initializeDebugTab();
     
     console.log('✅ Application initialization complete');
+    
+    // Fallback: If nothing is visible after 3 seconds, show an error message
+    setTimeout(function() {
+        const select = document.getElementById('gpuTypeSelect');
+        const mainContent = document.getElementById('mainContent');
+        
+        if (select && select.options.length <= 1) {
+            console.warn('⚠️ No GPU types loaded after 3 seconds - showing fallback');
+            const option = document.createElement('option');
+            option.textContent = 'Loading failed - Check browser console';
+            option.disabled = true;
+            select.appendChild(option);
+        }
+        
+        // Make sure main content is visible
+        if (mainContent && mainContent.classList.contains('d-none')) {
+            console.log('👁️ Forcing main content to be visible');
+            mainContent.classList.remove('d-none');
+        }
+    }, 3000);
 });
 
 // Initialize event listeners
