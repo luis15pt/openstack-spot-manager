@@ -84,20 +84,49 @@ window.CacheManager = (function() {
                     const netboxCache = status.netbox_cache?.tenant_cache_size || 0;
                     const parallelCache = status.parallel_cache?.cached_datasets || 0;
                     const cacheMethod = status.cache_method || 'individual';
+                    const detailedStats = status.detailed_stats || {};
                     
                     let cacheIcon = cacheMethod === 'parallel_agents' ? 'fa-rocket' : 'fa-database';
                     let methodBadge = cacheMethod === 'parallel_agents' ? '⚡ Parallel' : 'Individual';
                     
+                    // Build comprehensive display
+                    const totalAggregates = detailedStats.total_aggregates || 0;
+                    const totalGpuTypes = detailedStats.total_gpu_types || 0;
+                    
                     cacheStatusEl.innerHTML = `
                         <i class="fas ${cacheIcon}"></i> 
-                        ${methodBadge}: ${totalHosts} hosts (${hostCache} agg, ${netboxCache} tenant${parallelCache > 0 ? `, ${parallelCache} parallel` : ''})
+                        ${methodBadge}: ${totalHosts} hosts, ${totalAggregates} aggs, ${totalGpuTypes} types
+                        <span class="cache-breakdown">(${hostCache} host cache, ${netboxCache} netbox${parallelCache > 0 ? `, ${parallelCache} parallel` : ''})</span>
                     `;
                     
-                    let tooltip = `Host Aggregate Cache: ${hostCache} entries\nNetBox Tenant Cache: ${netboxCache} entries`;
+                    // Enhanced tooltip with detailed breakdown
+                    let tooltip = `Comprehensive Cache Statistics:\n`;
+                    tooltip += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+                    tooltip += `🏠 Total Hosts: ${totalHosts}\n`;
+                    tooltip += `🏗️ Total Aggregates: ${totalAggregates}\n`;
+                    tooltip += `🎮 GPU Types: ${totalGpuTypes}\n`;
+                    tooltip += `\n📊 Cache Details:\n`;
+                    tooltip += `• Host-Aggregate Cache: ${hostCache} entries\n`;
+                    tooltip += `• NetBox Tenant Cache: ${netboxCache} entries\n`;
+                    
                     if (parallelCache > 0) {
-                        tooltip += `\nParallel Agents Cache: ${parallelCache} datasets`;
-                        tooltip += `\nMethod: 4 agents running in parallel`;
+                        tooltip += `• Parallel Agents Cache: ${parallelCache} datasets\n`;
+                        tooltip += `\n🚀 Parallel Method: 4 concurrent agents\n`;
+                        tooltip += `  - NetBox Agent: All device data\n`;
+                        tooltip += `  - Aggregate Agent: Host mappings\n`;
+                        tooltip += `  - VM Count Agent: Instance counts\n`;
+                        tooltip += `  - GPU Info Agent: Usage statistics\n`;
                     }
+                    
+                    if (detailedStats.aggregate_breakdown) {
+                        const breakdown = detailedStats.aggregate_breakdown;
+                        tooltip += `\n🏗️ Aggregate Breakdown:\n`;
+                        tooltip += `• On-Demand: ${breakdown.ondemand || 0}\n`;
+                        tooltip += `• Spot: ${breakdown.spot || 0}\n`;
+                        tooltip += `• RunPod: ${breakdown.runpod || 0}\n`;
+                        tooltip += `• Contracts: ${breakdown.contracts || 0}`;
+                    }
+                    
                     cacheStatusEl.title = tooltip;
                 }
             }

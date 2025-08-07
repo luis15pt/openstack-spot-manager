@@ -1572,7 +1572,7 @@ power_state:
         """Get current cache statistics including parallel agents cache"""
         try:
             # Import cache functions
-            from modules.aggregate_operations import get_host_cache_stats
+            from modules.aggregate_operations import get_host_cache_stats, discover_gpu_aggregates
             from app_business_logic import get_netbox_cache_stats
             from modules.parallel_agents import get_parallel_cache_stats
             
@@ -1580,11 +1580,49 @@ power_state:
             netbox_stats = get_netbox_cache_stats()
             parallel_stats = get_parallel_cache_stats()
             
+            # Get additional detailed stats
+            detailed_stats = {}
+            try:
+                # Get total number of aggregates
+                gpu_aggregates = discover_gpu_aggregates()
+                total_aggregates = 0
+                total_gpu_types = len(gpu_aggregates)
+                
+                for gpu_type, config in gpu_aggregates.items():
+                    # Count all aggregate types for this GPU
+                    if config.get('ondemand_variants'):
+                        total_aggregates += len(config['ondemand_variants'])
+                    if config.get('spot'):
+                        total_aggregates += 1
+                    if config.get('runpod'):
+                        total_aggregates += 1
+                    if config.get('contracts'):
+                        total_aggregates += len(config['contracts'])
+                
+                detailed_stats = {
+                    'total_aggregates': total_aggregates,
+                    'total_gpu_types': total_gpu_types,
+                    'aggregate_breakdown': {
+                        'ondemand': sum(len(config.get('ondemand_variants', [])) for config in gpu_aggregates.values()),
+                        'spot': sum(1 for config in gpu_aggregates.values() if config.get('spot')),
+                        'runpod': sum(1 for config in gpu_aggregates.values() if config.get('runpod')),
+                        'contracts': sum(len(config.get('contracts', [])) for config in gpu_aggregates.values())
+                    }
+                }
+            except Exception as e:
+                print(f"⚠️ Could not get detailed aggregate stats: {e}")
+                detailed_stats = {
+                    'total_aggregates': 0,
+                    'total_gpu_types': 0,
+                    'aggregate_breakdown': {'ondemand': 0, 'spot': 0, 'runpod': 0, 'contracts': 0}
+                }
+            
             return jsonify({
                 'success': True,
                 'host_aggregate_cache': host_stats,
                 'netbox_cache': netbox_stats,
                 'parallel_cache': parallel_stats,
+                'detailed_stats': detailed_stats,
                 'total_cached_hosts': host_stats['host_aggregate_cache_size'] + netbox_stats['tenant_cache_size'],
                 'cache_method': 'parallel_agents' if parallel_stats['cached_datasets'] > 0 else 'individual'
             })

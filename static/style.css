@@ -2435,10 +2435,17 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
+    line-height: 1.2;
 }
 
 #cache-status i {
     opacity: 0.7;
+}
+
+#cache-status .cache-breakdown {
+    color: #6c757d;
+    font-size: 0.75rem;
+    margin-left: 4px;
 }
 
 /* Cache control buttons */
