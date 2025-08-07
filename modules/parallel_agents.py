@@ -289,8 +289,10 @@ def organize_parallel_results(results):
     host_to_aggregate = aggregate_data.get('host_to_aggregate', {})
     aggregate_to_hosts = aggregate_data.get('aggregate_to_hosts', {})
     
-    # Classify aggregates by GPU type using existing logic
-    gpu_aggregates = classify_aggregates_by_gpu_type(aggregate_data.get('aggregates', {}))
+    # Classify aggregates by GPU type using the aggregate data we already collected
+    aggregates_dict = aggregate_data.get('aggregates', {})
+    print(f"📊 Organizing {len(aggregates_dict)} aggregates by GPU type...")
+    gpu_aggregates = classify_aggregates_by_gpu_type(aggregates_dict)
     
     # Build final organized structure
     organized = {}

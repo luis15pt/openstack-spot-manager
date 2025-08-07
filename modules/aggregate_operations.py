@@ -10,8 +10,27 @@ _host_aggregate_cache = {}
 _host_cache_timestamps = {}
 HOST_CACHE_TTL = 3600  # 1 hour - aggregates don't change frequently
 
-def discover_gpu_aggregates():
-    """Dynamically discover GPU aggregates from OpenStack with variant support and contract aggregates"""
+# Cache for GPU aggregate discovery - this is the critical optimization
+_gpu_aggregates_cache = None
+_gpu_aggregates_cache_timestamp = 0
+GPU_AGGREGATES_CACHE_TTL = 1800  # 30 minutes - aggressive caching for performance
+
+def discover_gpu_aggregates(force_refresh=False):
+    """Dynamically discover GPU aggregates from OpenStack with variant support and contract aggregates - CACHED VERSION"""
+    global _gpu_aggregates_cache, _gpu_aggregates_cache_timestamp
+    
+    now = time.time()
+    
+    # Check cache first unless force refresh is requested
+    if not force_refresh and _gpu_aggregates_cache is not None:
+        cache_age = now - _gpu_aggregates_cache_timestamp
+        if cache_age < GPU_AGGREGATES_CACHE_TTL:
+            print(f"✅ Using cached GPU aggregates (age: {cache_age:.1f}s)")
+            return _gpu_aggregates_cache
+    
+    print(f"🔍 {'Force refreshing' if force_refresh else 'Cache miss - fetching'} GPU aggregates from OpenStack...")
+    start_time = time.time()
+    
     try:
         conn = get_openstack_connection()
         if not conn:
@@ -118,6 +137,13 @@ def discover_gpu_aggregates():
                 }
             
             print(f"📊 Discovered GPU aggregates: {result}")
+        
+        # Cache the results
+        _gpu_aggregates_cache = result
+        _gpu_aggregates_cache_timestamp = now
+        
+        fetch_time = time.time() - start_time
+        print(f"⚡ GPU aggregates cached in {fetch_time:.2f}s - will be valid for {GPU_AGGREGATES_CACHE_TTL/60:.1f} minutes")
         
         return result
         
@@ -353,4 +379,21 @@ def get_host_cache_stats():
         'host_aggregate_cache_size': len(_host_aggregate_cache),
         'cache_timestamps': len(_host_cache_timestamps),
         'cache_ttl_seconds': HOST_CACHE_TTL
+    }
+
+def clear_gpu_aggregates_cache():
+    """Clear the GPU aggregates cache to force refresh on next call"""
+    global _gpu_aggregates_cache, _gpu_aggregates_cache_timestamp
+    _gpu_aggregates_cache = None
+    _gpu_aggregates_cache_timestamp = 0
+    return True
+
+def get_gpu_aggregates_cache_stats():
+    """Get GPU aggregates cache statistics"""
+    cache_age = time.time() - _gpu_aggregates_cache_timestamp if _gpu_aggregates_cache_timestamp > 0 else 0
+    return {
+        'gpu_aggregates_cached': _gpu_aggregates_cache is not None,
+        'cache_age_seconds': cache_age,
+        'cache_ttl_seconds': GPU_AGGREGATES_CACHE_TTL,
+        'cache_valid': _gpu_aggregates_cache is not None and cache_age < GPU_AGGREGATES_CACHE_TTL
     }

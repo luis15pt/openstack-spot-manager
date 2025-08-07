@@ -290,8 +290,8 @@ window.CacheManager = (function() {
         // Update cache status on page load
         updateCacheStatus();
 
-        // Update cache status periodically (every 30 seconds)
-        setInterval(updateCacheStatus, 30000);
+        // Update cache status periodically (every 60 seconds) - optimized for performance
+        setInterval(updateCacheStatus, 60000);
 
         console.log('✅ Cache Manager initialized');
     }

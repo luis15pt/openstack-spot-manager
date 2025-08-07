@@ -12,6 +12,24 @@ from app_business_logic import *
 def register_routes(app):
     """Register all routes with the Flask app"""
     
+    def get_parallel_gpu_types():
+        """Get GPU types from parallel agents data instead of discover_gpu_aggregates()"""
+        try:
+            parallel_data = get_all_data_parallel()
+            return list(parallel_data.keys())
+        except Exception as e:
+            print(f"❌ Error getting GPU types from parallel data: {e}")
+            return []
+    
+    def get_parallel_gpu_config(gpu_type):
+        """Get GPU configuration from parallel agents data"""
+        try:
+            parallel_data = get_all_data_parallel()
+            return parallel_data.get(gpu_type, {}).get('config')
+        except Exception as e:
+            print(f"❌ Error getting GPU config for {gpu_type}: {e}")
+            return None
+    
     @app.route('/')
     def index():
         return render_template('index.html')
@@ -22,53 +40,56 @@ def register_routes(app):
 
     @app.route('/api/gpu-types')
     def get_gpu_types():
-        """Get available GPU types from discovered aggregates"""
-        gpu_aggregates = discover_gpu_aggregates()
-        return jsonify({
-            'gpu_types': list(gpu_aggregates.keys()),
-            'aggregates': gpu_aggregates
-        })
+        """Get available GPU types from parallel agents data - OPTIMIZED"""
+        try:
+            parallel_data = get_all_data_parallel()
+            gpu_types = list(parallel_data.keys())
+            
+            # Build aggregates info from parallel data
+            aggregates_info = {}
+            for gpu_type, data in parallel_data.items():
+                aggregates_info[gpu_type] = data.get('config', {})
+            
+            return jsonify({
+                'gpu_types': gpu_types,
+                'aggregates': aggregates_info
+            })
+        except Exception as e:
+            print(f"❌ Error getting GPU types: {e}")
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/contract-aggregates/<gpu_type>')
     def get_contract_aggregates(gpu_type):
-        """Get contract aggregates for a specific GPU type"""
+        """Get contract aggregates for a specific GPU type - OPTIMIZED"""
         try:
-            gpu_aggregates = discover_gpu_aggregates()
+            parallel_data = get_all_data_parallel()
             
-            if gpu_type not in gpu_aggregates:
+            if gpu_type not in parallel_data:
                 return jsonify({'error': f'GPU type {gpu_type} not found'}), 400
             
-            contracts = gpu_aggregates[gpu_type].get('contracts', [])
+            gpu_config = parallel_data[gpu_type].get('config', {})
+            contracts = gpu_config.get('contracts', [])
             
-            # Get detailed information for each contract aggregate
+            # Get detailed information for each contract aggregate using pre-collected data
+            all_hosts_data = parallel_data[gpu_type].get('hosts', [])
             contract_details = []
+            
             for contract in contracts:
                 aggregate_name = contract['aggregate']
-                hosts = get_aggregate_hosts(aggregate_name)
                 
-                # Get host details with tenant information (optimized for contracts)
-                host_details = []
-                if hosts:
-                    print(f"📋 Loading data for {len(hosts)} hosts in contract {aggregate_name}")
-                    tenant_info = get_netbox_tenants_bulk(hosts)
-                    vm_counts = get_bulk_vm_counts(hosts, max_workers=20)  # Increase workers
-                    gpu_info = get_bulk_gpu_info(hosts, max_workers=20)    # Increase workers
-                    
-                    for host in hosts:
-                        host_detail = {
-                            'hostname': host,
-                            'tenant': tenant_info.get(host, {}).get('tenant', 'Unknown'),
-                            'owner_group': tenant_info.get(host, {}).get('owner_group', 'Investors'),
-                            'vm_count': vm_counts.get(host, 0),
-                            'gpu_info': gpu_info.get(host, {'gpu_used': 0, 'gpu_capacity': 8, 'gpu_usage_ratio': '0/8'})
-                        }
-                        host_details.append(host_detail)
+                # Filter hosts that belong to this contract aggregate from pre-collected data
+                contract_hosts = [
+                    host for host in all_hosts_data 
+                    if host.get('aggregate') == aggregate_name
+                ]
+                
+                print(f"⚡ Using pre-collected data for {len(contract_hosts)} hosts in contract {aggregate_name}")
                 
                 contract_details.append({
                     'name': aggregate_name,
                     'aggregate': aggregate_name,
-                    'hosts': host_details,
-                    'host_count': len(hosts)
+                    'hosts': contract_hosts,
+                    'host_count': len(contract_hosts)
                 })
             
             return jsonify({
@@ -82,11 +103,12 @@ def register_routes(app):
 
     @app.route('/api/aggregates/<gpu_type>/<aggregate_type>')
     def get_specific_aggregate_data(gpu_type, aggregate_type):
-        """Get data for a specific aggregate type (runpod, ondemand, or spot)"""
-        gpu_aggregates = discover_gpu_aggregates()
-        
-        if gpu_type not in gpu_aggregates:
-            return jsonify({'error': 'Invalid GPU type'}), 400
+        """Get data for a specific aggregate type (runpod, ondemand, or spot) - OPTIMIZED"""
+        try:
+            parallel_data = get_all_data_parallel()
+            
+            if gpu_type not in parallel_data:
+                return jsonify({'error': 'Invalid GPU type'}), 400
         
         if aggregate_type not in ['runpod', 'ondemand', 'spot']:
             return jsonify({'error': 'Invalid aggregate type. Must be runpod, ondemand, or spot'}), 400
@@ -1473,17 +1495,20 @@ power_state:
         """Clear all caches and refresh all currently loaded data using parallel agents"""
         try:
             # Import cache functions
-            from modules.aggregate_operations import clear_host_aggregate_cache, get_host_cache_stats, discover_gpu_aggregates
+            from modules.aggregate_operations import clear_host_aggregate_cache, get_host_cache_stats, clear_gpu_aggregates_cache
             from app_business_logic import clear_netbox_cache, get_netbox_cache_stats
             from modules.parallel_agents import clear_parallel_cache, get_all_data_parallel
             
-            print("🔄 Refreshing all cached data using PARALLEL AGENTS...")
+            print("🔄 Refreshing all cached data using PARALLEL AGENTS with OPTIMIZATIONS...")
             start_time = time.time()
             
-            # Clear all caches and get counts
+            # Clear all caches and get counts - including new GPU aggregates cache
             host_cache_count = clear_host_aggregate_cache()
             netbox_cache_count = clear_netbox_cache()
             parallel_cache_count = clear_parallel_cache()
+            gpu_agg_cache_cleared = clear_gpu_aggregates_cache()
+            
+            print(f"⚡ Cache clearing: {host_cache_count} hosts, {netbox_cache_count} netbox, {parallel_cache_count} parallel, GPU aggregates cleared")
             
             # Force refresh using parallel agents (this will rebuild all data)
             organized_data = get_all_data_parallel()
@@ -1491,21 +1516,24 @@ power_state:
             refresh_time = time.time() - start_time
             total_hosts = sum(data['total_hosts'] for data in organized_data.values())
             
-            print(f"✅ Parallel refresh completed: {len(organized_data)} GPU types, {total_hosts} hosts in {refresh_time:.2f}s")
+            hosts_per_sec = round(total_hosts/refresh_time, 1) if refresh_time > 0 else 0
+            print(f"✅ OPTIMIZED refresh completed: {len(organized_data)} GPU types, {total_hosts} hosts in {refresh_time:.2f}s ({hosts_per_sec} hosts/sec)")
             
             return jsonify({
                 'success': True,
-                'message': 'All caches cleared and data refreshed with parallel agents',
+                'message': 'All caches cleared and data refreshed with OPTIMIZED parallel agents',
                 'cleared': {
                     'host_aggregate_cache': host_cache_count,
                     'netbox_cache': netbox_cache_count,
                     'parallel_cache': parallel_cache_count,
+                    'gpu_aggregates_cache': gpu_agg_cache_cleared,
                     'gpu_types_refreshed': len(organized_data),
                     'total_hosts_refreshed': total_hosts
                 },
                 'performance': {
                     'refresh_time': round(refresh_time, 2),
-                    'hosts_per_second': round(total_hosts/refresh_time, 1) if refresh_time > 0 else 0
+                    'hosts_per_second': hosts_per_sec,
+                    'optimization_note': '⚡ Using cached GPU aggregates discovery + reduced polling'
                 },
                 'timestamp': datetime.now().isoformat()
             })
