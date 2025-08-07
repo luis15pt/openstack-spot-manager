@@ -226,6 +226,20 @@ function loadGpuTypes() {
                 }
             }
             
+            // Auto-select GPU type from URL if specified
+            if (window.urlGpuType && data.gpu_types.includes(window.urlGpuType)) {
+                console.log(`🎯 Auto-selecting GPU type from URL: ${window.urlGpuType}`);
+                select.value = window.urlGpuType;
+                window.currentGpuType = window.urlGpuType;
+                
+                // Trigger the change event to load the data
+                const event = new Event('change');
+                select.dispatchEvent(event);
+                
+                window.Logs.addToDebugLog('OpenStack', `Auto-selected and loaded: ${window.urlGpuType}`, 'success');
+                delete window.urlGpuType; // Clean up
+            }
+            
             console.log('✅ GPU types loaded successfully');
         })
         .catch(error => {

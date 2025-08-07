@@ -115,6 +115,17 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('📊 Loading GPU types...');
     window.OpenStack.loadGpuTypes();
     
+    // Check URL parameters for auto-selection
+    const urlParams = new URLSearchParams(window.location.search);
+    const gpuTypeFromUrl = urlParams.get('gpu_type');
+    if (gpuTypeFromUrl) {
+        console.log(`🔗 URL parameter detected: gpu_type=${gpuTypeFromUrl}`);
+        window.Logs.addToDebugLog('System', `Auto-selecting GPU type from URL: ${gpuTypeFromUrl}`, 'info');
+        
+        // Store for later selection after GPU types are loaded
+        window.urlGpuType = gpuTypeFromUrl;
+    }
+    
     console.log('🐛 Initializing debug tab...');
     window.Logs.initializeDebugTab();
     
