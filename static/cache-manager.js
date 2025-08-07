@@ -82,12 +82,23 @@ window.CacheManager = (function() {
                     const totalHosts = status.total_cached_hosts || 0;
                     const hostCache = status.host_aggregate_cache?.host_aggregate_cache_size || 0;
                     const netboxCache = status.netbox_cache?.tenant_cache_size || 0;
+                    const parallelCache = status.parallel_cache?.cached_datasets || 0;
+                    const cacheMethod = status.cache_method || 'individual';
+                    
+                    let cacheIcon = cacheMethod === 'parallel_agents' ? 'fa-rocket' : 'fa-database';
+                    let methodBadge = cacheMethod === 'parallel_agents' ? '⚡ Parallel' : 'Individual';
                     
                     cacheStatusEl.innerHTML = `
-                        <i class="fas fa-database"></i> 
-                        Cache: ${totalHosts} hosts (${hostCache} agg, ${netboxCache} tenant)
+                        <i class="fas ${cacheIcon}"></i> 
+                        ${methodBadge}: ${totalHosts} hosts (${hostCache} agg, ${netboxCache} tenant${parallelCache > 0 ? `, ${parallelCache} parallel` : ''})
                     `;
-                    cacheStatusEl.title = `Host Aggregate Cache: ${hostCache} entries\nNetBox Tenant Cache: ${netboxCache} entries`;
+                    
+                    let tooltip = `Host Aggregate Cache: ${hostCache} entries\nNetBox Tenant Cache: ${netboxCache} entries`;
+                    if (parallelCache > 0) {
+                        tooltip += `\nParallel Agents Cache: ${parallelCache} datasets`;
+                        tooltip += `\nMethod: 4 agents running in parallel`;
+                    }
+                    cacheStatusEl.title = tooltip;
                 }
             }
         } catch (error) {
@@ -126,9 +137,18 @@ window.CacheManager = (function() {
                 // Reload current data (whatever view is currently displayed)
                 await reloadCurrentView();
                 
-                // Show success message
+                // Show success message with performance info
                 const clearedInfo = result.cleared;
-                const message = `Data refreshed! Cleared: ${clearedInfo.host_aggregate_cache} host cache, ${clearedInfo.netbox_cache} tenant cache`;
+                const performance = result.performance;
+                let message = `Data refreshed with parallel agents! `;
+                message += `${clearedInfo.gpu_types_refreshed} GPU types, ${clearedInfo.total_hosts_refreshed} hosts `;
+                
+                if (performance) {
+                    message += `in ${performance.refresh_time}s (${performance.hosts_per_second} hosts/sec)`;
+                } else {
+                    message += `- Cleared: ${clearedInfo.host_aggregate_cache} host cache, ${clearedInfo.netbox_cache} tenant cache`;
+                }
+                
                 showNotification(message, 'success');
                 
                 // Update cache status
