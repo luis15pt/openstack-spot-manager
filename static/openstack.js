@@ -241,6 +241,12 @@ function loadGpuTypes() {
             }
             
             console.log('✅ GPU types loaded successfully');
+            
+            // Update System Info tab
+            updateSystemInfo({
+                gpuTypes: data.gpu_types,
+                aggregates: data.aggregates
+            });
         })
         .catch(error => {
             console.error('❌ Error loading GPU types:', error);
@@ -519,6 +525,44 @@ function executeNetworkCommand(command) {
             reject(new Error(`Unsupported OpenStack command: ${command}`));
         }
     });
+}
+
+// Update System Info tab with parallel data statistics
+function updateSystemInfo(data) {
+    const gpuTypesStatus = document.getElementById('gpuTypesStatus');
+    const parallelDataStatus = document.getElementById('parallelDataStatus');
+    const systemCacheStatus = document.getElementById('systemCacheStatus');
+    const parallelStats = document.getElementById('parallelStats');
+    const cacheStats = document.getElementById('cacheStats');
+    const lastUpdateTime = document.getElementById('lastUpdateTime');
+    
+    if (data && data.gpuTypes) {
+        // Update GPU Types status
+        if (gpuTypesStatus) {
+            gpuTypesStatus.innerHTML = `<i class="fas fa-check-circle text-success"></i> ${data.gpuTypes.length} types loaded`;
+        }
+        
+        // Update parallel data status
+        if (parallelDataStatus) {
+            parallelDataStatus.innerHTML = `<i class="fas fa-check-circle text-success"></i> Collection complete`;
+        }
+        
+        // Update cache status
+        if (systemCacheStatus) {
+            systemCacheStatus.innerHTML = `<i class="fas fa-database text-success"></i> Active`;
+        }
+        
+        // Update parallel stats
+        if (parallelStats && data.aggregates) {
+            const aggCount = Object.keys(data.aggregates).length;
+            parallelStats.textContent = `⚡ Parallel: 0 hosts, ${aggCount} aggs, ${data.gpuTypes.length} types`;
+        }
+        
+        // Update last update time
+        if (lastUpdateTime) {
+            lastUpdateTime.textContent = new Date().toLocaleTimeString();
+        }
+    }
 }
 
 // Export OpenStack module

@@ -1,5 +1,22 @@
 /* Custom styles for OpenStack Spot Manager */
 
+/* System Info styles */
+.system-info-item {
+    margin-bottom: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.system-info-item:last-child {
+    border-bottom: none;
+}
+
+.system-info-item strong {
+    display: inline-block;
+    min-width: 140px;
+    color: #495057;
+}
+
 body {
     background-color: #f8f9fa;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

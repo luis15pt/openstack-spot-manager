@@ -2102,4 +2102,16 @@ window.clearContractHosts = clearContractHosts;
 window.populateContractPanel = populateContractPanel;
 window.initializeContractColumn = initializeContractColumn;
 
+// Initialize session timer for System Info tab
+const sessionStartTime = Date.now();
+setInterval(() => {
+    const sessionDuration = document.getElementById('sessionDuration');
+    if (sessionDuration) {
+        const elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        sessionDuration.textContent = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+    }
+}, 1000);
+
 console.log('✅ OpenStack Spot Manager main script loaded');

@@ -95,8 +95,7 @@ window.CacheManager = (function() {
                     
                     cacheStatusEl.innerHTML = `
                         <i class="fas ${cacheIcon}"></i> 
-                        ${methodBadge}: ${totalHosts} hosts, ${totalAggregates} aggs, ${totalGpuTypes} types
-                        <span class="cache-breakdown">(${hostCache} host cache, ${netboxCache} netbox${parallelCache > 0 ? `, ${parallelCache} parallel` : ''})</span>
+                        Cache: ${totalHosts > 0 ? 'Active' : 'Loading...'}
                     `;
                     
                     // Enhanced tooltip with detailed breakdown
@@ -128,6 +127,17 @@ window.CacheManager = (function() {
                     }
                     
                     cacheStatusEl.title = tooltip;
+                    
+                    // Update System Info tab with cache statistics
+                    updateSystemInfoFromCache({
+                        totalHosts,
+                        totalAggregates, 
+                        totalGpuTypes,
+                        hostCache,
+                        netboxCache,
+                        parallelCache,
+                        cacheMethod
+                    });
                 }
             }
         } catch (error) {
@@ -294,6 +304,20 @@ window.CacheManager = (function() {
         setInterval(updateCacheStatus, 60000);
 
         console.log('✅ Cache Manager initialized');
+    }
+
+    // Update System Info tab with cache statistics
+    function updateSystemInfoFromCache(cacheData) {
+        const cacheStats = document.getElementById('cacheStats');
+        const parallelStats = document.getElementById('parallelStats');
+        
+        if (cacheStats) {
+            cacheStats.textContent = `(${cacheData.hostCache} host cache, ${cacheData.netboxCache} netbox${cacheData.parallelCache > 0 ? `, ${cacheData.parallelCache} parallel` : ''})`;
+        }
+        
+        if (parallelStats && cacheData.cacheMethod === 'parallel_agents') {
+            parallelStats.textContent = `⚡ Parallel: ${cacheData.totalHosts} hosts, ${cacheData.totalAggregates} aggs, ${cacheData.totalGpuTypes} types`;
+        }
     }
 
     // Initialize when DOM is ready
