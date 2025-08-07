@@ -9,10 +9,8 @@ window.gpuDataCache = new Map(); // Cache for loaded GPU data
 window.backgroundLoadingInProgress = false;
 console.log('🎯 SCRIPT.JS: Global state initialized');
 
-// Debug: Log when each script loads
-if (!window.scriptLoadOrder) window.scriptLoadOrder = [];
-window.scriptLoadOrder.push('script.js loaded');
-console.log('📅 SCRIPT.JS: Load order so far:', window.scriptLoadOrder);
+// Main script initialization
+console.log('Main script loaded');
 
 // Function declarations need to be available before DOM ready
 function startBackgroundLoading(currentGpuType) {
@@ -85,57 +83,7 @@ function startBackgroundLoading(currentGpuType) {
 window.startBackgroundLoading = startBackgroundLoading;
 
 // Initialize the application
-// Add early debugging - both console and on-page
-console.log('📄 SCRIPT.JS: About to add DOMContentLoaded listener');
-console.log('🕰 SCRIPT.JS: Current time:', new Date().toISOString());
-console.log('🌍 SCRIPT.JS: Document readyState:', document.readyState);
-console.log('🗺 SCRIPT.JS: Current URL:', window.location.href);
-
-// Create visible debug display on page
-function addVisibleDebug(message, isError = false) {
-    console.log(message);
-    
-    // Create debug display if it doesn't exist
-    let debugDiv = document.getElementById('visibleDebug');
-    if (!debugDiv) {
-        debugDiv = document.createElement('div');
-        debugDiv.id = 'visibleDebug';
-        debugDiv.style.cssText = `
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: ${isError ? '#ff4444' : '#333'};
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: monospace;
-            font-size: 12px;
-            max-width: 400px;
-            max-height: 300px;
-            overflow-y: auto;
-            z-index: 9999;
-            border: 2px solid ${isError ? '#ff6666' : '#555'};
-        `;
-        document.body.appendChild(debugDiv);
-        debugDiv.innerHTML = '<strong>🐛 VISIBLE DEBUG LOG</strong><br>';
-    }
-    
-    // Add message to debug display
-    const timestamp = new Date().toISOString().substr(11, 12);
-    debugDiv.innerHTML += `<div style="margin: 2px 0; color: ${isError ? '#ffcccc' : '#ccc'}">[${timestamp}] ${message}</div>`;
-    
-    // Auto-scroll to bottom
-    debugDiv.scrollTop = debugDiv.scrollHeight;
-}
-
-// Initial debug message
-addVisibleDebug('SCRIPT.JS: Starting initialization...');
-
 document.addEventListener('DOMContentLoaded', function() {
-    addVisibleDebug('DOM CONTENT LOADED - Starting initialization');
-    addVisibleDebug('DOM loaded at: ' + new Date().toISOString());
-    addVisibleDebug('URL: ' + window.location.href);
-    
     console.log('\n================== DOM CONTENT LOADED ==================');
     console.log('🚀 SCRIPT.JS: DOMContentLoaded event fired!');
     console.log('🚀 SCRIPT.JS: Initializing OpenStack Spot Manager');

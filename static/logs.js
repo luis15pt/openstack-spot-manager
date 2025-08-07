@@ -326,11 +326,8 @@ function renderResultsSummary(commands) {
     return;
 }
 
-// Debug: Log when Logs module is being exported
-console.log('📄 LOGS.JS: Module loaded, exporting Logs object');
-if (!window.scriptLoadOrder) window.scriptLoadOrder = [];
-window.scriptLoadOrder.push('logs.js loaded');
-console.log('📅 LOGS.JS: Load order so far:', window.scriptLoadOrder);
+// Export Logs module
+console.log('Logs module loaded');
 
 // Export logging functions
 window.Logs = {
