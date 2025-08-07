@@ -1566,3 +1566,65 @@ power_state:
         except Exception as e:
             print(f"❌ Error getting cache status: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # =============================================================================
+    # PARALLEL AGENTS TEST ENDPOINTS
+    # =============================================================================
+
+    @app.route('/api/parallel-test')
+    def test_parallel_agents():
+        """Test the new parallel agents system"""
+        try:
+            from modules.parallel_agents import get_all_data_parallel
+            
+            start_time = time.time()
+            print("🧪 Testing parallel agents system...")
+            
+            # Run parallel data collection
+            organized_data = get_all_data_parallel()
+            
+            total_time = time.time() - start_time
+            
+            # Count totals for summary
+            total_hosts = sum(data['total_hosts'] for data in organized_data.values())
+            gpu_types = list(organized_data.keys())
+            
+            summary = {
+                'success': True,
+                'total_time': round(total_time, 2),
+                'gpu_types_found': len(gpu_types),
+                'gpu_types': gpu_types,
+                'total_hosts': total_hosts,
+                'data_preview': {
+                    gpu_type: {
+                        'host_count': data['total_hosts'],
+                        'has_runpod': bool(data['config'].get('runpod')),
+                        'has_spot': bool(data['config'].get('spot')),
+                        'ondemand_variants': len(data['config'].get('ondemand_variants', [])),
+                        'contracts': len(data['config'].get('contracts', []))
+                    } 
+                    for gpu_type, data in organized_data.items()
+                }
+            }
+            
+            print(f"✅ Parallel test completed: {total_hosts} hosts, {len(gpu_types)} GPU types in {total_time:.2f}s")
+            return jsonify(summary)
+            
+        except Exception as e:
+            print(f"❌ Parallel test failed: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/parallel-cache-status')
+    def get_parallel_cache_status():
+        """Get parallel cache statistics"""
+        try:
+            from modules.parallel_agents import get_parallel_cache_stats
+            
+            stats = get_parallel_cache_stats()
+            return jsonify({
+                'success': True,
+                'parallel_cache': stats
+            })
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
