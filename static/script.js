@@ -199,7 +199,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize contract column with available contracts
     console.log('📋 Initializing contract column...');
-    initializeContractColumn();
+    initializeContractColumn().catch(error => {
+        console.error('❌ Error initializing contract column:', error);
+        window.Frontend.showNotification('Failed to load contract data', 'danger');
+    });
     
     console.log('📊 Loading GPU types...');
     window.OpenStack.loadGpuTypes();
@@ -796,7 +799,7 @@ function executeAllPendingOperations() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                host: operation.hostname,
+                hostname: operation.hostname,
                 source_aggregate: operation.sourceAggregate,
                 target_aggregate: operation.targetAggregate
             })
@@ -1505,7 +1508,7 @@ function executeRunPodLaunch(operation, callback) {
 // Execute OpenStack migration operation
 function executeOpenStackMigration(operation, callback) {
     const requestData = {
-        host: operation.hostname,
+        hostname: operation.hostname,
         source_aggregate: operation.sourceAggregate,
         target_aggregate: operation.targetAggregate
     };
