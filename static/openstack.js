@@ -165,17 +165,23 @@ async function loadOverallGpuUsage() {
     document.getElementById('inUseHostsCount').textContent = '0';
     
     try {
+        console.log('🔍 Making API call to /api/gpu-types...');
         const response = await window.Utils.fetchWithTimeout('/api/gpu-types', {}, 15000);
+        console.log('✅ Got response:', response.status, response.statusText);
         const data = await response.json();
+        console.log('📊 GPU types data:', data);
         
-        if (data.status === 'success' && data.gpu_types && data.gpu_types.length > 0) {
-            console.log('📊 Loading usage data for all GPU types concurrently...');
+        if (data.gpu_types && data.gpu_types.length > 0) {
+            console.log(`📊 Loading usage data for ${data.gpu_types.length} GPU types concurrently:`, data.gpu_types);
             
             // Load data for all GPU types concurrently
             const loadPromises = data.gpu_types.map(async (gpuType) => {
                 try {
+                    console.log(`🔍 Loading data for GPU type: ${gpuType}`);
                     const response = await window.Utils.fetchWithTimeout(`/api/aggregates/${gpuType}`, {}, 20000);
+                    console.log(`✅ Got response for ${gpuType}:`, response.status);
                     const gpuData = await response.json();
+                    console.log(`📊 Data for ${gpuType}:`, gpuData.status || 'no status', gpuData.error || 'no error');
                     return { gpuType, data: gpuData };
                 } catch (error) {
                     console.warn(`⚠️ Failed to load data for ${gpuType}:`, error);
@@ -184,6 +190,7 @@ async function loadOverallGpuUsage() {
             });
             
             const results = await Promise.allSettled(loadPromises);
+            console.log('📊 Promise results:', results.length, 'results');
             
             // Aggregate all the data
             let totalGpuUsed = 0;
@@ -191,9 +198,19 @@ async function loadOverallGpuUsage() {
             let totalAvailableHosts = 0;
             let totalInUseHosts = 0;
             
-            results.forEach(result => {
+            results.forEach((result, index) => {
+                console.log(`📊 Processing result ${index}:`, result.status, result.value?.gpuType);
                 if (result.status === 'fulfilled' && result.value.data && !result.value.data.error) {
                     const gpuData = result.value.data;
+                    console.log(`📊 Processing GPU data for ${result.value.gpuType}:`, {
+                        hasRunpod: !!gpuData.runpod,
+                        hasSpot: !!gpuData.spot,
+                        hasOndemand: !!gpuData.ondemand,
+                        runpodGpuSummary: gpuData.runpod?.gpu_summary,
+                        spotGpuSummary: gpuData.spot?.gpu_summary, 
+                        ondemandGpuSummary: gpuData.ondemand?.gpu_summary,
+                        fullData: gpuData
+                    });
                     
                     // Add RunPod GPUs
                     if (gpuData.runpod && gpuData.runpod.gpu_summary) {
@@ -231,8 +248,9 @@ async function loadOverallGpuUsage() {
             // Update the overview display
             const totalGpuPercentage = totalGpuCapacity > 0 ? Math.round((totalGpuUsed / totalGpuCapacity) * 100) : 0;
             
-            console.log(`📊 Overall GPU Usage: ${totalGpuUsed}/${totalGpuCapacity} GPUs (${totalGpuPercentage}%)`);
-            console.log(`🏠 Total Hosts: ${totalAvailableHosts} available, ${totalInUseHosts} in use`);
+            console.log(`📊 FINAL TOTALS - GPU Usage: ${totalGpuUsed}/${totalGpuCapacity} GPUs (${totalGpuPercentage}%)`);
+            console.log(`🏠 FINAL TOTALS - Hosts: ${totalAvailableHosts} available, ${totalInUseHosts} in use`);
+            console.log('🎯 About to update UI elements...');
             
             // Update UI elements
             document.getElementById('totalGpuUsage').textContent = `${totalGpuUsed}/${totalGpuCapacity} GPUs`;
@@ -255,6 +273,16 @@ async function loadOverallGpuUsage() {
             
             window.Logs?.addToDebugLog('OpenStack', `Overall GPU usage loaded: ${totalGpuUsed}/${totalGpuCapacity} (${totalGpuPercentage}%)`, 'info');
             
+        } else {
+            console.error('❌ Failed to get valid GPU types data:', {
+                hasGpuTypes: !!data.gpu_types,
+                gpuTypesLength: data.gpu_types?.length || 0,
+                data: data
+            });
+            
+            // Show error state
+            document.getElementById('totalGpuUsage').textContent = 'No GPU types found';
+            document.getElementById('gpuUsagePercentage').textContent = 'N/A';
         }
     } catch (error) {
         console.error('❌ Error loading overall GPU usage:', error);

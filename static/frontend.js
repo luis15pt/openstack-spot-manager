@@ -13,35 +13,52 @@ let isExecutionInProgress = false;
 function renderAggregateData(data) {
     // FIRST: Clean up any existing variant columns from previous GPU type selections
     // This prevents duplicate columns when switching between GPU types or refreshing
+    console.log('🧹 Starting aggressive column cleanup...');
     const mainRow = document.querySelector('.row.mt-3');
     if (mainRow) {
         // Get all column divs
         const existingColumns = mainRow.querySelectorAll('.col-md-1, .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6');
-        existingColumns.forEach(col => {
+        console.log(`🔍 Found ${existingColumns.length} columns to check`);
+        
+        existingColumns.forEach((col, index) => {
             const columnDiv = col.querySelector('.aggregate-column');
             
             // Debug logging to see what we're finding
-            console.log('🔍 Found column:', {
+            console.log(`🔍 Column ${index}:`, {
                 colId: col.id,
                 columnDivId: columnDiv ? columnDiv.id : 'no div',
-                classList: col.classList.toString()
+                classList: col.classList.toString(),
+                innerHTML: col.innerHTML.substring(0, 100) + '...'
             });
             
-            // Check if this is a core column that should be kept
-            const isKeepColumn = col.id === 'ondemandColumnFallback' || 
-                                col.id === 'contractColumn' ||
-                                (columnDiv && ['runpodColumn', 'spotColumn', 'ondemandColumn', 'contractAggregateColumn'].includes(columnDiv.id));
+            // More aggressive: check if this column contains any of the core aggregate IDs
+            const hasRunpodColumn = col.querySelector('#runpodColumn');
+            const hasSpotColumn = col.querySelector('#spotColumn');
+            const hasOndemandColumn = col.querySelector('#ondemandColumn');
+            const hasContractColumn = col.querySelector('#contractAggregateColumn');
             
-            if (!isKeepColumn) {
+            const isCoreColumn = col.id === 'ondemandColumnFallback' || 
+                               col.id === 'contractColumn' ||
+                               hasRunpodColumn || hasSpotColumn || hasOndemandColumn || hasContractColumn;
+            
+            if (!isCoreColumn) {
                 // This is a dynamically added variant column - remove it
-                if (columnDiv && columnDiv.id) {
-                    console.log('🗑️ Global cleanup: Removing variant column by ID:', columnDiv.id);
-                } else {
-                    console.log('🗑️ Global cleanup: Removing variant column without ID');
-                }
+                console.log('🗑️ AGGRESSIVE cleanup: Removing non-core column:', {
+                    colId: col.id,
+                    columnDivId: columnDiv ? columnDiv.id : 'no div'
+                });
                 col.remove();
             } else {
-                console.log('✅ Keeping core column:', columnDiv ? columnDiv.id : col.id);
+                console.log('✅ Keeping core column:', {
+                    colId: col.id,
+                    columnDivId: columnDiv ? columnDiv.id : 'no div',
+                    reason: col.id === 'ondemandColumnFallback' ? 'fallback' : 
+                           col.id === 'contractColumn' ? 'contract' :
+                           hasRunpodColumn ? 'runpod' :
+                           hasSpotColumn ? 'spot' :
+                           hasOndemandColumn ? 'ondemand' :
+                           hasContractColumn ? 'contract-aggregate' : 'unknown'
+                });
             }
         });
     }
