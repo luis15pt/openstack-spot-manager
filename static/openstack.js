@@ -191,6 +191,12 @@ function loadGpuTypes() {
             // Make aggregates data globally available to avoid any API calls
             window.loadedAggregatesData = data.aggregates;
             
+            // Store full parallel data if available (for contracts optimization)
+            if (data.parallel_data) {
+                window.loadedParallelData = data.parallel_data;
+                console.log('💾 Cached full parallel data for contract optimization');
+            }
+            
             console.log('✅ Available GPU types:', data.gpu_types);
             window.Logs.addToDebugLog('OpenStack', `Found ${data.gpu_types.length} GPU types`, 'success');
             
@@ -551,37 +557,59 @@ function executeNetworkCommand(command) {
 function getContractAggregatesDirectly(gpuType) {
     console.log(`📋 Getting contract aggregates directly for GPU type: ${gpuType}`);
     
-    // Use the data that was already loaded with the GPU types
-    if (!window.loadedAggregatesData) {
-        console.warn('⚠️ No aggregates data loaded yet - this should not happen');
+    // Check if we have access to the full parallel data structure
+    // We need window.loadedParallelData which should contain the complete data structure
+    if (!window.loadedParallelData) {
+        console.warn('⚠️ Full parallel data not available - need to make API call');
         return null;
     }
     
-    const gpuData = window.loadedAggregatesData[gpuType];
-    if (!gpuData) {
-        console.warn(`⚠️ No data found for GPU type: ${gpuType}`);
+    if (!window.loadedParallelData[gpuType]) {
+        console.warn(`⚠️ No parallel data found for GPU type: ${gpuType}`);
         return null;
     }
     
+    const gpuData = window.loadedParallelData[gpuType];
+    const config = gpuData.config;
+    const allHostsData = gpuData.hosts || [];
     
-    // Extract contracts directly from the loaded data
-    const contracts = [];
-    if (gpuData.contracts && Array.isArray(gpuData.contracts)) {
-        gpuData.contracts.forEach(contract => {
-            contracts.push({
-                aggregate: contract.aggregate,
-                name: contract.name,
-                hosts: [] // Will be populated if we have host data
-            });
+    if (!config.contracts || !Array.isArray(config.contracts)) {
+        console.log(`📋 No contracts found for GPU type: ${gpuType}`);
+        return {
+            gpu_type: gpuType,
+            contracts: []
+        };
+    }
+    
+    console.log(`🔍 Found ${config.contracts.length} contracts in parallel data for ${gpuType}`);
+    
+    // Build contract details by filtering hosts that belong to each contract aggregate
+    const contractDetails = [];
+    
+    config.contracts.forEach(contract => {
+        const aggregateName = contract.aggregate;
+        
+        // Filter hosts that belong to this contract aggregate
+        const contractHosts = allHostsData.filter(host => 
+            host.aggregate === aggregateName || 
+            (host.host_data && host.host_data.aggregate === aggregateName)
+        );
+        
+        console.log(`📋 Contract ${contract.name} (${aggregateName}): ${contractHosts.length} hosts`);
+        
+        contractDetails.push({
+            aggregate: aggregateName,
+            name: contract.name,
+            hosts: contractHosts
         });
-    }
+    });
     
-    console.log(`✅ Found ${contracts.length} contracts directly for ${gpuType} - NO API CALL MADE`);
+    const totalHosts = contractDetails.reduce((sum, contract) => sum + contract.hosts.length, 0);
+    console.log(`✅ Retrieved ${contractDetails.length} contracts with ${totalHosts} total hosts for ${gpuType}`);
     
     return {
         gpu_type: gpuType,
-        contracts: contracts,
-        config: gpuData
+        contracts: contractDetails
     };
 }
 
