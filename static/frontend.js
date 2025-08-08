@@ -11,6 +11,8 @@ let isExecutionInProgress = false;
 
 // EXACT ORIGINAL renderAggregateData function
 function renderAggregateData(data) {
+    console.log('🔥 renderAggregateData called for GPU type:', data.gpu_type);
+    
     // FIRST: Clean up any existing variant columns from previous GPU type selections
     // This prevents duplicate columns when switching between GPU types or refreshing
     console.log('🧹 Starting aggressive column cleanup...');
