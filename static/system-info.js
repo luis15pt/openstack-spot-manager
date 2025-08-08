@@ -72,10 +72,10 @@ function updateOpenStackInfo() {
         openstackConnection.innerHTML = `<i class="fas fa-check-circle text-success"></i> Connected`;
     }
     if (openstackRegion) {
-        openstackRegion.textContent = process?.env?.OS_REGION_NAME || 'RegionOne';
+        openstackRegion.textContent = 'RegionOne';
     }
     if (openstackProject) {
-        openstackProject.textContent = process?.env?.OS_PROJECT_NAME || 'admin';
+        openstackProject.textContent = 'admin';
     }
     if (openstackVersion) {
         openstackVersion.textContent = 'Nova v2.1';
