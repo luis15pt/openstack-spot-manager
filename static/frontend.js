@@ -782,31 +782,56 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
     });
     
     try {
-        // Call backend to determine correct target aggregate based on hostname's GPU type
-        const response = await fetch('/api/get-target-aggregate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                hostname,
-                target_type: targetType,
-                target_variant: targetVariant
-            })
-        });
+        // Determine target aggregate based on target type
+        let targetAggregate = '';
         
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to determine target aggregate');
+        if (targetType === 'contract') {
+            // For contract drops, get the selected contract from the dropdown
+            const contractSelect = document.getElementById('contractColumnSelect');
+            if (!contractSelect || !contractSelect.value) {
+                throw new Error('No contract selected. Please select a contract first.');
+            }
+            targetAggregate = contractSelect.value;
+        } else if (targetType === 'spot') {
+            // Use spot aggregate from current data
+            if (aggregateData && aggregateData.spot && aggregateData.spot.name) {
+                targetAggregate = aggregateData.spot.name;
+            } else {
+                throw new Error('Spot aggregate not available');
+            }
+        } else if (targetType === 'runpod') {
+            // Use runpod aggregate from current data
+            if (aggregateData && aggregateData.runpod && aggregateData.runpod.name) {
+                targetAggregate = aggregateData.runpod.name;
+            } else {
+                throw new Error('Runpod aggregate not available');
+            }
+        } else if (targetVariant) {
+            // For variant drops, construct the aggregate name
+            const gpuType = window.currentGpuType;
+            if (!gpuType) {
+                throw new Error('Current GPU type not available');
+            }
+            
+            // Find the variant aggregate name from the data
+            if (aggregateData && aggregateData.ondemand && aggregateData.ondemand.variants) {
+                const variant = aggregateData.ondemand.variants.find(v => v.variant === targetVariant);
+                if (variant && variant.aggregate) {
+                    targetAggregate = variant.aggregate;
+                } else {
+                    throw new Error(`Variant aggregate not found for ${targetVariant}`);
+                }
+            } else {
+                throw new Error('Ondemand variant data not available');
+            }
+        } else {
+            throw new Error(`Unknown target type: ${targetType}`);
         }
         
-        const result = await response.json();
-        const targetAggregate = result.target_aggregate;
-        
-        console.log('✅ Backend determined target aggregate:', {
+        console.log('✅ Determined target aggregate locally:', {
             hostname,
-            gpu_type: result.gpu_type,
-            target_type: result.target_type,
+            target_type: targetType,
+            target_variant: targetVariant,
             target_aggregate: targetAggregate
         });
         
