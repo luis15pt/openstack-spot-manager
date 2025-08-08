@@ -26,6 +26,20 @@ function renderAggregateData(data) {
                     console.log('🗑️ Global cleanup: Removing variant column:', columnDiv.id);
                     col.remove();
                 }
+            } else {
+                // Also remove any columns that contain variant-like content but no proper ID
+                const cardHeader = col.querySelector('.card-header');
+                if (cardHeader && cardHeader.textContent) {
+                    const headerText = cardHeader.textContent.trim();
+                    // Remove columns that look like GPU variant names (contains GPU type patterns)
+                    if (headerText.match(/^[A-Z]\d+(-[a-zA-Z0-9]+)*\s+\d+$/) || 
+                        headerText.includes('GPU Usage:') || 
+                        headerText.includes('NVLink') ||
+                        headerText.includes('-n3')) {
+                        console.log('🗑️ Global cleanup: Removing variant column by header:', headerText);
+                        col.remove();
+                    }
+                }
             }
         });
     }
@@ -34,6 +48,17 @@ function renderAggregateData(data) {
     document.getElementById('ondemandHosts').innerHTML = '';
     document.getElementById('runpodHosts').innerHTML = '';
     document.getElementById('spotHosts').innerHTML = '';
+    
+    // Clear GPU usage statistics first before updating with new data
+    document.getElementById('ondemandGpuUsage').textContent = '0/0';
+    document.getElementById('ondemandGpuPercent').textContent = '0%';
+    document.getElementById('ondemandGpuProgressBar').style.width = '0%';
+    document.getElementById('runpodGpuUsage').textContent = '0/0';
+    document.getElementById('runpodGpuPercent').textContent = '0%';
+    document.getElementById('runpodGpuProgressBar').style.width = '0%';
+    document.getElementById('spotGpuUsage').textContent = '0/0';
+    document.getElementById('spotGpuPercent').textContent = '0%';
+    document.getElementById('spotGpuProgressBar').style.width = '0%';
     
     // Update column headers with aggregate names and counts
     document.getElementById('ondemandName').textContent = data.ondemand.name || 'N/A';
@@ -1168,6 +1193,20 @@ function renderOnDemandVariantColumns(ondemandData) {
                 if (!keepColumnIds.includes(columnDiv.id)) {
                     console.log('🗑️ Pre-cleanup: Removing variant column:', columnDiv.id);
                     col.remove();
+                }
+            } else {
+                // Also remove any columns that contain variant-like content but no proper ID
+                const cardHeader = col.querySelector('.card-header');
+                if (cardHeader && cardHeader.textContent) {
+                    const headerText = cardHeader.textContent.trim();
+                    // Remove columns that look like GPU variant names (contains GPU type patterns)
+                    if (headerText.match(/^[A-Z]\d+(-[a-zA-Z0-9]+)*\s+\d+$/) || 
+                        headerText.includes('GPU Usage:') || 
+                        headerText.includes('NVLink') ||
+                        headerText.includes('-n3')) {
+                        console.log('🗑️ Pre-cleanup: Removing variant column by header:', headerText);
+                        col.remove();
+                    }
                 }
             }
         });
