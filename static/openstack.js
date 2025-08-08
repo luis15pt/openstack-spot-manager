@@ -265,15 +265,6 @@ function loadGpuTypes() {
             
             console.log('✅ GPU types loaded successfully');
             
-            // Initialize contract column now that GPU types are loaded
-            if (typeof window.initializeContractColumn === 'function') {
-                console.log('📋 Initializing contract column after GPU types loaded...');
-                window.initializeContractColumn().catch(error => {
-                    console.error('❌ Error initializing contract column:', error);
-                    window.Frontend.showNotification('Failed to load contract data', 'danger');
-                });
-            }
-            
             // Update System Info tab
             if (window.SystemInfo && typeof window.SystemInfo.updateSystemInfo === 'function') {
                 window.SystemInfo.updateSystemInfo({

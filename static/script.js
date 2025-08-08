@@ -282,8 +282,20 @@ function initializeEventListeners() {
             
             window.OpenStack.loadAggregateData(selectedType);
             
-            // Load contract aggregates for the contract column
-            loadContractAggregatesForColumn(selectedType);
+            // Initialize contract column if not already done, then load contract data
+            if (typeof window.initializeContractColumn === 'function' && !window.contractColumnInitialized) {
+                console.log('📋 Initializing contract column for first GPU type selection...');
+                window.initializeContractColumn().then(() => {
+                    window.contractColumnInitialized = true;
+                    loadContractAggregatesForColumn(selectedType);
+                }).catch(error => {
+                    console.error('❌ Error initializing contract column:', error);
+                    window.Frontend.showNotification('Failed to initialize contract column', 'danger');
+                });
+            } else {
+                // Contract column already initialized, just load data
+                loadContractAggregatesForColumn(selectedType);
+            }
         } else {
             // Hide the hosts row when no GPU type is selected
             const hostsRow = document.getElementById('hostsRow');
@@ -298,7 +310,7 @@ function initializeEventListeners() {
     });
     
     // Contract column selector - will be attached when element is ready
-    function attachContractColumnListener() {
+    window.attachContractColumnListener = function attachContractColumnListener() {
         const contractSelect = document.getElementById('contractColumnSelect');
         if (contractSelect && !contractSelect.hasAttribute('data-listener-attached')) {
             contractSelect.addEventListener('change', function() {
@@ -2179,14 +2191,14 @@ window.initializeContractColumn = async function initializeContractColumn() {
             }
             
             // Attach the event listener now that element exists
-            attachContractColumnListener();
+            window.attachContractColumnListener();
         } else {
             console.error('❌ contractHosts element not found - cannot create dropdown');
             return;
         }
     } else {
         // Element already exists, just attach listener
-        attachContractColumnListener();
+        window.attachContractColumnListener();
     }
     
     try {
