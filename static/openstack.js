@@ -154,6 +154,120 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
         });
 }
 
+// Load overall GPU usage data across all GPU types
+async function loadOverallGpuUsage() {
+    console.log('📊 Loading overall GPU usage across all types...');
+    
+    // Show loading state
+    document.getElementById('totalGpuUsage').textContent = 'Loading...';
+    document.getElementById('gpuUsagePercentage').textContent = '';
+    document.getElementById('availableHostsCount').textContent = '0';
+    document.getElementById('inUseHostsCount').textContent = '0';
+    
+    try {
+        const response = await window.Utils.fetchWithTimeout('/api/gpu-types', {}, 15000);
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.gpu_types && data.gpu_types.length > 0) {
+            console.log('📊 Loading usage data for all GPU types concurrently...');
+            
+            // Load data for all GPU types concurrently
+            const loadPromises = data.gpu_types.map(async (gpuType) => {
+                try {
+                    const response = await window.Utils.fetchWithTimeout(`/api/aggregates/${gpuType}`, {}, 20000);
+                    const gpuData = await response.json();
+                    return { gpuType, data: gpuData };
+                } catch (error) {
+                    console.warn(`⚠️ Failed to load data for ${gpuType}:`, error);
+                    return { gpuType, data: null };
+                }
+            });
+            
+            const results = await Promise.allSettled(loadPromises);
+            
+            // Aggregate all the data
+            let totalGpuUsed = 0;
+            let totalGpuCapacity = 0;
+            let totalAvailableHosts = 0;
+            let totalInUseHosts = 0;
+            
+            results.forEach(result => {
+                if (result.status === 'fulfilled' && result.value.data && !result.value.data.error) {
+                    const gpuData = result.value.data;
+                    
+                    // Add RunPod GPUs
+                    if (gpuData.runpod && gpuData.runpod.gpu_summary) {
+                        totalGpuUsed += gpuData.runpod.gpu_summary.gpu_used || 0;
+                        totalGpuCapacity += gpuData.runpod.gpu_summary.gpu_capacity || 0;
+                    }
+                    
+                    // Add Spot GPUs
+                    if (gpuData.spot && gpuData.spot.gpu_summary) {
+                        totalGpuUsed += gpuData.spot.gpu_summary.gpu_used || 0;
+                        totalGpuCapacity += gpuData.spot.gpu_summary.gpu_capacity || 0;
+                    }
+                    
+                    // Add On-Demand GPUs
+                    if (gpuData.ondemand && gpuData.ondemand.gpu_summary) {
+                        totalGpuUsed += gpuData.ondemand.gpu_summary.gpu_used || 0;
+                        totalGpuCapacity += gpuData.ondemand.gpu_summary.gpu_capacity || 0;
+                    }
+                    
+                    // Count hosts
+                    [gpuData.runpod.hosts, gpuData.spot.hosts, gpuData.ondemand.hosts].forEach(hostArray => {
+                        if (hostArray) {
+                            hostArray.forEach(host => {
+                                if (host.has_vms) {
+                                    totalInUseHosts++;
+                                } else {
+                                    totalAvailableHosts++;
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+            
+            // Update the overview display
+            const totalGpuPercentage = totalGpuCapacity > 0 ? Math.round((totalGpuUsed / totalGpuCapacity) * 100) : 0;
+            
+            console.log(`📊 Overall GPU Usage: ${totalGpuUsed}/${totalGpuCapacity} GPUs (${totalGpuPercentage}%)`);
+            console.log(`🏠 Total Hosts: ${totalAvailableHosts} available, ${totalInUseHosts} in use`);
+            
+            // Update UI elements
+            document.getElementById('totalGpuUsage').textContent = `${totalGpuUsed}/${totalGpuCapacity} GPUs`;
+            document.getElementById('gpuUsagePercentage').textContent = `${totalGpuPercentage}%`;
+            document.getElementById('gpuProgressBar').style.width = `${totalGpuPercentage}%`;
+            document.getElementById('gpuProgressText').textContent = `${totalGpuPercentage}%`;
+            document.getElementById('availableHostsCount').textContent = totalAvailableHosts;
+            document.getElementById('inUseHostsCount').textContent = totalInUseHosts;
+            
+            // Update progress bar color
+            const progressBar = document.getElementById('gpuProgressBar');
+            progressBar.className = 'progress-bar';
+            if (totalGpuPercentage < 50) {
+                progressBar.classList.add('bg-success');
+            } else if (totalGpuPercentage < 80) {
+                progressBar.classList.add('bg-warning');
+            } else {
+                progressBar.classList.add('bg-danger');
+            }
+            
+            window.Logs?.addToDebugLog('OpenStack', `Overall GPU usage loaded: ${totalGpuUsed}/${totalGpuCapacity} (${totalGpuPercentage}%)`, 'info');
+            
+        }
+    } catch (error) {
+        console.error('❌ Error loading overall GPU usage:', error);
+        window.Logs?.addToDebugLog('OpenStack', `Error loading overall GPU usage: ${error.message}`, 'error');
+        
+        // Show error state
+        document.getElementById('totalGpuUsage').textContent = 'Error loading data';
+        document.getElementById('gpuUsagePercentage').textContent = 'N/A';
+        document.getElementById('availableHostsCount').textContent = '0';
+        document.getElementById('inUseHostsCount').textContent = '0';
+    }
+}
+
 // Get GPU types from the backend
 function loadGpuTypes() {
     console.log('📊 Loading available GPU types');
@@ -220,10 +334,18 @@ function loadGpuTypes() {
                     if (window.Frontend) {
                         window.Frontend.availableGpuTypes = data.gpu_types;
                         console.log('✅ GPU types stored after frontend module loaded');
+                        
+                        // Load overall GPU usage data now that we have GPU types
+                        console.log('📊 Loading overall GPU usage across all types (deferred)...');
+                        loadOverallGpuUsage();
                     }
                 }, 100);
             } else {
                 window.Frontend.availableGpuTypes = data.gpu_types;
+                
+                // Load overall GPU usage data now that we have GPU types
+                console.log('📊 Loading overall GPU usage across all types...');
+                loadOverallGpuUsage();
             }
             
             // Add discovered GPU types
@@ -664,6 +786,7 @@ window.OpenStack = {
     executeHostMigration,
     loadAggregateData,
     loadGpuTypes,
+    loadOverallGpuUsage,
     previewMigration,
     getHostVmDetails,
     generateMigrationCommands,
