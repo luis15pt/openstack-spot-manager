@@ -524,13 +524,13 @@ async function loadSpecificAggregateData(gpuType, aggregateType) {
         // Update only the specific column based on aggregate type
         if (aggregateType === 'runpod') {
             // Update RunPod column
-            updateRunpodColumn(data);
+            updateRunpodColumn(data.runpod);
         } else if (aggregateType === 'spot') {
             // Update Spot column
-            updateSpotColumn(data);
+            updateSpotColumn(data.spot);
         } else if (aggregateType === 'ondemand') {
             // Update On-Demand column(s)
-            updateOnDemandColumn(data);
+            updateOnDemandColumn(data.ondemand);
         }
         
         // Setup drag and drop for new elements  
@@ -560,6 +560,12 @@ function updateRunpodColumn(data) {
         document.getElementById('runpodGpuUsage').textContent = data.gpu_summary.gpu_usage_ratio;
         document.getElementById('runpodGpuPercent').textContent = runpodPercent + '%';
         document.getElementById('runpodGpuProgressBar').style.width = runpodPercent + '%';
+    } else {
+        // Fallback if gpu_summary is missing
+        console.warn('⚠️ RunPod gpu_summary is missing:', data);
+        document.getElementById('runpodGpuUsage').textContent = '0/0';
+        document.getElementById('runpodGpuPercent').textContent = '0%';
+        document.getElementById('runpodGpuProgressBar').style.width = '0%';
     }
     
     // Update VM usage statistics
