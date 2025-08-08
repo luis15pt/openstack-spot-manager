@@ -19,27 +19,20 @@ function renderAggregateData(data) {
         const existingColumns = mainRow.querySelectorAll('.col-md-1, .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6');
         existingColumns.forEach(col => {
             const columnDiv = col.querySelector('.aggregate-column');
-            if (columnDiv && columnDiv.id) {
-                // Keep only the core columns: runpod, spot, ondemand fallback, and contract
-                const keepColumnIds = ['runpodColumn', 'spotColumn', 'ondemandColumn', 'contractAggregateColumn'];
-                if (!keepColumnIds.includes(columnDiv.id)) {
-                    console.log('🗑️ Global cleanup: Removing variant column:', columnDiv.id);
-                    col.remove();
+            
+            // Check if this is a core column that should be kept
+            const isKeepColumn = col.id === 'ondemandColumnFallback' || 
+                                col.id === 'contractColumn' ||
+                                (columnDiv && ['runpodColumn', 'spotColumn', 'ondemandColumn', 'contractAggregateColumn'].includes(columnDiv.id));
+            
+            if (!isKeepColumn) {
+                // This is a dynamically added variant column - remove it
+                if (columnDiv && columnDiv.id) {
+                    console.log('🗑️ Global cleanup: Removing variant column by ID:', columnDiv.id);
+                } else {
+                    console.log('🗑️ Global cleanup: Removing variant column without ID');
                 }
-            } else {
-                // Also remove any columns that contain variant-like content but no proper ID
-                const cardHeader = col.querySelector('.card-header');
-                if (cardHeader && cardHeader.textContent) {
-                    const headerText = cardHeader.textContent.trim();
-                    // Remove columns that look like GPU variant names (contains GPU type patterns)
-                    if (headerText.match(/^[A-Z]\d+(-[a-zA-Z0-9]+)*\s+\d+$/) || 
-                        headerText.includes('GPU Usage:') || 
-                        headerText.includes('NVLink') ||
-                        headerText.includes('-n3')) {
-                        console.log('🗑️ Global cleanup: Removing variant column by header:', headerText);
-                        col.remove();
-                    }
-                }
+                col.remove();
             }
         });
     }
@@ -1250,27 +1243,20 @@ function renderOnDemandVariantColumns(ondemandData) {
         const existingColumns = mainRow.querySelectorAll('.col-md-1, .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6');
         existingColumns.forEach(col => {
             const columnDiv = col.querySelector('.aggregate-column');
-            if (columnDiv && columnDiv.id) {
-                // Keep only the core columns: runpod, spot, ondemand fallback, and contract
-                const keepColumnIds = ['runpodColumn', 'spotColumn', 'ondemandColumn', 'contractAggregateColumn'];
-                if (!keepColumnIds.includes(columnDiv.id)) {
-                    console.log('🗑️ Pre-cleanup: Removing variant column:', columnDiv.id);
-                    col.remove();
+            
+            // Check if this is a core column that should be kept
+            const isKeepColumn = col.id === 'ondemandColumnFallback' || 
+                                col.id === 'contractColumn' ||
+                                (columnDiv && ['runpodColumn', 'spotColumn', 'ondemandColumn', 'contractAggregateColumn'].includes(columnDiv.id));
+            
+            if (!isKeepColumn) {
+                // This is a dynamically added variant column - remove it
+                if (columnDiv && columnDiv.id) {
+                    console.log('🗑️ Pre-cleanup: Removing variant column by ID:', columnDiv.id);
+                } else {
+                    console.log('🗑️ Pre-cleanup: Removing variant column without ID');
                 }
-            } else {
-                // Also remove any columns that contain variant-like content but no proper ID
-                const cardHeader = col.querySelector('.card-header');
-                if (cardHeader && cardHeader.textContent) {
-                    const headerText = cardHeader.textContent.trim();
-                    // Remove columns that look like GPU variant names (contains GPU type patterns)
-                    if (headerText.match(/^[A-Z]\d+(-[a-zA-Z0-9]+)*\s+\d+$/) || 
-                        headerText.includes('GPU Usage:') || 
-                        headerText.includes('NVLink') ||
-                        headerText.includes('-n3')) {
-                        console.log('🗑️ Pre-cleanup: Removing variant column by header:', headerText);
-                        col.remove();
-                    }
-                }
+                col.remove();
             }
         });
     }
