@@ -196,7 +196,10 @@ def register_routes(app):
                             'has_vms': vm_count > 0,
                             'tenant': tenant_info['tenant'],
                             'owner_group': tenant_info['owner_group'],
-                            'nvlinks': tenant_info['nvlinks']
+                            'nvlinks': tenant_info['nvlinks'],
+                            'gpu_used': gpu_info['gpu_used'],
+                            'gpu_capacity': gpu_info['gpu_capacity'],
+                            'gpu_usage_ratio': gpu_info['gpu_usage_ratio']
                         }
                     
                     processed.append(host_data)
@@ -228,11 +231,12 @@ def register_routes(app):
                 }
             
             ondemand_gpu_summary = calculate_gpu_summary(ondemand_data)
+            runpod_gpu_summary = calculate_gpu_summary(runpod_data)
             spot_gpu_summary = calculate_gpu_summary(spot_data)
             
-            # Overall GPU summary (On-Demand + Spot)
-            total_gpu_used = ondemand_gpu_summary['gpu_used'] + spot_gpu_summary['gpu_used']
-            total_gpu_capacity = ondemand_gpu_summary['gpu_capacity'] + spot_gpu_summary['gpu_capacity']
+            # Overall GPU summary (On-Demand + RunPod + Spot)
+            total_gpu_used = ondemand_gpu_summary['gpu_used'] + runpod_gpu_summary['gpu_used'] + spot_gpu_summary['gpu_used']
+            total_gpu_capacity = ondemand_gpu_summary['gpu_capacity'] + runpod_gpu_summary['gpu_capacity'] + spot_gpu_summary['gpu_capacity']
             gpu_usage_percentage = round((total_gpu_used / total_gpu_capacity * 100) if total_gpu_capacity > 0 else 0, 1)
             
             # Build on-demand name display
@@ -265,7 +269,8 @@ def register_routes(app):
                 },
                 'runpod': {
                     'name': config.get('runpod', 'N/A'),
-                    'hosts': runpod_data
+                    'hosts': runpod_data,
+                    'gpu_summary': runpod_gpu_summary
                 },
                 'spot': {
                     'name': config.get('spot', 'N/A'),
