@@ -1963,7 +1963,25 @@ async function loadContractDataForColumn(contractAggregate) {
         
         if (selectedContract) {
             console.log(`✅ Contract data loaded for column:`, selectedContract);
-            populateContractPanel(selectedContract);
+            
+            // Convert contract data to standard format like other columns
+            const standardizedData = {
+                name: selectedContract.name,
+                hosts: selectedContract.hosts.map(host => ({
+                    name: host.hostname,
+                    has_vms: (host.vm_count || 0) > 0,
+                    vm_count: host.vm_count || 0,
+                    tenant: extractTenantName(host),
+                    owner_group: extractTenantName(host) === 'Chris Starkey' ? 'Nexgen Cloud' : 'Investors',
+                    gpu_used: host.gpu_info?.gpu_used || 0,
+                    gpu_usage_ratio: host.gpu_info?.gpu_usage_ratio || `${host.gpu_info?.gpu_used || 0}/${host.gpu_info?.gpu_capacity || 8}`,
+                    nvlinks: host.nvlinks !== false,
+                    variant: selectedContract.aggregate || selectedContract.name
+                })),
+                gpu_summary: calculateContractGpuSummary(selectedContract.hosts)
+            };
+            
+            updateContractColumn(standardizedData);
         } else {
             console.error(`❌ Contract ${contractAggregate} not found in response`);
             if (contractHostsList) {
@@ -1981,6 +1999,60 @@ async function loadContractDataForColumn(contractAggregate) {
 
 // Old loadContractAggregateData function removed - replaced with loadContractDataForColumn
 
+// Helper function to extract tenant name from contract host data
+function extractTenantName(host) {
+    if (host.tenant_info) {
+        return host.tenant_info.name || host.tenant_info.tenant || host.tenant_info.investor || 'Unknown';
+    } else if (host.tenant) {
+        return host.tenant;
+    }
+    return 'Unknown';
+}
+
+// Helper function to calculate GPU summary from contract hosts
+function calculateContractGpuSummary(hosts) {
+    let totalUsed = 0;
+    let totalCapacity = 0;
+    
+    hosts.forEach(host => {
+        const gpuInfo = host.gpu_info || {};
+        totalUsed += gpuInfo.gpu_used || 0;
+        totalCapacity += gpuInfo.gpu_capacity || 0;
+    });
+    
+    return {
+        gpu_used: totalUsed,
+        gpu_capacity: totalCapacity,
+        gpu_usage_ratio: `${totalUsed}/${totalCapacity}`
+    };
+}
+
+// Update Contract column specifically (following same pattern as other columns)
+function updateContractColumn(data) {
+    console.log(`🔄 Updating Contract column with ${data.hosts.length} hosts`);
+    
+    // Update header counts
+    document.getElementById('contractHostCount').textContent = data.hosts.length;
+    
+    // Update contract name
+    const contractName = document.getElementById('contractName');
+    if (contractName) {
+        contractName.textContent = data.name || '';
+    }
+    
+    // Update GPU statistics if available
+    if (data.gpu_summary) {
+        const contractPercent = Math.round((data.gpu_summary.gpu_used / data.gpu_summary.gpu_capacity) * 100) || 0;
+        document.getElementById('contractGpuUsage').textContent = data.gpu_summary.gpu_usage_ratio;
+        document.getElementById('contractGpuPercent').textContent = contractPercent + '%';
+        document.getElementById('contractGpuProgressBar').style.width = contractPercent + '%';
+    }
+    
+    // Re-render the hosts (same as other columns)
+    window.Frontend.renderHosts('contractHostsList', data.hosts, 'contract', data.name);
+}
+
+// Legacy function name for backwards compatibility - will be replaced
 function populateContractPanel(contractData) {
     const contractName = document.getElementById('contractName');
     const contractHostCount = document.getElementById('contractHostCount');
