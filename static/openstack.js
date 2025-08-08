@@ -600,7 +600,8 @@ function getContractAggregatesDirectly(gpuType) {
         contractDetails.push({
             aggregate: aggregateName,
             name: contract.name,
-            hosts: contractHosts
+            hosts: contractHosts,
+            host_count: contractHosts.length
         });
     });
     
@@ -640,7 +641,8 @@ function getContractAggregatesFromCache(gpuType) {
             contracts.push({
                 aggregate: contract.aggregate,
                 name: contract.name,
-                hosts: [] // Will be populated if we have host data
+                hosts: [], // Will be populated if we have host data
+                host_count: 0 // Will be updated if we have host data
             });
         });
     }
