@@ -50,15 +50,25 @@ function renderAggregateData(data) {
     document.getElementById('spotHosts').innerHTML = '';
     
     // Clear GPU usage statistics first before updating with new data
-    document.getElementById('ondemandGpuUsage').textContent = '0/0';
-    document.getElementById('ondemandGpuPercent').textContent = '0%';
-    document.getElementById('ondemandGpuProgressBar').style.width = '0%';
-    document.getElementById('runpodGpuUsage').textContent = '0/0';
-    document.getElementById('runpodGpuPercent').textContent = '0%';
-    document.getElementById('runpodGpuProgressBar').style.width = '0%';
-    document.getElementById('spotGpuUsage').textContent = '0/0';
-    document.getElementById('spotGpuPercent').textContent = '0%';
-    document.getElementById('spotGpuProgressBar').style.width = '0%';
+    const ondemandGpuUsage = document.getElementById('ondemandGpuUsage');
+    const ondemandGpuPercent = document.getElementById('ondemandGpuPercent');
+    const ondemandGpuProgressBar = document.getElementById('ondemandGpuProgressBar');
+    const runpodGpuUsage = document.getElementById('runpodGpuUsage');
+    const runpodGpuPercent = document.getElementById('runpodGpuPercent');
+    const runpodGpuProgressBar = document.getElementById('runpodGpuProgressBar');
+    const spotGpuUsage = document.getElementById('spotGpuUsage');
+    const spotGpuPercent = document.getElementById('spotGpuPercent');
+    const spotGpuProgressBar = document.getElementById('spotGpuProgressBar');
+    
+    if (ondemandGpuUsage) ondemandGpuUsage.textContent = '0/0';
+    if (ondemandGpuPercent) ondemandGpuPercent.textContent = '0%';
+    if (ondemandGpuProgressBar) ondemandGpuProgressBar.style.width = '0%';
+    if (runpodGpuUsage) runpodGpuUsage.textContent = '0/0';
+    if (runpodGpuPercent) runpodGpuPercent.textContent = '0%';
+    if (runpodGpuProgressBar) runpodGpuProgressBar.style.width = '0%';
+    if (spotGpuUsage) spotGpuUsage.textContent = '0/0';
+    if (spotGpuPercent) spotGpuPercent.textContent = '0%';
+    if (spotGpuProgressBar) spotGpuProgressBar.style.width = '0%';
     
     // Update column headers with aggregate names and counts
     document.getElementById('ondemandName').textContent = data.ondemand.name || 'N/A';
