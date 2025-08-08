@@ -322,65 +322,34 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
         const inUseId = `inuse-${type}`;
         let inUseSubGroups = '';
         
-        if (type === 'runpod') {
-            // For Runpod, group by VM count
-            const hostsByVmCount = {};
-            inUseHosts.forEach(host => {
-                const vmCount = host.vm_count;
-                if (!hostsByVmCount[vmCount]) {
-                    hostsByVmCount[vmCount] = [];
-                }
-                hostsByVmCount[vmCount].push(host);
-            });
+        // For all aggregates (runpod, spot, ondemand), group by GPU usage
+        const hostsByGpuUsage = {};
+        inUseHosts.forEach(host => {
+            const gpuUsage = host.gpu_used || 0;
+            if (!hostsByGpuUsage[gpuUsage]) {
+                hostsByGpuUsage[gpuUsage] = [];
+            }
+            hostsByGpuUsage[gpuUsage].push(host);
+        });
+        
+        Object.keys(hostsByGpuUsage).sort((a, b) => b - a).forEach(gpuUsage => {
+            const hostsInGroup = hostsByGpuUsage[gpuUsage];
+            const subGroupId = `inuse-${type}-${gpuUsage}gpus`;
+            const cards = hostsInGroup.map(host => createHostCard(host, type, aggregateName)).join('');
             
-            Object.keys(hostsByVmCount).sort((a, b) => b - a).forEach(vmCount => {
-                const hostsInGroup = hostsByVmCount[vmCount];
-                const subGroupId = `inuse-${type}-${vmCount}vms`;
-                const cards = hostsInGroup.map(host => createHostCard(host, type, aggregateName)).join('');
-                
-                inUseSubGroups += `
-                    <div class="host-subgroup vm-group">
-                        <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
-                            <i class="fas fa-desktop text-danger"></i>
-                            <span class="subgroup-title">${vmCount} VM${vmCount != 1 ? 's' : ''} (${hostsInGroup.length})</span>
-                            <i class="fas fa-chevron-right toggle-icon" id="${subGroupId}-icon"></i>
-                        </div>
-                        <div class="host-subgroup-content collapsed" id="${subGroupId}">
-                            ${cards}
-                        </div>
+            inUseSubGroups += `
+                <div class="host-subgroup gpu-group">
+                    <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
+                        <i class="fas fa-microchip text-danger"></i>
+                        <span class="subgroup-title">${gpuUsage} GPU${gpuUsage != 1 ? 's' : ''} (${hostsInGroup.length})</span>
+                        <i class="fas fa-chevron-right toggle-icon" id="${subGroupId}-icon"></i>
                     </div>
-                `;
-            });
-        } else {
-            // For spot/ondemand, group by GPU usage
-            const hostsByGpuUsage = {};
-            inUseHosts.forEach(host => {
-                const gpuUsage = host.gpu_used || 0;
-                if (!hostsByGpuUsage[gpuUsage]) {
-                    hostsByGpuUsage[gpuUsage] = [];
-                }
-                hostsByGpuUsage[gpuUsage].push(host);
-            });
-            
-            Object.keys(hostsByGpuUsage).sort((a, b) => b - a).forEach(gpuUsage => {
-                const hostsInGroup = hostsByGpuUsage[gpuUsage];
-                const subGroupId = `inuse-${type}-${gpuUsage}gpus`;
-                const cards = hostsInGroup.map(host => createHostCard(host, type, aggregateName)).join('');
-                
-                inUseSubGroups += `
-                    <div class="host-subgroup gpu-group">
-                        <div class="host-subgroup-header clickable" onclick="toggleGroup('${subGroupId}')">
-                            <i class="fas fa-microchip text-danger"></i>
-                            <span class="subgroup-title">${gpuUsage} GPU${gpuUsage != 1 ? 's' : ''} (${hostsInGroup.length})</span>
-                            <i class="fas fa-chevron-right toggle-icon" id="${subGroupId}-icon"></i>
-                        </div>
-                        <div class="host-subgroup-content collapsed" id="${subGroupId}">
-                            ${cards}
-                        </div>
+                    <div class="host-subgroup-content collapsed" id="${subGroupId}">
+                        ${cards}
                     </div>
-                `;
-            });
-        }
+                </div>
+            `;
+        });
         
         sectionsHtml += `
             <div class="host-group">
