@@ -166,6 +166,11 @@ function renderAggregateData(data) {
 function renderHosts(containerId, hosts, type, aggregateName = null, variants = null) {
     const container = document.getElementById(containerId);
     
+    if (!container) {
+        console.error(`❌ Container element '${containerId}' not found for renderHosts`);
+        return;
+    }
+    
     if (hosts.length === 0) {
         container.innerHTML = `
             <div class="drop-zone" data-type="${type}">
