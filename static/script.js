@@ -1724,8 +1724,19 @@ async function loadContractAggregatesForColumn(gpuType) {
     const contractSelect = document.getElementById('contractColumnSelect');
     const contractName = document.getElementById('contractName');
     
+    // Debug: Check what elements are actually available
+    console.log('🔍 DOM Debug:', {
+        contractSelect: contractSelect,
+        contractName: contractName,
+        contractSelectionDiv: document.getElementById('contractSelectionDiv'),
+        contractHosts: document.getElementById('contractHosts'),
+        allContractElements: document.querySelectorAll('[id*="contract"]')
+    });
+    
     if (!contractSelect) {
         console.warn('⚠️ Contract select element not found - contract column may not be loaded yet');
+        console.warn('🔍 Available elements with "contract" in ID:', 
+            Array.from(document.querySelectorAll('[id*="contract"]')).map(el => el.id));
         return;
     }
     
@@ -2114,9 +2125,18 @@ window.pollVmStatus = pollVmStatus;
 async function initializeContractColumn() {
     console.log('📋 Loading available contracts for column initialization...');
     
+    // Debug: Check DOM state during initialization
+    console.log('🔍 Init Debug - DOM elements:', {
+        contractColumnSelect: document.getElementById('contractColumnSelect'),
+        contractSelectionDiv: document.getElementById('contractSelectionDiv'),
+        contractHosts: document.getElementById('contractHosts'),
+        allContractIds: Array.from(document.querySelectorAll('[id*="contract"]')).map(el => el.id)
+    });
+    
     const contractSelect = document.getElementById('contractColumnSelect');
     if (!contractSelect) {
-        console.error('❌ Contract select element not found');
+        console.error('❌ Contract select element not found during initialization');
+        console.error('🔍 Full DOM at init time:', document.documentElement.outerHTML.substring(0, 1000) + '...');
         return;
     }
     
