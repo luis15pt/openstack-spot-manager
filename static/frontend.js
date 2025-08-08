@@ -18,8 +18,8 @@ function renderAggregateData(data) {
     console.log('🧹 Starting aggressive column cleanup...');
     const mainRow = document.querySelector('.row.mt-3');
     if (mainRow) {
-        // Get all column divs
-        const existingColumns = mainRow.querySelectorAll('.col-md-1, .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6');
+        // Get all column divs - use more comprehensive selector
+        const existingColumns = mainRow.querySelectorAll('[class*="col-md-"], [class*="col-lg-"], [class*="col-sm-"], [class*="col-xl-"], .col');
         console.log(`🔍 Found ${existingColumns.length} columns to check`);
         
         existingColumns.forEach((col, index) => {
@@ -1268,7 +1268,7 @@ function renderOnDemandVariantColumns(ondemandData) {
     const mainRow = document.querySelector('.row.mt-3');
     if (mainRow) {
         // Get all column divs with more comprehensive selector
-        const existingColumns = mainRow.querySelectorAll('.col-md-1, .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6');
+        const existingColumns = mainRow.querySelectorAll('[class*="col-md-"], [class*="col-lg-"], [class*="col-sm-"], [class*="col-xl-"], .col');
         existingColumns.forEach(col => {
             const columnDiv = col.querySelector('.aggregate-column');
             
