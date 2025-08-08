@@ -1260,7 +1260,9 @@ function scheduleRunpodLaunch(hostname) {
 function renderOnDemandVariantColumns(ondemandData) {
     console.log('🔍 renderOnDemandVariantColumns:', {
         variants: ondemandData.variants,
-        totalHosts: ondemandData.hosts.length
+        totalHosts: ondemandData.hosts.length,
+        gpuType: ondemandData.name || 'unknown',
+        hostSample: ondemandData.hosts.slice(0, 3).map(h => ({hostname: h.hostname, variant: h.variant}))
     });
     
     // FIRST: Clean up ALL existing variant columns regardless of their state
