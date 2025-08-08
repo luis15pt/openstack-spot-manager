@@ -267,6 +267,13 @@ function initializeEventListeners() {
             window.currentGpuType = selectedType;
             console.log(`📊 Loading data for GPU type: ${selectedType}`);
             
+            // Show the hosts row now that a GPU type is selected
+            const hostsRow = document.getElementById('hostsRow');
+            if (hostsRow) {
+                hostsRow.classList.remove('d-none');
+                console.log('👁️ Hosts row is now visible');
+            }
+            
             // Update System Info tab with active GPU type
             const activeGpuType = document.getElementById('activeGpuType');
             if (activeGpuType) {
@@ -278,8 +285,14 @@ function initializeEventListeners() {
             // Load contract aggregates for the contract column
             loadContractAggregatesForColumn(selectedType);
         } else {
-            // Don't hide main content - keep contract column visible
-            // Just clear the other columns data but keep contract column available
+            // Hide the hosts row when no GPU type is selected
+            const hostsRow = document.getElementById('hostsRow');
+            if (hostsRow) {
+                hostsRow.classList.add('d-none');
+                console.log('🙈 Hosts row is now hidden');
+            }
+            
+            // Clear the contract column data
             clearContractColumn();
         }
     });
@@ -2204,22 +2217,8 @@ window.initializeContractColumn = async function initializeContractColumn() {
                 });
                 
                 console.log('✅ Contract column initialized with available contracts');
-                
-                // Show the contract column now that it's initialized
-                const contractColumn = document.getElementById('contractColumn');
-                if (contractColumn) {
-                    contractColumn.classList.remove('d-none');
-                    console.log('👁️ Contract column is now visible');
-                }
             } else {
                 console.log('ℹ️ No contracts available for this GPU type');
-                
-                // Still show the column even if no contracts, so user sees the empty state
-                const contractColumn = document.getElementById('contractColumn');
-                if (contractColumn) {
-                    contractColumn.classList.remove('d-none');
-                    console.log('👁️ Contract column is now visible (empty state)');
-                }
             }
         } else {
             console.log('ℹ️ No GPU types available');
