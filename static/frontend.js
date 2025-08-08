@@ -20,6 +20,13 @@ function renderAggregateData(data) {
         existingColumns.forEach(col => {
             const columnDiv = col.querySelector('.aggregate-column');
             
+            // Debug logging to see what we're finding
+            console.log('🔍 Found column:', {
+                colId: col.id,
+                columnDivId: columnDiv ? columnDiv.id : 'no div',
+                classList: col.classList.toString()
+            });
+            
             // Check if this is a core column that should be kept
             const isKeepColumn = col.id === 'ondemandColumnFallback' || 
                                 col.id === 'contractColumn' ||
@@ -33,6 +40,8 @@ function renderAggregateData(data) {
                     console.log('🗑️ Global cleanup: Removing variant column without ID');
                 }
                 col.remove();
+            } else {
+                console.log('✅ Keeping core column:', columnDiv ? columnDiv.id : col.id);
             }
         });
     }
@@ -1244,6 +1253,13 @@ function renderOnDemandVariantColumns(ondemandData) {
         existingColumns.forEach(col => {
             const columnDiv = col.querySelector('.aggregate-column');
             
+            // Debug logging to see what we're finding
+            console.log('🔍 Pre-cleanup found column:', {
+                colId: col.id,
+                columnDivId: columnDiv ? columnDiv.id : 'no div',
+                classList: col.classList.toString()
+            });
+            
             // Check if this is a core column that should be kept
             const isKeepColumn = col.id === 'ondemandColumnFallback' || 
                                 col.id === 'contractColumn' ||
@@ -1257,6 +1273,8 @@ function renderOnDemandVariantColumns(ondemandData) {
                     console.log('🗑️ Pre-cleanup: Removing variant column without ID');
                 }
                 col.remove();
+            } else {
+                console.log('✅ Pre-cleanup keeping core column:', columnDiv ? columnDiv.id : col.id);
             }
         });
     }
