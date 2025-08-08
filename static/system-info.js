@@ -130,16 +130,16 @@ function updateAggregateBreakdown(aggregates) {
     
     // Update contract details
     const contractTypes = document.getElementById('contractTypes');
-    const contractHosts = document.getElementById('contractHosts');
+    const contractHostsSystemInfo = document.getElementById('contractHostsSystemInfo');
     const contractUtilization = document.getElementById('contractUtilization');
     
     if (contractTypes && contractCount > 0) {
         contractTypes.textContent = 'IOnet, ING, FLA, SKY, Nanonet, Stanford';
     }
-    if (contractHosts) {
+    if (contractHostsSystemInfo) {
         // Estimate total contract hosts based on aggregate count
         const estimatedHosts = contractCount * 8; // Rough estimate
-        contractHosts.textContent = `~${estimatedHosts}`;
+        contractHostsSystemInfo.textContent = `~${estimatedHosts}`;
     }
     if (contractUtilization) {
         contractUtilization.textContent = 'Variable';
