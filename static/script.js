@@ -287,14 +287,20 @@ function initializeEventListeners() {
                 console.log('📋 Initializing contract column for first GPU type selection...');
                 window.initializeContractColumn().then(() => {
                     window.contractColumnInitialized = true;
-                    loadContractAggregatesForColumn(selectedType);
+                    // Small delay to ensure DOM elements are ready
+                    setTimeout(() => {
+                        loadContractAggregatesForColumn(selectedType);
+                    }, 100);
                 }).catch(error => {
                     console.error('❌ Error initializing contract column:', error);
                     window.Frontend.showNotification('Failed to initialize contract column', 'danger');
                 });
             } else {
                 // Contract column already initialized, just load data
-                loadContractAggregatesForColumn(selectedType);
+                // Small delay to ensure DOM elements are ready
+                setTimeout(() => {
+                    loadContractAggregatesForColumn(selectedType);
+                }, 100);
             }
         } else {
             // Hide the hosts row when no GPU type is selected
@@ -2048,6 +2054,17 @@ function populateContractPanel(contractData) {
     
     // Use the same renderHosts function as other columns for consistent grouping
     if (window.Frontend && window.Frontend.renderHosts) {
+        // Check if the target element exists before rendering
+        const contractHostsList = document.getElementById('contractHostsList');
+        if (!contractHostsList) {
+            console.error('❌ contractHostsList element not found - hosts row may not be visible yet');
+            console.log('🔍 Checking hosts row visibility:', {
+                hostsRow: document.getElementById('hostsRow'),
+                hostsRowVisible: document.getElementById('hostsRow')?.classList.contains('d-none') === false
+            });
+            return;
+        }
+        
         console.log(`📋 Rendering ${transformedHosts.length} contract hosts with proper grouping`);
         window.Frontend.renderHosts('contractHostsList', transformedHosts, 'contract', contractData.aggregate);
     }
