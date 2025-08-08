@@ -1240,9 +1240,10 @@ function executeRealCommand(operation, command) {
                 }
                 
                 const migrationData = {
-                    host: hostname,
+                    hostname: hostname,
                     source_aggregate: currentOperation.sourceAggregate || (sourceMatch ? sourceMatch[1] : ''),
-                    target_aggregate: currentOperation.targetAggregate || (targetMatch ? targetMatch[1] : '')
+                    target_aggregate: currentOperation.targetAggregate || (targetMatch ? targetMatch[1] : ''),
+                    operation: isRemove ? 'remove' : 'add'
                 };
                 
                 console.log(`🔄 ${isRemove ? 'Removing' : 'Adding'} ${hostname} ${isRemove ? 'from' : 'to'} aggregate ${isRemove ? migrationData.source_aggregate : migrationData.target_aggregate}`);
