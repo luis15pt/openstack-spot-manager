@@ -135,8 +135,8 @@ def discover_gpu_aggregates(force_refresh=False):
                     'runpod': data['runpod'],
                     'contracts': data['contracts']  # Add contracts to result
                 }
-            
-            print(f"📊 Discovered GPU aggregates: {result}")
+        
+        print(f"📊 Discovered GPU aggregates: {result}")
         
         # Cache the results
         _gpu_aggregates_cache = result
