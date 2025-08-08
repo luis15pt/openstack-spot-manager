@@ -99,6 +99,14 @@ function renderAggregateData(data) {
         document.getElementById('spotGpuProgressBar').style.width = spotPercent + '%';
     }
     
+    // Update RunPod GPU statistics
+    if (data.runpod.gpu_summary) {
+        const runpodPercent = Math.round((data.runpod.gpu_summary.gpu_used / data.runpod.gpu_summary.gpu_capacity) * 100) || 0;
+        document.getElementById('runpodGpuUsage').textContent = data.runpod.gpu_summary.gpu_usage_ratio;
+        document.getElementById('runpodGpuPercent').textContent = runpodPercent + '%';
+        document.getElementById('runpodGpuProgressBar').style.width = runpodPercent + '%';
+    }
+    
     // Update Runpod VM statistics
     if (data.runpod.hosts) {
         const totalVms = data.runpod.hosts.reduce((total, host) => total + (host.vm_count || 0), 0);
