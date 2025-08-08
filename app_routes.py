@@ -167,11 +167,16 @@ def register_routes(app):
                     # Find the host data from parallel results
                     host_info = next((h for h in all_hosts if h['hostname'] == hostname), None)
                     if not host_info:
+                        print(f"⚠️ Host {hostname} not found in parallel data for {aggregate_type}")
                         continue
                     
                     tenant_info = host_info['tenant_info']
                     vm_count = host_info['vm_count']
-                    gpu_info = host_info['gpu_info']
+                    gpu_info = host_info.get('gpu_info', {
+                        'gpu_used': 0, 
+                        'gpu_capacity': 8, 
+                        'gpu_usage_ratio': '0/8'
+                    })
                     
                     if aggregate_type in ['spot', 'ondemand']:
                         host_data = {
