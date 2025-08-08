@@ -228,7 +228,7 @@ def register_routes(app):
             # Calculate GPU summary statistics for On-Demand and Spot only
             def calculate_gpu_summary(data):
                 total_used = sum(host.get('gpu_used', 0) for host in data)
-                total_capacity = sum(host.get('gpu_capacity', 0) for host in data)
+                total_capacity = sum(host.get('gpu_capacity', 8) for host in data)  # Default to 8 GPUs per host
                 return {
                     'gpu_used': total_used,
                     'gpu_capacity': total_capacity,
