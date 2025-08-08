@@ -107,12 +107,6 @@ function renderAggregateData(data) {
         document.getElementById('runpodGpuProgressBar').style.width = runpodPercent + '%';
     }
     
-    // Update Runpod VM statistics
-    if (data.runpod.hosts) {
-        const totalVms = data.runpod.hosts.reduce((total, host) => total + (host.vm_count || 0), 0);
-        document.getElementById('runpodVmUsage').textContent = totalVms + ' VMs';
-    }
-    
     // Update overall summary banner
     if (data.gpu_overview) {
         document.getElementById('totalGpuUsage').textContent = data.gpu_overview.gpu_usage_ratio + ' GPUs';

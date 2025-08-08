@@ -568,10 +568,6 @@ function updateRunpodColumn(data) {
         document.getElementById('runpodGpuProgressBar').style.width = '0%';
     }
     
-    // Update VM usage statistics
-    const totalVms = data.hosts.reduce((total, host) => total + (host.vm_count || 0), 0);
-    document.getElementById('runpodVmUsage').textContent = totalVms + ' VMs';
-    
     // Re-render the hosts
     window.Frontend.renderHosts('runpodHosts', data.hosts, 'runpod', data.name);
 }
