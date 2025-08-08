@@ -2054,14 +2054,36 @@ function populateContractPanel(contractData) {
     
     // Use the same renderHosts function as other columns for consistent grouping
     if (window.Frontend && window.Frontend.renderHosts) {
+        // Comprehensive DOM debugging
+        console.log('🔍 DETAILED DOM DEBUG:');
+        console.log('  - hostsRow element:', document.getElementById('hostsRow'));
+        console.log('  - hostsRow classes:', document.getElementById('hostsRow')?.className);
+        console.log('  - contractColumn element:', document.getElementById('contractColumn'));
+        console.log('  - contractHosts element:', document.getElementById('contractHosts'));
+        console.log('  - contractSelectionDiv element:', document.getElementById('contractSelectionDiv'));
+        console.log('  - contractHostsList element:', document.getElementById('contractHostsList'));
+        console.log('  - contractEmptyState element:', document.getElementById('contractEmptyState'));
+        
+        // Check if hostsRow contains contractColumn
+        const hostsRow = document.getElementById('hostsRow');
+        const contractColumn = document.getElementById('contractColumn');
+        if (hostsRow && contractColumn) {
+            console.log('  - contractColumn inside hostsRow:', hostsRow.contains(contractColumn));
+        }
+        
+        // List all children of hostsRow
+        if (hostsRow) {
+            console.log('  - hostsRow children:', Array.from(hostsRow.children).map(child => ({
+                id: child.id,
+                className: child.className,
+                tagName: child.tagName
+            })));
+        }
+        
         // Check if the target element exists before rendering
         const contractHostsList = document.getElementById('contractHostsList');
         if (!contractHostsList) {
-            console.error('❌ contractHostsList element not found - hosts row may not be visible yet');
-            console.log('🔍 Checking hosts row visibility:', {
-                hostsRow: document.getElementById('hostsRow'),
-                hostsRowVisible: document.getElementById('hostsRow')?.classList.contains('d-none') === false
-            });
+            console.error('❌ contractHostsList element not found after detailed check');
             return;
         }
         
@@ -2199,6 +2221,22 @@ window.initializeContractColumn = async function initializeContractColumn() {
             // Insert at the beginning of contractHosts
             contractHosts.insertBefore(contractSelectionDiv, contractHosts.firstChild);
             console.log('✅ Created missing contract select element');
+            
+            // Also ensure contractHostsList exists
+            let contractHostsList = document.getElementById('contractHostsList');
+            if (!contractHostsList) {
+                console.log('🔧 Creating missing contractHostsList element...');
+                contractHostsList = document.createElement('div');
+                contractHostsList.id = 'contractHostsList';
+                contractHostsList.innerHTML = `
+                    <div class="text-center text-muted" id="contractEmptyState">
+                        <i class="fas fa-file-contract fa-2x mb-2"></i>
+                        <p class="small">Select a contract above to view hosts</p>
+                    </div>
+                `;
+                contractHosts.appendChild(contractHostsList);
+                console.log('✅ Created missing contractHostsList element');
+            }
             
             // Try again to get the element
             const newContractSelect = document.getElementById('contractColumnSelect');
