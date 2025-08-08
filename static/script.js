@@ -2136,8 +2136,38 @@ async function initializeContractColumn() {
     const contractSelect = document.getElementById('contractColumnSelect');
     if (!contractSelect) {
         console.error('❌ Contract select element not found during initialization');
-        console.error('🔍 Full DOM at init time:', document.documentElement.outerHTML.substring(0, 1000) + '...');
-        return;
+        console.warn('🔧 Attempting to create missing contract select element...');
+        
+        // Try to find the contractHosts element where we can inject the missing dropdown
+        const contractHosts = document.getElementById('contractHosts');
+        if (contractHosts) {
+            // Create the missing contract selection div
+            const contractSelectionDiv = document.createElement('div');
+            contractSelectionDiv.id = 'contractSelectionDiv';
+            contractSelectionDiv.className = 'mb-3';
+            contractSelectionDiv.innerHTML = `
+                <label for="contractColumnSelect" class="form-label">
+                    <small>Select Contract:</small>
+                </label>
+                <select id="contractColumnSelect" class="form-select form-select-sm">
+                    <option value="">Select Contract...</option>
+                </select>
+            `;
+            
+            // Insert at the beginning of contractHosts
+            contractHosts.insertBefore(contractSelectionDiv, contractHosts.firstChild);
+            console.log('✅ Created missing contract select element');
+            
+            // Try again to get the element
+            const newContractSelect = document.getElementById('contractColumnSelect');
+            if (!newContractSelect) {
+                console.error('❌ Failed to create contract select element');
+                return;
+            }
+        } else {
+            console.error('❌ contractHosts element not found - cannot create dropdown');
+            return;
+        }
     }
     
     try {
