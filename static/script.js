@@ -197,13 +197,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Main content is now always visible (no d-none class in HTML)
     console.log('👁️ Main content and contract column are visible by default');
     
-    // Initialize contract column with available contracts
-    console.log('📋 Initializing contract column...');
-    initializeContractColumn().catch(error => {
-        console.error('❌ Error initializing contract column:', error);
-        window.Frontend.showNotification('Failed to load contract data', 'danger');
-    });
-    
     console.log('📊 Loading GPU types...');
     window.OpenStack.loadGpuTypes();
     
@@ -2129,7 +2122,7 @@ window.removePendingOperation = removePendingOperation;
 window.updateControlButtons = updateControlButtons;
 window.pollVmStatus = pollVmStatus;
 // Initialize contract column on page load
-async function initializeContractColumn() {
+window.initializeContractColumn = async function initializeContractColumn() {
     console.log('📋 Loading available contracts for column initialization...');
     
     // Debug: Check DOM state during initialization
@@ -2211,8 +2204,22 @@ async function initializeContractColumn() {
                 });
                 
                 console.log('✅ Contract column initialized with available contracts');
+                
+                // Show the contract column now that it's initialized
+                const contractColumn = document.getElementById('contractColumn');
+                if (contractColumn) {
+                    contractColumn.classList.remove('d-none');
+                    console.log('👁️ Contract column is now visible');
+                }
             } else {
                 console.log('ℹ️ No contracts available for this GPU type');
+                
+                // Still show the column even if no contracts, so user sees the empty state
+                const contractColumn = document.getElementById('contractColumn');
+                if (contractColumn) {
+                    contractColumn.classList.remove('d-none');
+                    console.log('👁️ Contract column is now visible (empty state)');
+                }
             }
         } else {
             console.log('ℹ️ No GPU types available');
@@ -2230,7 +2237,6 @@ window.loadContractDataForColumn = loadContractDataForColumn;
 window.clearContractColumn = clearContractColumn;
 window.clearContractHosts = clearContractHosts;
 window.populateContractPanel = populateContractPanel;
-window.initializeContractColumn = initializeContractColumn;
 
 // Initialize session timer for System Info tab
 const sessionStartTime = Date.now();
