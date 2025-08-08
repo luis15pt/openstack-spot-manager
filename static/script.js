@@ -2061,7 +2061,7 @@ function populateContractPanel(contractData) {
             has_vms: (host.vm_count || 0) > 0,
             vm_count: host.vm_count || 0,
             tenant: tenantName,
-            owner_group: host.tenant === 'Nexgen Cloud' ? 'Nexgen Cloud' : 'Investors',
+            owner_group: tenantName === 'Chris Starkey' ? 'Nexgen Cloud' : 'Investors',
             gpu_used: usedGpus,
             gpu_usage_ratio: gpuInfo.gpu_usage_ratio || `${usedGpus}/${totalGpus}`,
             nvlinks: host.nvlinks !== false, // Default to true for contract hosts
