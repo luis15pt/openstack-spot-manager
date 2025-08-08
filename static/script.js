@@ -291,22 +291,29 @@ function initializeEventListeners() {
         }
     });
     
-    // Contract column selector
-    document.getElementById('contractColumnSelect').addEventListener('change', function() {
-        const selectedContract = this.value;
-        if (selectedContract) {
-            console.log(`📋 Selected contract from column: ${selectedContract}`);
-            loadContractDataForColumn(selectedContract);
-        } else {
-            // When no contract is selected, reload overall contract statistics
-            console.log(`📋 No contract selected, showing overall statistics`);
-            if (window.currentGpuType) {
-                loadContractAggregatesForColumn(window.currentGpuType);
-            } else {
-                clearContractHosts();
-            }
+    // Contract column selector - will be attached when element is ready
+    function attachContractColumnListener() {
+        const contractSelect = document.getElementById('contractColumnSelect');
+        if (contractSelect && !contractSelect.hasAttribute('data-listener-attached')) {
+            contractSelect.addEventListener('change', function() {
+                const selectedContract = this.value;
+                if (selectedContract) {
+                    console.log(`📋 Selected contract from column: ${selectedContract}`);
+                    loadContractDataForColumn(selectedContract);
+                } else {
+                    // When no contract is selected, reload overall contract statistics
+                    console.log(`📋 No contract selected, showing overall statistics`);
+                    if (window.currentGpuType) {
+                        loadContractAggregatesForColumn(window.currentGpuType);
+                    } else {
+                        clearContractHosts();
+                    }
+                }
+            });
+            contractSelect.setAttribute('data-listener-attached', 'true');
+            console.log('✅ Contract column event listener attached');
         }
-    });
+    }
     
     // Contract refresh button
     document.getElementById('refreshContractBtn').addEventListener('click', function() {
@@ -2164,10 +2171,16 @@ async function initializeContractColumn() {
                 console.error('❌ Failed to create contract select element');
                 return;
             }
+            
+            // Attach the event listener now that element exists
+            attachContractColumnListener();
         } else {
             console.error('❌ contractHosts element not found - cannot create dropdown');
             return;
         }
+    } else {
+        // Element already exists, just attach listener
+        attachContractColumnListener();
     }
     
     try {

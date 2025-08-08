@@ -788,8 +788,11 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
         if (targetType === 'contract') {
             // For contract drops, get the selected contract from the dropdown
             const contractSelect = document.getElementById('contractColumnSelect');
-            if (!contractSelect || !contractSelect.value) {
-                throw new Error('No contract selected. Please select a contract first.');
+            if (!contractSelect) {
+                throw new Error('Contract dropdown not initialized yet. Please wait for the page to fully load and try again.');
+            }
+            if (!contractSelect.value) {
+                throw new Error('No contract selected. Please select a contract from the dropdown first.');
             }
             targetAggregate = contractSelect.value;
         } else if (targetType === 'spot') {
