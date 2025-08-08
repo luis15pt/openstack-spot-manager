@@ -144,6 +144,55 @@ function renderAggregateData(data) {
     document.getElementById('availableHostsCount').textContent = totalAvailableHosts;
     document.getElementById('inUseHostsCount').textContent = totalInUseHosts;
     
+    // Calculate and update total GPU usage across ALL columns (runpod, spot, ondemand variants, contracts)
+    let totalGpuUsed = 0;
+    let totalGpuCapacity = 0;
+    
+    // Add RunPod GPUs
+    if (data.runpod && data.runpod.gpu_summary) {
+        totalGpuUsed += data.runpod.gpu_summary.gpu_used || 0;
+        totalGpuCapacity += data.runpod.gpu_summary.gpu_capacity || 0;
+    }
+    
+    // Add Spot GPUs
+    if (data.spot && data.spot.gpu_summary) {
+        totalGpuUsed += data.spot.gpu_summary.gpu_used || 0;
+        totalGpuCapacity += data.spot.gpu_summary.gpu_capacity || 0;
+    }
+    
+    // Add On-Demand GPUs (including all NVLink variants)
+    if (data.ondemand && data.ondemand.gpu_summary) {
+        totalGpuUsed += data.ondemand.gpu_summary.gpu_used || 0;
+        totalGpuCapacity += data.ondemand.gpu_summary.gpu_capacity || 0;
+    }
+    
+    // Add Contract GPUs (get from loaded contract data)
+    const contractGpuData = getContractGpuTotals();
+    if (contractGpuData) {
+        totalGpuUsed += contractGpuData.used || 0;
+        totalGpuCapacity += contractGpuData.capacity || 0;
+    }
+    
+    // Update total GPU display
+    const totalGpuPercentage = totalGpuCapacity > 0 ? Math.round((totalGpuUsed / totalGpuCapacity) * 100) : 0;
+    document.getElementById('totalGpuUsage').textContent = `${totalGpuUsed}/${totalGpuCapacity} GPUs`;
+    document.getElementById('gpuUsagePercentage').textContent = `${totalGpuPercentage}%`;
+    document.getElementById('gpuProgressBar').style.width = `${totalGpuPercentage}%`;
+    document.getElementById('gpuProgressText').textContent = `${totalGpuPercentage}%`;
+    
+    // Update progress bar color
+    const progressBar = document.getElementById('gpuProgressBar');
+    progressBar.className = 'progress-bar';
+    if (totalGpuPercentage < 50) {
+        progressBar.classList.add('bg-success');
+    } else if (totalGpuPercentage < 80) {
+        progressBar.classList.add('bg-warning');
+    } else {
+        progressBar.classList.add('bg-danger');
+    }
+    
+    console.log(`📊 Total GPU Usage: ${totalGpuUsed}/${totalGpuCapacity} (${totalGpuPercentage}%) - RunPod: ${data.runpod?.gpu_summary?.gpu_used || 0}, Spot: ${data.spot?.gpu_summary?.gpu_used || 0}, OnDemand: ${data.ondemand?.gpu_summary?.gpu_used || 0}, Contracts: ${contractGpuData?.used || 0}`);
+    
     // Store data for other functions
     aggregateData = data;
     
@@ -1780,6 +1829,49 @@ window.toggleCommandDetails = toggleCommandDetails;
 window.expandAllCommands = expandAllCommands;
 window.collapseAllCommands = collapseAllCommands;
 window.refreshAffectedColumns = refreshAffectedColumns;
+
+// Helper function to get contract GPU totals from current contract data
+function getContractGpuTotals() {
+    try {
+        // Try to get contract GPU data from the contract header elements
+        const contractGpuUsage = document.getElementById('contractGpuUsage');
+        if (contractGpuUsage && contractGpuUsage.textContent && contractGpuUsage.textContent !== '0/0') {
+            const [used, capacity] = contractGpuUsage.textContent.split('/').map(num => parseInt(num) || 0);
+            return { used, capacity };
+        }
+        
+        // Fallback: calculate from loaded parallel data if available
+        if (window.loadedParallelData && window.currentGpuType) {
+            const gpuData = window.loadedParallelData[window.currentGpuType];
+            if (gpuData && gpuData.config && gpuData.config.contracts) {
+                let totalUsed = 0;
+                let totalCapacity = 0;
+                
+                gpuData.config.contracts.forEach(contract => {
+                    const contractHosts = (gpuData.hosts || []).filter(host => 
+                        host.aggregate === contract.aggregate || 
+                        (host.host_data && host.host_data.aggregate === contract.aggregate)
+                    );
+                    
+                    contractHosts.forEach(host => {
+                        const gpuInfo = host.gpu_info || host.host_data?.gpu_info;
+                        if (gpuInfo) {
+                            totalUsed += gpuInfo.gpu_used || 0;
+                            totalCapacity += gpuInfo.gpu_capacity || 0;
+                        }
+                    });
+                });
+                
+                return { used: totalUsed, capacity: totalCapacity };
+            }
+        }
+        
+        return null;
+    } catch (error) {
+        console.warn('Error getting contract GPU totals:', error);
+        return null;
+    }
+}
 
 // Export for modular access - only the minimum needed
 window.Frontend = {

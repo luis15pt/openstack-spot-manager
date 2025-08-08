@@ -554,6 +554,14 @@ function updateRunpodColumn(data) {
     // Update header counts
     document.getElementById('runpodCount').textContent = data.hosts.length;
     
+    // Update GPU statistics if available
+    if (data.gpu_summary) {
+        const runpodPercent = Math.round((data.gpu_summary.gpu_used / data.gpu_summary.gpu_capacity) * 100) || 0;
+        document.getElementById('runpodGpuUsage').textContent = data.gpu_summary.gpu_usage_ratio;
+        document.getElementById('runpodGpuPercent').textContent = runpodPercent + '%';
+        document.getElementById('runpodGpuProgressBar').style.width = runpodPercent + '%';
+    }
+    
     // Update VM usage statistics
     const totalVms = data.hosts.reduce((total, host) => total + (host.vm_count || 0), 0);
     document.getElementById('runpodVmUsage').textContent = totalVms + ' VMs';
@@ -2037,13 +2045,22 @@ function populateContractPanel(contractData) {
         console.log(`  - VM Count: ${host.vm_count || 0}`);
         console.log(`  - GPU Info:`, gpuInfo);
         console.log(`  - Used/Total GPUs: ${usedGpus}/${totalGpus}`);
-        console.log(`  - Tenant: ${host.tenant}`);
+        console.log(`  - Tenant Info:`, host.tenant_info);
+        console.log(`  - Direct Tenant:`, host.tenant);
+        
+        // Extract tenant information from tenant_info object or direct tenant field
+        let tenantName = 'Unknown';
+        if (host.tenant_info) {
+            tenantName = host.tenant_info.name || host.tenant_info.tenant || host.tenant_info.investor || tenantName;
+        } else if (host.tenant) {
+            tenantName = host.tenant;
+        }
         
         return {
             name: host.hostname,
             has_vms: (host.vm_count || 0) > 0,
             vm_count: host.vm_count || 0,
-            tenant: host.tenant || 'Unknown',
+            tenant: tenantName,
             owner_group: host.tenant === 'Nexgen Cloud' ? 'Nexgen Cloud' : 'Investors',
             gpu_used: usedGpus,
             gpu_usage_ratio: gpuInfo.gpu_usage_ratio || `${usedGpus}/${totalGpus}`,
