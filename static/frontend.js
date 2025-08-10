@@ -1310,31 +1310,20 @@ function renderOnDemandVariantColumns(ondemandData) {
         });
     }
     
-    // Calculate total columns: RunPod + OnDemand variants + Spot + Contract
+    // Calculate ondemand variant column width
+    // Runpod (1) + Spot (1) + Contract (2) = 4 columns used, 8 remaining for ondemand variants
     const totalVariants = ondemandData.variants ? ondemandData.variants.length : 1;
-    const totalColumns = 1 + totalVariants + 1 + 1; // RunPod + variants + Spot + Contract
-    const colWidth = Math.floor(12 / totalColumns); // Bootstrap grid is 12 columns
+    const ondemandAvailableSpace = 8; // 12 - 1 (runpod) - 1 (spot) - 2 (contract)
+    const variantColWidth = Math.floor(ondemandAvailableSpace / totalVariants);
     
     console.log('🔍 Column calculation:', {
         totalVariants,
-        totalColumns,
-        colWidth
+        ondemandAvailableSpace,
+        variantColWidth
     });
     
-    // Update RunPod, Spot, and Contract column widths
-    const runpodColumn = document.querySelector('#runpodColumn').closest('.col-md-2');
-    const spotColumn = document.querySelector('#spotColumn').closest('.col-md-2');
-    const contractColumn = document.querySelector('#contractAggregateColumn').closest('.col-md-2');
-    
-    if (runpodColumn) {
-        runpodColumn.className = runpodColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
-    }
-    if (spotColumn) {
-        spotColumn.className = spotColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
-    }
-    if (contractColumn) {
-        contractColumn.className = contractColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
-    }
+    // Don't change RunPod, Spot, or Contract column widths - they're fixed in HTML
+    // RunPod: col-md-1, Spot: col-md-1, Contract: col-md-2
     
     // Check if variants include NVLink differentiation (only split columns for NVLink variants)
     const hasNVLinkVariants = ondemandData.variants && ondemandData.variants.length > 1 && 
@@ -1371,7 +1360,7 @@ function renderOnDemandVariantColumns(ondemandData) {
             }
             
             const columnHtml = `
-                <div class="col-md-${colWidth}">
+                <div class="col-md-${variantColWidth}">
                     <div class="aggregate-column" id="${variantId}Column">
                         <div class="card">
                             <div class="card-header bg-primary text-white">
@@ -1456,7 +1445,7 @@ function renderOnDemandVariantColumns(ondemandData) {
         const fallbackColumn = document.getElementById('ondemandColumnFallback');
         if (fallbackColumn) {
             fallbackColumn.style.display = 'block';
-            fallbackColumn.className = fallbackColumn.className.replace(/col-md-\d+/, `col-md-${colWidth}`);
+            // Keep the col-md-4 width set in HTML template for ondemand fallback
             
             // Update the fallback column with data
             const nameElement = document.getElementById('ondemandName');
