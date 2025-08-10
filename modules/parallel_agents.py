@@ -344,7 +344,6 @@ def organize_parallel_results(results):
         if config.get('ondemand_variants'):
             for variant in config['ondemand_variants']:
                 variant_hosts = aggregate_to_hosts.get(variant['aggregate'], [])
-                print(f"🔍 DEBUG: {gpu_type} variant {variant['aggregate']} has hosts: {variant_hosts}")
                 all_hosts.extend(variant_hosts)
         
         # Spot hosts
