@@ -1310,20 +1310,20 @@ function renderOnDemandVariantColumns(ondemandData) {
         });
     }
     
-    // Calculate ondemand variant column width
-    // Runpod (1) + Spot (1) + Contract (2) = 4 columns used, 8 remaining for ondemand variants
+    // Calculate ondemand variant column width using flex percentages
+    // Runpod (12.5%) + Spot (12.5%) + Contract (25%) = 50% used, 50% remaining for ondemand variants
     const totalVariants = ondemandData.variants ? ondemandData.variants.length : 1;
-    const ondemandAvailableSpace = 8; // 12 - 1 (runpod) - 1 (spot) - 2 (contract)
-    const variantColWidth = Math.floor(ondemandAvailableSpace / totalVariants);
+    const ondemandAvailablePercentage = 50; // 100% - 12.5% (runpod) - 12.5% (spot) - 25% (contract)
+    const variantPercentage = ondemandAvailablePercentage / totalVariants;
     
     console.log('🔍 Column calculation:', {
         totalVariants,
-        ondemandAvailableSpace,
-        variantColWidth
+        ondemandAvailablePercentage,
+        variantPercentage
     });
     
-    // Don't change RunPod, Spot, or Contract column widths - they're fixed in HTML
-    // RunPod: col-md-1, Spot: col-md-1, Contract: col-md-2
+    // Don't change RunPod, Spot, or Contract column widths - they're fixed in HTML with flex
+    // RunPod: 12.5%, Spot: 12.5%, Contract: 25%, OnDemand variants: 50% total
     
     // Check if variants include NVLink differentiation (only split columns for NVLink variants)
     const hasNVLinkVariants = ondemandData.variants && ondemandData.variants.length > 1 && 
@@ -1360,7 +1360,7 @@ function renderOnDemandVariantColumns(ondemandData) {
             }
             
             const columnHtml = `
-                <div class="col-md-${variantColWidth}">
+                <div class="col-md-6" style="flex: 0 0 ${variantPercentage}%;">
                     <div class="aggregate-column" id="${variantId}Column">
                         <div class="card">
                             <div class="card-header bg-primary text-white">
