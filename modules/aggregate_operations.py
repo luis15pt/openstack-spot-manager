@@ -59,17 +59,9 @@ def discover_gpu_aggregates(force_refresh=False):
                     }
                 
                 if pool_suffix == '-spot':
-                    # Clean the spot display name by removing redundant "Spot " prefix
-                    clean_name = agg.name
-                    if clean_name.startswith('Spot '):
-                        clean_name = clean_name.split(' ', 1)[1]  # Remove the "Spot " prefix
-                    gpu_aggregates[gpu_type]['spot'] = clean_name
+                    gpu_aggregates[gpu_type]['spot'] = agg.name
                 elif pool_suffix == '-runpod':
-                    # Clean the runpod display name by removing redundant "Runpod " prefix
-                    clean_name = agg.name
-                    if clean_name.startswith('Runpod ') or clean_name.startswith('RunPod '):
-                        clean_name = clean_name.split(' ', 1)[1]  # Remove the "Runpod " prefix
-                    gpu_aggregates[gpu_type]['runpod'] = clean_name
+                    gpu_aggregates[gpu_type]['runpod'] = agg.name
                 else:
                     # No pool suffix = on-demand variant
                     variant_name = agg.name
@@ -127,14 +119,9 @@ def discover_gpu_aggregates(force_refresh=False):
                         'contracts': []
                     }
                 
-                # Clean contract display name by removing redundant "Contract " word prefix (but keep "Contract-" part)
-                display_name = agg.name
-                if display_name.startswith('Contract Contract-'):
-                    display_name = display_name[9:]  # Remove the first "Contract " word (9 characters)
-                
                 gpu_aggregates[gpu_type]['contracts'].append({
                     'aggregate': agg.name,
-                    'name': display_name
+                    'name': agg.name
                 })
         
         # Convert to format compatible with existing code
