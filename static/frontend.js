@@ -16,11 +16,21 @@ function renderAggregateData(data) {
     // FIRST: Clean up any existing variant columns from previous GPU type selections
     // This prevents duplicate columns when switching between GPU types or refreshing
     console.log('🧹 Starting aggressive column cleanup...');
-    const mainRow = document.querySelector('.row.mt-3');
+    
+    // Remove any existing variant columns specifically (these are dynamically created)
+    const existingVariantColumns = document.querySelectorAll('[id*="VariantColumn"], [class*="variant-column"]');
+    console.log(`🔍 Found ${existingVariantColumns.length} variant columns to remove`);
+    existingVariantColumns.forEach(col => {
+        console.log('🗑️ Removing variant column:', col.id);
+        col.remove();
+    });
+    
+    // Also check in the main hosts row for any bootstrap columns
+    const mainRow = document.getElementById('hostsRow');
     if (mainRow) {
         // Get all column divs - use more comprehensive selector
         const existingColumns = mainRow.querySelectorAll('[class*="col-md-"], [class*="col-lg-"], [class*="col-sm-"], [class*="col-xl-"], .col');
-        console.log(`🔍 Found ${existingColumns.length} columns to check`);
+        console.log(`🔍 Found ${existingColumns.length} columns to check in hostsRow`);
         
         existingColumns.forEach((col, index) => {
             const columnDiv = col.querySelector('.aggregate-column');
