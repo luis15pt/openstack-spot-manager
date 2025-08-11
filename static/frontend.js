@@ -881,15 +881,24 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
             }
             
             // Find the variant aggregate name from the data
-            if (window.Frontend.aggregateData && window.Frontend.aggregateData.ondemand && window.Frontend.aggregateData.ondemand.variants) {
-                const variant = window.Frontend.aggregateData.ondemand.variants.find(v => v.variant === targetVariant);
-                if (variant && variant.aggregate) {
-                    targetAggregate = variant.aggregate;
+            if (window.Frontend.aggregateData && window.Frontend.aggregateData.ondemand) {
+                if (window.Frontend.aggregateData.ondemand.variants && window.Frontend.aggregateData.ondemand.variants.length > 0) {
+                    const variant = window.Frontend.aggregateData.ondemand.variants.find(v => v.variant === targetVariant);
+                    if (variant && variant.aggregate) {
+                        targetAggregate = variant.aggregate;
+                    } else {
+                        // Fallback: if variant not found in data, construct it from the targetVariant name
+                        // This supports dynamic GPU types not defined in AGGREGATE_PAIRS
+                        targetAggregate = targetVariant;
+                        console.log(`⚠️ Variant not found in data, using fallback aggregate: ${targetAggregate}`);
+                    }
                 } else {
-                    throw new Error(`Variant aggregate not found for ${targetVariant}`);
+                    // Fallback: if no variants defined, use the targetVariant directly as aggregate name
+                    targetAggregate = targetVariant;
+                    console.log(`⚠️ No variants data available, using fallback aggregate: ${targetAggregate}`);
                 }
             } else {
-                throw new Error('Ondemand variant data not available');
+                throw new Error('Ondemand data not available');
             }
         } else {
             throw new Error(`Unknown target type: ${targetType}`);
@@ -1585,7 +1594,7 @@ function generateIndividualCommandOperations(operation) {
             timestamp: new Date().toISOString()
         });
         
-        if (operation.hostname.startsWith('CA1-')) {
+        if (operation.hostname.toLowerCase().startsWith('ca1-')) {
             // 3. Poll VM status until ACTIVE (replaces 120-second sleep)
             commands.push({
                 type: 'vm-status-poll',
