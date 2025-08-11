@@ -470,6 +470,13 @@ def register_routes(app):
                     'results': results
                 }), 500
             
+            # Clear cache after successful migration to ensure fresh data on next request
+            from modules.parallel_agents import clear_parallel_cache
+            from modules.aggregate_operations import clear_host_aggregate_cache
+            cleared_cache_count = clear_parallel_cache()
+            cleared_host_cache_count = clear_host_aggregate_cache()
+            print(f"🔄 Cache invalidated after migration: {cleared_cache_count} parallel entries, {cleared_host_cache_count} host entries")
+            
             return jsonify({
                 'success': True,
                 'results': results,
