@@ -511,26 +511,49 @@ async function loadSpecificAggregateData(gpuType, aggregateType) {
     console.log(`🎯 Loading specific aggregate data: ${aggregateType} for ${gpuType}`);
     
     try {
-        const response = await window.Utils.fetchWithTimeout(`/api/aggregates/${gpuType}/${aggregateType}`, {
+        // Use the working full aggregate endpoint instead of the disabled individual one
+        const response = await window.Utils.fetchWithTimeout(`/api/aggregates/${gpuType}`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
         }, 30000);
         
         const result = await window.Utils.checkResponse(response);
-        const data = await result.json();
+        const fullData = await result.json();
         
-        console.log(`✅ Received ${aggregateType} data:`, data);
+        if (fullData.error) {
+            throw new Error(fullData.error);
+        }
+        
+        console.log(`✅ Received full data for ${gpuType}, extracting ${aggregateType} section:`, fullData);
+        
+        // Update cache with the fresh full data
+        if (window.gpuDataCache) {
+            window.gpuDataCache.set(gpuType, fullData);
+            console.log(`📦 Updated cache for ${gpuType}`);
+        }
         
         // Update only the specific column based on aggregate type
         if (aggregateType === 'runpod') {
             // Update RunPod column
-            updateRunpodColumn(data.runpod);
+            if (fullData.runpod) {
+                updateRunpodColumn(fullData.runpod);
+            } else {
+                console.warn(`⚠️ No runpod data found in response for ${gpuType}`);
+            }
         } else if (aggregateType === 'spot') {
             // Update Spot column
-            updateSpotColumn(data.spot);
+            if (fullData.spot) {
+                updateSpotColumn(fullData.spot);
+            } else {
+                console.warn(`⚠️ No spot data found in response for ${gpuType}`);
+            }
         } else if (aggregateType === 'ondemand') {
             // Update On-Demand column(s)
-            updateOnDemandColumn(data.ondemand);
+            if (fullData.ondemand) {
+                updateOnDemandColumn(fullData.ondemand);
+            } else {
+                console.warn(`⚠️ No ondemand data found in response for ${gpuType}`);
+            }
         }
         
         // Setup drag and drop for new elements  
@@ -840,7 +863,7 @@ function executeAllPendingOperations() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                hostname: operation.hostname,
+                host: operation.hostname,
                 source_aggregate: operation.sourceAggregate,
                 target_aggregate: operation.targetAggregate
             })
@@ -1550,7 +1573,7 @@ function executeRunPodLaunch(operation, callback) {
 // Execute OpenStack migration operation
 function executeOpenStackMigration(operation, callback) {
     const requestData = {
-        hostname: operation.hostname,
+        host: operation.hostname,
         source_aggregate: operation.sourceAggregate,
         target_aggregate: operation.targetAggregate
     };

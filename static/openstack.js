@@ -24,7 +24,7 @@ function executeHostMigration(hostname, sourceAggregate, targetAggregate, operat
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                hostname: hostname,
+                host: hostname,
                 source_aggregate: sourceAggregate,
                 target_aggregate: targetAggregate,
                 operation: operation
