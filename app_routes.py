@@ -663,11 +663,17 @@ def register_routes(app):
                         print(f"⚠️ Could not verify add operation: {str(e)}")
 
             # Clear cache after successful migration to ensure fresh data on next request
+            # RULE: Both source and target aggregates need fresh data after host migration
             from modules.parallel_agents import clear_parallel_cache
-            from modules.aggregate_operations import clear_host_aggregate_cache
-            cleared_cache_count = clear_parallel_cache()
-            cleared_host_cache_count = clear_host_aggregate_cache()
-            print(f"🔄 Cache invalidated after migration: {cleared_cache_count} parallel entries, {cleared_host_cache_count} host entries")
+            from modules.aggregate_operations import clear_host_aggregate_cache, clear_gpu_aggregates_cache
+            
+            # Clear all caches to ensure both source and target aggregates get fresh data
+            cleared_parallel = clear_parallel_cache()  # Clears aggregate host/VM/GPU data
+            cleared_host = clear_host_aggregate_cache()  # Clears host-to-aggregate mappings
+            clear_gpu_aggregates_cache()  # Clear GPU aggregates discovery cache
+            
+            print(f"🔄 Cache fully invalidated after migration: {cleared_parallel} parallel entries, {cleared_host} host entries")
+            print(f"🔄 Both source ({source_aggregate}) and target ({target_aggregate}) aggregates will refresh on next request")
             
             return jsonify({
                 'success': True,
