@@ -860,6 +860,8 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
             }
         } else if (targetType === 'runpod') {
             // Use runpod aggregate from current data
+            console.log('🔍 DEBUG aggregateData:', window.Frontend.aggregateData);
+            console.log('🔍 DEBUG runpod data:', window.Frontend.aggregateData?.runpod);
             if (window.Frontend.aggregateData && window.Frontend.aggregateData.runpod && window.Frontend.aggregateData.runpod.name) {
                 targetAggregate = window.Frontend.aggregateData.runpod.name;
             } else {
