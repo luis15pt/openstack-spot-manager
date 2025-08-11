@@ -1284,13 +1284,14 @@ function executeRealCommand(operation, command) {
                 }
                 
                 const migrationData = {
-                    hostname: hostname,
+                    host: hostname,
                     source_aggregate: currentOperation.sourceAggregate || (sourceMatch ? sourceMatch[1] : ''),
                     target_aggregate: currentOperation.targetAggregate || (targetMatch ? targetMatch[1] : ''),
                     operation: isRemove ? 'remove' : 'add'
                 };
                 
                 console.log(`🔄 ${isRemove ? 'Removing' : 'Adding'} ${hostname} ${isRemove ? 'from' : 'to'} aggregate ${isRemove ? migrationData.source_aggregate : migrationData.target_aggregate}`);
+                console.log('🔍 DEBUG: Migration data being sent:', migrationData);
                 
                 window.Utils.fetchWithTimeout('/api/execute-migration', {
                     method: 'POST',
