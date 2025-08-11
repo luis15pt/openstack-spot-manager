@@ -13,6 +13,17 @@ import time
 # Import parallel agents functionality
 from modules.parallel_agents import get_all_data_parallel, clear_parallel_cache
 
+# Import cached aggregate operations instead of duplicating
+from modules.aggregate_operations import (
+    discover_gpu_aggregates, 
+    get_aggregate_hosts,
+    get_gpu_type_from_hostname_context,
+    find_host_current_aggregate
+)
+
+# Import OpenStack operations that were previously duplicated 
+from modules.openstack_operations import find_aggregate_by_name
+
 # Global variables and configuration
 command_log = []
 _openstack_connection = None
@@ -81,17 +92,7 @@ def get_openstack_connection():
     
     return _openstack_connection
 
-def find_aggregate_by_name(conn, aggregate_name):
-    """Helper function to find aggregate by name"""
-    try:
-        aggregates = list(conn.compute.aggregates())
-        for agg in aggregates:
-            if agg.name == aggregate_name:
-                return agg
-        return None
-    except Exception as e:
-        print(f"❌ Error finding aggregate {aggregate_name}: {e}")
-        return None
+# find_aggregate_by_name() is now imported from modules.openstack_operations
 
 def get_netbox_tenants_bulk(hostnames):
     """Get tenant information from NetBox for multiple hostnames at once"""
@@ -297,150 +298,7 @@ def get_bulk_gpu_info(hostnames, max_workers=20):
     
     return gpu_info_results
 
-def discover_gpu_aggregates():
-    """Dynamically discover GPU aggregates from OpenStack with variant support and contract aggregates"""
-    try:
-        conn = get_openstack_connection()
-        if not conn:
-            return {}
-        
-        aggregates = list(conn.compute.aggregates())
-        gpu_aggregates = {}
-        
-        # Import Flask app for debug checking - will be set from main app
-        try:
-            from flask import current_app
-            debug_mode = current_app.debug
-        except:
-            debug_mode = False
-        
-        # Debug: Log all aggregate names to understand the patterns
-        print(f"🔍 DEBUG: Found {len(aggregates)} total aggregates:")
-        for agg in aggregates:
-            print(f"   - {agg.name}")
-            # Also check if aggregate has metadata/instance_type
-            if hasattr(agg, 'metadata') and agg.metadata:
-                instance_type = agg.metadata.get('instance_type', '')
-                if instance_type:
-                    print(f"     instance_type: {instance_type}")
-        
-        # Patterns to match different aggregate types
-        import re
-        
-        for agg in aggregates:
-            # Pattern 1: Regular GPU aggregates: GPU-TYPE-n3[-suffix]
-            match = re.match(r'^([A-Z0-9-]+)-n3(-NVLink)?(-spot|-runpod)?$', agg.name)
-            if match:
-                gpu_type = match.group(1)
-                nvlink_suffix = match.group(2)  # -NVLink or None
-                pool_suffix = match.group(3)   # -spot, -runpod, or None
-                
-                if gpu_type not in gpu_aggregates:
-                    gpu_aggregates[gpu_type] = {
-                        'ondemand_variants': [],
-                        'spot': None,
-                        'runpod': None,
-                        'contracts': []  # Add contracts support
-                    }
-                
-                if pool_suffix == '-spot':
-                    gpu_aggregates[gpu_type]['spot'] = agg.name
-                elif pool_suffix == '-runpod':
-                    gpu_aggregates[gpu_type]['runpod'] = agg.name
-                else:
-                    # No pool suffix = on-demand variant
-                    variant_name = agg.name
-                    if nvlink_suffix:
-                        variant_display = f"{gpu_type}-n3-NVLink"
-                    else:
-                        variant_display = f"{gpu_type}-n3"
-                    
-                    gpu_aggregates[gpu_type]['ondemand_variants'].append({
-                        'aggregate': agg.name,
-                        'variant': variant_display
-                    })
-            
-            # Pattern 2: Contract aggregates - more flexible detection
-            is_contract = False
-            gpu_type = None
-            
-            # Check if aggregate name contains "contract" (case insensitive)
-            if re.search(r'contract', agg.name, re.IGNORECASE):
-                is_contract = True
-                print(f"🔍 Found potential contract aggregate: {agg.name}")
-            
-            # If it's a contract, determine GPU type from instance_type metadata first
-            if is_contract:
-                # Method 1: Use instance_type metadata if available
-                if hasattr(agg, 'metadata') and agg.metadata:
-                    instance_type = agg.metadata.get('instance_type', '')
-                    if instance_type:
-                        print(f"   instance_type: {instance_type}")
-                        # Parse instance types like "n3-H100x1,n3-H100x2,n3-RTX-A6000x4"
-                        # Extract unique GPU types, ignoring counts (x1, x2, etc.)
-                        gpu_types_found = set()
-                        for inst_type in instance_type.split(','):
-                            inst_type = inst_type.strip()
-                            # Match patterns like n3-H100x8, n3-RTX-A6000x4, etc.
-                            gpu_match = re.search(r'n3-([A-Z0-9-]+)x\d+', inst_type)
-                            if gpu_match:
-                                gpu_types_found.add(gpu_match.group(1))
-                        
-                        if gpu_types_found:
-                            print(f"   GPU types from instance_type: {gpu_types_found}")
-                            # If multiple GPU types, use the first one for now
-                            gpu_type = list(gpu_types_found)[0]
-                
-                # Method 2: Fallback to name-based detection if no instance_type
-                if not gpu_type:
-                    # Look for GPU types in the aggregate name
-                    for possible_gpu in ['H100-SXM5-GB', 'H100-SXM5', 'H100', 'A100', 'RTX-A6000', 'L40', 'A4000']:
-                        if possible_gpu in agg.name:
-                            gpu_type = possible_gpu
-                            break
-                    
-                    # Try patterns like 24xA100, 8xH100, etc.
-                    if not gpu_type:
-                        suffix_match = re.search(r'\d+x([A-Z0-9-]+)', agg.name)
-                        if suffix_match:
-                            gpu_type = suffix_match.group(1)
-                
-                print(f"   Determined GPU type: {gpu_type}")
-                
-                if gpu_type:
-                    if gpu_type not in gpu_aggregates:
-                        gpu_aggregates[gpu_type] = {
-                            'ondemand_variants': [],
-                            'spot': None,
-                            'runpod': None,
-                            'contracts': []
-                        }
-                    
-                    gpu_aggregates[gpu_type]['contracts'].append({
-                        'aggregate': agg.name,
-                        'name': agg.name
-                    })
-                    print(f"   Added to {gpu_type} contracts")
-        
-        # Convert to format compatible with existing code
-        result = {}
-        for gpu_type, data in gpu_aggregates.items():
-            if data['ondemand_variants'] or data['contracts']:  # Include if has ondemand or contracts
-                result[gpu_type] = {
-                    'ondemand': data['ondemand_variants'][0]['aggregate'] if data['ondemand_variants'] else None,  # Primary for compatibility
-                    'ondemand_variants': data['ondemand_variants'],
-                    'spot': data['spot'],
-                    'runpod': data['runpod'],
-                    'contracts': data['contracts']  # Add contracts to result
-                }
-        
-        if debug_mode:
-            print(f"📊 Discovered GPU aggregates: {result}")
-        return result
-        
-    except Exception as e:
-        print(f"❌ Error discovering aggregates: {e}")
-        return {}
+# discover_gpu_aggregates() is now imported from modules.aggregate_operations
 
 def get_gpu_type_from_aggregate(aggregate_name):
     """Extract GPU type from aggregate name like 'RTX-A6000-n3-runpod' -> 'RTX-A6000'"""
@@ -459,101 +317,79 @@ def get_gpu_count_from_hostname(hostname):
         return 10
     return 8
 
-def get_gpu_type_from_hostname_context(hostname):
-    """Get GPU type by finding which aggregate the hostname belongs to"""
-    try:
-        gpu_aggregates = discover_gpu_aggregates()
-        
-        for gpu_type, config in gpu_aggregates.items():
-            # Check runpod aggregate
-            if config.get('runpod'):
-                runpod_hosts = get_aggregate_hosts(config['runpod'])
-                if hostname in runpod_hosts:
-                    return gpu_type
-                    
-            # Check on-demand variants
-            if config.get('ondemand_variants'):
-                for variant in config['ondemand_variants']:
-                    variant_hosts = get_aggregate_hosts(variant['aggregate'])
-                    if hostname in variant_hosts:
-                        return gpu_type
-                        
-            # Check spot aggregate
-            if config.get('spot'):
-                spot_hosts = get_aggregate_hosts(config['spot'])
-                if hostname in spot_hosts:
-                    return gpu_type
-        
-        return None
-    except Exception as e:
-        print(f"❌ Error getting GPU type for hostname {hostname}: {e}")
-        return None
+# get_gpu_type_from_hostname_context() is now imported from modules.aggregate_operations
 
-def find_host_current_aggregate(hostname):
-    """Find which specific aggregate a host is currently in"""
-    try:
-        gpu_aggregates = discover_gpu_aggregates()
-        for gpu_type, config in gpu_aggregates.items():
-            # Check runpod aggregate
-            if config.get('runpod'):
-                runpod_hosts = get_aggregate_hosts(config['runpod'])
-                if hostname in runpod_hosts:
-                    print(f"✅ Found {hostname} in runpod aggregate: {config['runpod']}")
-                    return config['runpod']
-                    
-            # Check on-demand variants
-            if config.get('ondemand_variants'):
-                for variant in config['ondemand_variants']:
-                    variant_hosts = get_aggregate_hosts(variant['aggregate'])
-                    if hostname in variant_hosts:
-                        print(f"✅ Found {hostname} in ondemand variant: {variant['aggregate']}")
-                        return variant['aggregate']
-                        
-            # Check spot aggregate
-            if config.get('spot'):
-                spot_hosts = get_aggregate_hosts(config['spot'])
-                if hostname in spot_hosts:
-                    print(f"✅ Found {hostname} in spot aggregate: {config['spot']}")
-                    return config['spot']
-        
-        print(f"⚠️ Host {hostname} not found in any aggregate")
-        return None
-    except Exception as e:
-        print(f"❌ Error finding current aggregate for hostname {hostname}: {e}")
-        return None
+# find_host_current_aggregate() is now imported from modules.aggregate_operations
 
 def build_flavor_name(hostname):
-    """Build dynamic flavor name like 'n3-RTX-A6000x8' or 'n3-H100x8-NVLink' from hostname"""
-    gpu_type = get_gpu_type_from_hostname_context(hostname)
-    gpu_count = get_gpu_count_from_hostname(hostname)
+    """OPTIMIZED: Build flavor name with direct aggregate lookup instead of scanning all aggregates"""
+    import re
     
-    # Get NVLink info from Netbox
-    netbox_info = get_netbox_tenant(hostname)
-    has_nvlinks = netbox_info.get('nvlinks', False)
-    
-    # Debug logging for flavor selection
-    print(f"🔍 Building flavor for {hostname}: gpu_type={gpu_type}, gpu_count={gpu_count}, has_nvlinks={has_nvlinks}")
-    
-    if gpu_type:
+    # Step 1: Get this host's aggregate directly (no expensive discovery)
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            print(f"❌ No OpenStack connection for {hostname}")
+            return f"n3-RTX-A6000x8"  # Safe fallback
+            
+        # Direct query: find which aggregate contains this specific host
+        print(f"🔍 Looking up aggregate for {hostname} (direct query)...")
+        aggregate_name = None
+        aggregates_checked = 0
+        
+        for agg in conn.compute.aggregates():
+            aggregates_checked += 1
+            if hostname in (agg.hosts or []):
+                aggregate_name = agg.name
+                print(f"✅ Found {hostname} in aggregate: {aggregate_name} (checked {aggregates_checked} aggregates)")
+                break
+        
+        if not aggregate_name:
+            print(f"⚠️ {hostname} not found in any aggregate - using hostname fallback")
+            # Extract from hostname pattern
+            match = re.search(r'(h200sxm|h100sxm|H200|H100|A100|RTX-A6000|L40)', hostname, re.IGNORECASE)
+            if match:
+                gpu_type = match.group(1).upper()
+                if 'h200sxm' in match.group(1).lower():
+                    gpu_type = 'H200-SXM5'
+                elif 'h100sxm' in match.group(1).lower():
+                    gpu_type = 'H100-SXM5'
+            else:
+                gpu_type = 'RTX-A6000'  # Fallback
+        else:
+            # Step 2: Extract GPU type from aggregate name (simple regex)
+            match = re.match(r'^([A-Z0-9-]+)-n3', aggregate_name)
+            if match:
+                gpu_type = match.group(1)
+            elif 'H200-SXM5' in aggregate_name:
+                gpu_type = 'H200-SXM5'
+            elif 'H100-SXM5' in aggregate_name:
+                gpu_type = 'H100-SXM5'  
+            else:
+                print(f"⚠️ Could not extract GPU type from aggregate {aggregate_name}")
+                gpu_type = 'RTX-A6000'  # Fallback
+        
+        # Step 3: Get GPU count (simple hostname logic)
+        gpu_count = get_gpu_count_from_hostname(hostname)
+        
+        # Step 4: Get NVLink info from NetBox (only if needed)
+        netbox_info = get_netbox_tenant(hostname)
+        has_nvlinks = netbox_info.get('nvlinks', False)
+        
+        # Step 5: Build final flavor name
+        print(f"🔍 Building flavor for {hostname}: gpu_type={gpu_type}, gpu_count={gpu_count}, has_nvlinks={has_nvlinks}")
+        
         base_flavor = f"n3-{gpu_type}x{gpu_count}"
+        
         # Add NVLink suffix for supported GPU types that have NVLinks
         if has_nvlinks and gpu_type in ['H100', 'A100']:
             return f"{base_flavor}-NVLink"
+        
         return base_flavor
-    
-    # Fallback: try to extract from hostname pattern if available
-    import re
-    match = re.search(r'(RTX-A6000|A100|H100|L40)', hostname)
-    if match:
-        extracted_gpu = match.group(1)
-        base_flavor = f"n3-{extracted_gpu}x{gpu_count}"
-        # Add NVLink suffix for supported GPU types that have NVLinks
-        if has_nvlinks and extracted_gpu in ['H100', 'A100']:
-            return f"{base_flavor}-NVLink"
-        return base_flavor
-    
-    # Default fallback
-    return f"n3-RTX-A6000x{gpu_count}"
+        
+    except Exception as e:
+        print(f"❌ Error in optimized flavor building for {hostname}: {e}")
+        return f"n3-RTX-A6000x8"  # Safe fallback
 
 def mask_api_key(api_key, prefix=""):
     """Mask API key for display purposes"""
@@ -648,35 +484,7 @@ def run_openstack_command(command, log_execution=True):
             
         return command_result
 
-def get_aggregate_hosts(aggregate_name):
-    """Get hosts in an aggregate using OpenStack SDK"""
-    try:
-        conn = get_openstack_connection()
-        if not conn:
-            print(f"❌ No OpenStack connection available")
-            return []
-        
-        aggregate = find_aggregate_by_name(conn, aggregate_name)
-        
-        if aggregate:
-            hosts = aggregate.hosts or []
-            # Import Flask app for debug checking - will be set from main app
-            try:
-                from flask import current_app
-                debug_mode = current_app.debug
-            except:
-                debug_mode = False
-            
-            if debug_mode:
-                print(f"📋 Found {len(hosts)} hosts in aggregate {aggregate_name}: {hosts}")
-            return hosts
-        else:
-            print(f"⚠️ Aggregate {aggregate_name} not found")
-            return []
-            
-    except Exception as e:
-        print(f"❌ Error getting hosts for aggregate {aggregate_name}: {e}")
-        return []
+# get_aggregate_hosts() is now imported from modules.aggregate_operations
 
 def get_host_vm_count(hostname):
     """Get VM count for a specific host using OpenStack SDK"""
