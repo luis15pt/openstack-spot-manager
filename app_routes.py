@@ -522,6 +522,106 @@ def register_routes(app):
                     'results': results
                 }), 500
             
+            # Step 3: Verify migration completed successfully
+            verify_command = f"Verify {host} location after migration"
+            print(f"🔍 Verifying migration: checking if {host} is in {target_aggregate}...")
+            
+            try:
+                # Check if host is in target aggregate
+                target_agg_verify = find_aggregate_by_name(conn, target_aggregate)
+                if not target_agg_verify:
+                    verification_error = f"Target aggregate {target_aggregate} not found during verification"
+                    print(f"❌ {verification_error}")
+                    results.append({
+                        'command': verify_command,
+                        'success': False,
+                        'output': verification_error
+                    })
+                    return jsonify({
+                        'error': 'Migration verification failed - target aggregate not found',
+                        'results': results
+                    }), 500
+                
+                target_hosts = target_agg_verify.hosts or []
+                is_in_target = host in target_hosts
+                
+                # Check if host is NOT in source aggregate  
+                source_agg_verify = find_aggregate_by_name(conn, source_aggregate)
+                source_hosts = source_agg_verify.hosts or [] if source_agg_verify else []
+                is_in_source = host in source_hosts
+                
+                # Determine verification result
+                if is_in_target and not is_in_source:
+                    # Perfect! Host is in target and not in source
+                    verification_msg = f"✅ Verified: {host} successfully migrated to {target_aggregate}"
+                    print(verification_msg)
+                    results.append({
+                        'command': verify_command,
+                        'success': True,
+                        'output': verification_msg
+                    })
+                    
+                    # Log successful verification
+                    log_command(verify_command, {
+                        'success': True,
+                        'stdout': verification_msg,
+                        'stderr': '',
+                        'returncode': 0
+                    }, 'executed')
+                    
+                elif is_in_target and is_in_source:
+                    # Host is in both aggregates - partial migration
+                    verification_msg = f"⚠️ Partial migration: {host} is in both {source_aggregate} and {target_aggregate}"
+                    print(verification_msg)
+                    results.append({
+                        'command': verify_command,
+                        'success': False,
+                        'output': verification_msg
+                    })
+                    return jsonify({
+                        'error': 'Migration partially completed - host exists in both aggregates',
+                        'results': results
+                    }), 500
+                    
+                elif not is_in_target and not is_in_source:
+                    # Host is in neither aggregate - lost!
+                    verification_msg = f"❌ Host lost: {host} is not in {source_aggregate} or {target_aggregate}"
+                    print(verification_msg)
+                    results.append({
+                        'command': verify_command,
+                        'success': False,
+                        'output': verification_msg
+                    })
+                    return jsonify({
+                        'error': 'Migration failed - host not found in any expected aggregate',
+                        'results': results
+                    }), 500
+                    
+                else:
+                    # Host is still in source aggregate only - migration failed
+                    verification_msg = f"❌ Migration failed: {host} is still in {source_aggregate}, not in {target_aggregate}"
+                    print(verification_msg)
+                    results.append({
+                        'command': verify_command,
+                        'success': False,
+                        'output': verification_msg
+                    })
+                    return jsonify({
+                        'error': 'Migration failed - host remains in source aggregate',
+                        'results': results
+                    }), 500
+                    
+            except Exception as e:
+                verification_error = f"Verification failed: {str(e)}"
+                print(f"❌ {verification_error}")
+                results.append({
+                    'command': verify_command,
+                    'success': False,
+                    'output': verification_error
+                })
+                # Don't fail the entire migration for verification errors - the operations might have worked
+                print("⚠️ Continuing despite verification error - migration operations may have succeeded")
+
             # Clear cache after successful migration to ensure fresh data on next request
             from modules.parallel_agents import clear_parallel_cache
             from modules.aggregate_operations import clear_host_aggregate_cache
