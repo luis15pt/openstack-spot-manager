@@ -862,8 +862,14 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
             // Use runpod aggregate from current data
             console.log('🔍 DEBUG aggregateData:', window.Frontend.aggregateData);
             console.log('🔍 DEBUG runpod data:', window.Frontend.aggregateData?.runpod);
+            console.log('🔍 DEBUG currentGpuType:', window.currentGpuType);
+            
             if (window.Frontend.aggregateData && window.Frontend.aggregateData.runpod && window.Frontend.aggregateData.runpod.name) {
                 targetAggregate = window.Frontend.aggregateData.runpod.name;
+            } else if (window.currentGpuType) {
+                // Fallback: construct runpod aggregate name from current GPU type (following A100-n3-runpod pattern)
+                targetAggregate = `${window.currentGpuType}-n3-runpod`;
+                console.log('🔄 Using constructed runpod aggregate name:', targetAggregate);
             } else {
                 throw new Error('Runpod aggregate not available');
             }
