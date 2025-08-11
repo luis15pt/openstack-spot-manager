@@ -119,13 +119,31 @@ def register_routes(app):
 
     @app.route('/api/aggregates/<gpu_type>')
     def get_aggregate_data(gpu_type):
-        """Get aggregate data for a specific GPU type using parallel agents system"""
+        """Get aggregate data for a specific GPU type using parallel agents system
+        
+        Query Parameters:
+        - summary_only=true: Return only host counts and basic info (fast)
+        - include_vms=false: Skip VM count queries (faster)  
+        - include_gpu_info=false: Skip GPU info queries (faster)
+        """
         try:
             from modules.parallel_agents import get_all_data_parallel
+            from flask import request
+            
+            # Parse optimization flags
+            summary_only = request.args.get('summary_only', 'false').lower() == 'true'
+            include_vms = request.args.get('include_vms', 'true').lower() == 'true'
+            include_gpu_info = request.args.get('include_gpu_info', 'true').lower() == 'true'
             
             # Performance tracking
             start_time = time.time()
-            print(f"🚀 Loading GPU type '{gpu_type}' using PARALLEL AGENTS system...")
+            optimization_note = ""
+            if summary_only:
+                optimization_note = " (SUMMARY MODE - counts only)"
+            elif not include_vms or not include_gpu_info:
+                optimization_note = f" (OPTIMIZED - vms={include_vms}, gpu={include_gpu_info})"
+            
+            print(f"🚀 Loading GPU type '{gpu_type}' using PARALLEL AGENTS system{optimization_note}...")
             
             # Get all data using parallel agents
             organized_data = get_all_data_parallel()
@@ -171,12 +189,14 @@ def register_routes(app):
                         continue
                     
                     tenant_info = host_info['tenant_info']
-                    vm_count = host_info['vm_count']
+                    
+                    # OPTIMIZATION: Skip expensive data based on flags
+                    vm_count = host_info['vm_count'] if include_vms else 0
                     gpu_info = host_info.get('gpu_info', {
                         'gpu_used': 0, 
                         'gpu_capacity': 8, 
                         'gpu_usage_ratio': '0/8'
-                    })
+                    }) if include_gpu_info else {'gpu_used': 0, 'gpu_capacity': 8, 'gpu_usage_ratio': '0/8'}
                     
                     if aggregate_type in ['spot', 'ondemand']:
                         host_data = {
@@ -211,6 +231,36 @@ def register_routes(app):
                 
                 return processed
             
+            # OPTIMIZATION: Fast path for summary_only requests
+            if summary_only:
+                total_time = time.time() - start_time
+                print(f"📊 SUMMARY MODE: {len(ondemand_hosts)} ondemand, {len(runpod_hosts)} runpod, {len(spot_hosts)} spot")
+                print(f"⚡ Summary completed in {total_time:.2f}s (skipped expensive processing)")
+                
+                return jsonify({
+                    'gpu_type': gpu_type,
+                    'summary_only': True,
+                    'ondemand': {
+                        'name': config.get('ondemand_variants', [{}])[0].get('variant', f'{gpu_type}-n3'),
+                        'host_count': len(ondemand_hosts),
+                        'host_names': ondemand_hosts
+                    },
+                    'runpod': {
+                        'name': config.get('runpod', 'N/A'),
+                        'host_count': len(runpod_hosts),
+                        'host_names': runpod_hosts
+                    },
+                    'spot': {
+                        'name': config.get('spot', 'N/A'),
+                        'host_count': len(spot_hosts),
+                        'host_names': spot_hosts
+                    },
+                    'performance': {
+                        'total_time': total_time,
+                        'total_hosts': len(ondemand_hosts) + len(runpod_hosts) + len(spot_hosts)
+                    }
+                })
+
             # Process all three aggregate types using parallel data
             processing_start = time.time()
             print(f"🏗️ Processing {len(ondemand_hosts)} ondemand hosts from parallel data...")
@@ -356,15 +406,17 @@ def register_routes(app):
         if not all([host, target_aggregate]):
             return jsonify({'error': 'Missing required parameters (host and target_aggregate)'}), 400
         
-        # Find the ACTUAL current aggregate the host is in (instead of trusting source_aggregate)
-        actual_source_aggregate = find_host_current_aggregate(host)
-        if not actual_source_aggregate:
-            return jsonify({'error': f'Host {host} not found in any aggregate'}), 404
-        
-        print(f"🔍 Verified: {host} is actually in aggregate: {actual_source_aggregate}")
-        
-        # Use the actual source aggregate instead of the passed one
-        source_aggregate = actual_source_aggregate
+        # OPTIMIZATION: Skip expensive aggregate discovery - trust the frontend's source_aggregate
+        # If source_aggregate is not provided, fall back to discovery as a safety net
+        if not source_aggregate:
+            print(f"⚠️ No source_aggregate provided, using expensive discovery as fallback...")
+            actual_source_aggregate = find_host_current_aggregate(host)
+            if not actual_source_aggregate:
+                return jsonify({'error': f'Host {host} not found in any aggregate'}), 404
+            source_aggregate = actual_source_aggregate
+            print(f"🔍 Discovered: {host} is in aggregate: {actual_source_aggregate}")
+        else:
+            print(f"✅ Using provided source aggregate: {source_aggregate} (no discovery needed)")
         
         # Check if host has VMs and source is spot aggregate
         if 'spot' in source_aggregate.lower():
@@ -499,10 +551,34 @@ def register_routes(app):
         if not hostname or not target_type:
             return jsonify({'error': 'Missing hostname or target_type'}), 400
         
-        # Get GPU type from hostname context
-        gpu_type = get_gpu_type_from_hostname_context(hostname)
+        # OPTIMIZATION: Extract GPU type directly from hostname instead of expensive discovery
+        import re
+        
+        # Try to extract GPU type from hostname pattern first
+        gpu_type = None
+        hostname_lower = hostname.lower()
+        
+        if 'h200sxm' in hostname_lower:
+            gpu_type = 'H200-SXM5'
+        elif 'h100sxm' in hostname_lower:
+            gpu_type = 'H100-SXM5'
+        elif 'h100' in hostname_lower:
+            gpu_type = 'H100'
+        elif 'a100' in hostname_lower:
+            gpu_type = 'A100'
+        elif 'rtx-a6000' in hostname_lower or 'esc8' in hostname_lower:
+            gpu_type = 'RTX-A6000'
+        elif 'l40' in hostname_lower:
+            gpu_type = 'L40'
+        
+        # If hostname-based detection fails, fall back to expensive discovery
         if not gpu_type:
-            return jsonify({'error': f'Could not determine GPU type for hostname {hostname}'}), 404
+            print(f"⚠️ Could not extract GPU type from hostname {hostname}, using expensive discovery...")
+            gpu_type = get_gpu_type_from_hostname_context(hostname)
+            if not gpu_type:
+                return jsonify({'error': f'Could not determine GPU type for hostname {hostname}'}), 404
+        else:
+            print(f"✅ Extracted GPU type {gpu_type} from hostname {hostname} (no discovery needed)")
         
         # Get aggregate configuration for this GPU type
         gpu_aggregates = discover_gpu_aggregates()
