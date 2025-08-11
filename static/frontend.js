@@ -853,15 +853,15 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
             targetAggregate = contractSelect.value;
         } else if (targetType === 'spot') {
             // Use spot aggregate from current data
-            if (aggregateData && aggregateData.spot && aggregateData.spot.name) {
-                targetAggregate = aggregateData.spot.name;
+            if (window.Frontend.aggregateData && window.Frontend.aggregateData.spot && window.Frontend.aggregateData.spot.name) {
+                targetAggregate = window.Frontend.aggregateData.spot.name;
             } else {
                 throw new Error('Spot aggregate not available');
             }
         } else if (targetType === 'runpod') {
             // Use runpod aggregate from current data
-            if (aggregateData && aggregateData.runpod && aggregateData.runpod.name) {
-                targetAggregate = aggregateData.runpod.name;
+            if (window.Frontend.aggregateData && window.Frontend.aggregateData.runpod && window.Frontend.aggregateData.runpod.name) {
+                targetAggregate = window.Frontend.aggregateData.runpod.name;
             } else {
                 throw new Error('Runpod aggregate not available');
             }
@@ -873,8 +873,8 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
             }
             
             // Find the variant aggregate name from the data
-            if (aggregateData && aggregateData.ondemand && aggregateData.ondemand.variants) {
-                const variant = aggregateData.ondemand.variants.find(v => v.variant === targetVariant);
+            if (window.Frontend.aggregateData && window.Frontend.aggregateData.ondemand && window.Frontend.aggregateData.ondemand.variants) {
+                const variant = window.Frontend.aggregateData.ondemand.variants.find(v => v.variant === targetVariant);
                 if (variant && variant.aggregate) {
                     targetAggregate = variant.aggregate;
                 } else {
