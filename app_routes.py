@@ -400,8 +400,9 @@ def register_routes(app):
         host = data.get('host')
         source_aggregate = data.get('source_aggregate')
         target_aggregate = data.get('target_aggregate')
+        operation = data.get('operation', 'full')  # 'remove', 'add', or 'full' (default)
         
-        print(f"\n🚀 EXECUTING MIGRATION: {host} from {source_aggregate} to {target_aggregate}")
+        print(f"\n🚀 EXECUTING MIGRATION: {host} from {source_aggregate} to {target_aggregate} (operation: {operation})")
         
         if not all([host, target_aggregate]):
             return jsonify({'error': 'Missing required parameters (host and target_aggregate)'}), 400
@@ -434,193 +435,232 @@ def register_routes(app):
             
             results = []
             
-            # Remove from source aggregate
-            remove_command = f"openstack aggregate remove host {source_aggregate} {host}"
-            try:
-                source_agg = find_aggregate_by_name(conn, source_aggregate)
-                if not source_agg:
-                    return jsonify({'error': f'Source aggregate {source_aggregate} not found'}), 404
-                
-                conn.compute.remove_host_from_aggregate(source_agg, host)
-                
-                results.append({
-                    'command': remove_command,
-                    'success': True,
-                    'output': f'Successfully removed {host} from {source_aggregate}'
-                })
-                
-                # Log the successful command
-                log_command(remove_command, {
-                    'success': True,
-                    'stdout': f'Successfully removed {host} from {source_aggregate}',
-                    'stderr': '',
-                    'returncode': 0
-                }, 'executed')
-                
-            except Exception as e:
-                error_msg = f'Failed to remove {host} from {source_aggregate}: {str(e)}'
-                results.append({
-                    'command': remove_command,
-                    'success': False,
-                    'output': error_msg
-                })
-                
-                # Log the failed command
-                log_command(remove_command, {
-                    'success': False,
-                    'stdout': '',
-                    'stderr': error_msg,
-                    'returncode': 1
-                }, 'error')
-                
-                return jsonify({
-                    'error': 'Failed to remove host from source aggregate',
-                    'results': results
-                }), 500
+            # Step 1: Remove from source aggregate (if requested)
+            if operation in ['remove', 'full']:
+                if not source_aggregate:
+                    return jsonify({'error': 'source_aggregate required for remove operation'}), 400
+                    
+                remove_command = f"openstack aggregate remove host {source_aggregate} {host}"
+                try:
+                    source_agg = find_aggregate_by_name(conn, source_aggregate)
+                    if not source_agg:
+                        return jsonify({'error': f'Source aggregate {source_aggregate} not found'}), 404
+                    
+                    conn.compute.remove_host_from_aggregate(source_agg, host)
+                    
+                    results.append({
+                        'command': remove_command,
+                        'success': True,
+                        'output': f'Successfully removed {host} from {source_aggregate}'
+                    })
+                    
+                    # Log the successful command
+                    log_command(remove_command, {
+                        'success': True,
+                        'stdout': f'Successfully removed {host} from {source_aggregate}',
+                        'stderr': '',
+                        'returncode': 0
+                    }, 'executed')
+                    
+                except Exception as e:
+                    error_msg = f'Failed to remove {host} from {source_aggregate}: {str(e)}'
+                    results.append({
+                        'command': remove_command,
+                        'success': False,
+                        'output': error_msg
+                    })
+                    
+                    # Log the failed command
+                    log_command(remove_command, {
+                        'success': False,
+                        'stdout': '',
+                        'stderr': error_msg,
+                        'returncode': 1
+                    }, 'error')
+                    
+                    return jsonify({
+                        'error': 'Failed to remove host from source aggregate',
+                        'results': results
+                    }), 500
             
-            # Add to target aggregate
-            add_command = f"openstack aggregate add host {target_aggregate} {host}"
-            try:
-                target_agg = find_aggregate_by_name(conn, target_aggregate)
-                if not target_agg:
-                    return jsonify({'error': f'Target aggregate {target_aggregate} not found'}), 404
-                
-                conn.compute.add_host_to_aggregate(target_agg, host)
-                
-                results.append({
-                    'command': add_command,
-                    'success': True,
-                    'output': f'Successfully added {host} to {target_aggregate}'
-                })
-                
-                # Log the successful command
-                log_command(add_command, {
-                    'success': True,
-                    'stdout': f'Successfully added {host} to {target_aggregate}',
-                    'stderr': '',
-                    'returncode': 0
-                }, 'executed')
-                
-            except Exception as e:
-                error_msg = f'Failed to add {host} to {target_aggregate}: {str(e)}'
-                results.append({
-                    'command': add_command,
-                    'success': False,
-                    'output': error_msg
-                })
-                
-                # Log the failed command
-                log_command(add_command, {
-                    'success': False,
-                    'stdout': '',
-                    'stderr': error_msg,
-                    'returncode': 1
-                }, 'error')
-                
-                return jsonify({
-                    'error': 'Failed to add host to target aggregate',
-                    'results': results
-                }), 500
+            # Step 2: Add to target aggregate (if requested)
+            if operation in ['add', 'full']:
+                add_command = f"openstack aggregate add host {target_aggregate} {host}"
+                try:
+                    target_agg = find_aggregate_by_name(conn, target_aggregate)
+                    if not target_agg:
+                        return jsonify({'error': f'Target aggregate {target_aggregate} not found'}), 404
+                    
+                    conn.compute.add_host_to_aggregate(target_agg, host)
+                    
+                    results.append({
+                        'command': add_command,
+                        'success': True,
+                        'output': f'Successfully added {host} to {target_aggregate}'
+                    })
+                    
+                    # Log the successful command
+                    log_command(add_command, {
+                        'success': True,
+                        'stdout': f'Successfully added {host} to {target_aggregate}',
+                        'stderr': '',
+                        'returncode': 0
+                    }, 'executed')
+                    
+                except Exception as e:
+                    error_msg = f'Failed to add {host} to {target_aggregate}: {str(e)}'
+                    results.append({
+                        'command': add_command,
+                        'success': False,
+                        'output': error_msg
+                    })
+                    
+                    # Log the failed command
+                    log_command(add_command, {
+                        'success': False,
+                        'stdout': '',
+                        'stderr': error_msg,
+                        'returncode': 1
+                    }, 'error')
+                    
+                    return jsonify({
+                        'error': 'Failed to add host to target aggregate',
+                        'results': results
+                    }), 500
             
-            # Step 3: Verify migration completed successfully
-            verify_command = f"Verify {host} location after migration"
-            print(f"🔍 Verifying migration: checking if {host} is in {target_aggregate}...")
-            
-            try:
-                # Check if host is in target aggregate
-                target_agg_verify = find_aggregate_by_name(conn, target_aggregate)
-                if not target_agg_verify:
-                    verification_error = f"Target aggregate {target_aggregate} not found during verification"
+            # Step 3: Verify operation completed successfully (only for full migrations)
+            if operation == 'full':
+                verify_command = f"Verify {host} location after migration"
+                print(f"🔍 Verifying migration: checking if {host} is in {target_aggregate}...")
+                
+                try:
+                    # Check if host is in target aggregate
+                    target_agg_verify = find_aggregate_by_name(conn, target_aggregate)
+                    if not target_agg_verify:
+                        verification_error = f"Target aggregate {target_aggregate} not found during verification"
+                        print(f"❌ {verification_error}")
+                        results.append({
+                            'command': verify_command,
+                            'success': False,
+                            'output': verification_error
+                        })
+                        return jsonify({
+                            'error': 'Migration verification failed - target aggregate not found',
+                            'results': results
+                        }), 500
+                    
+                    target_hosts = target_agg_verify.hosts or []
+                    is_in_target = host in target_hosts
+                    
+                    # Check if host is NOT in source aggregate  
+                    source_agg_verify = find_aggregate_by_name(conn, source_aggregate) if source_aggregate else None
+                    source_hosts = source_agg_verify.hosts or [] if source_agg_verify else []
+                    is_in_source = host in source_hosts
+                    
+                    # Determine verification result
+                    if is_in_target and not is_in_source:
+                        # Perfect! Host is in target and not in source
+                        verification_msg = f"✅ Verified: {host} successfully migrated to {target_aggregate}"
+                        print(verification_msg)
+                        results.append({
+                            'command': verify_command,
+                            'success': True,
+                            'output': verification_msg
+                        })
+                        
+                        # Log successful verification
+                        log_command(verify_command, {
+                            'success': True,
+                            'stdout': verification_msg,
+                            'stderr': '',
+                            'returncode': 0
+                        }, 'executed')
+                        
+                    elif is_in_target and is_in_source:
+                        # Host is in both aggregates - partial migration
+                        verification_msg = f"⚠️ Partial migration: {host} is in both {source_aggregate} and {target_aggregate}"
+                        print(verification_msg)
+                        results.append({
+                            'command': verify_command,
+                            'success': False,
+                            'output': verification_msg
+                        })
+                        return jsonify({
+                            'error': 'Migration partially completed - host exists in both aggregates',
+                            'results': results
+                        }), 500
+                        
+                    elif not is_in_target and not is_in_source:
+                        # Host is in neither aggregate - lost!
+                        verification_msg = f"❌ Host lost: {host} is not in {source_aggregate} or {target_aggregate}"
+                        print(verification_msg)
+                        results.append({
+                            'command': verify_command,
+                            'success': False,
+                            'output': verification_msg
+                        })
+                        return jsonify({
+                            'error': 'Migration failed - host not found in any expected aggregate',
+                            'results': results
+                        }), 500
+                        
+                    else:
+                        # Host is still in source aggregate only - migration failed
+                        verification_msg = f"❌ Migration failed: {host} is still in {source_aggregate}, not in {target_aggregate}"
+                        print(verification_msg)
+                        results.append({
+                            'command': verify_command,
+                            'success': False,
+                            'output': verification_msg
+                        })
+                        return jsonify({
+                            'error': 'Migration failed - host remains in source aggregate',
+                            'results': results
+                        }), 500
+                        
+                except Exception as e:
+                    verification_error = f"Verification failed: {str(e)}"
                     print(f"❌ {verification_error}")
                     results.append({
                         'command': verify_command,
                         'success': False,
                         'output': verification_error
                     })
-                    return jsonify({
-                        'error': 'Migration verification failed - target aggregate not found',
-                        'results': results
-                    }), 500
+                    # Don't fail the entire migration for verification errors - the operations might have worked
+                    print("⚠️ Continuing despite verification error - migration operations may have succeeded")
+            else:
+                # For individual operations, just verify the operation completed
+                if operation == 'remove' and source_aggregate:
+                    print(f"🔍 Verifying remove operation: checking if {host} is NOT in {source_aggregate}...")
+                    try:
+                        source_agg_verify = find_aggregate_by_name(conn, source_aggregate)
+                        source_hosts = source_agg_verify.hosts or [] if source_agg_verify else []
+                        is_in_source = host in source_hosts
+                        
+                        if not is_in_source:
+                            verification_msg = f"✅ Verified: {host} successfully removed from {source_aggregate}"
+                            print(verification_msg)
+                        else:
+                            verification_msg = f"⚠️ Remove operation may have failed: {host} still in {source_aggregate}"
+                            print(verification_msg)
+                    except Exception as e:
+                        print(f"⚠️ Could not verify remove operation: {str(e)}")
                 
-                target_hosts = target_agg_verify.hosts or []
-                is_in_target = host in target_hosts
-                
-                # Check if host is NOT in source aggregate  
-                source_agg_verify = find_aggregate_by_name(conn, source_aggregate)
-                source_hosts = source_agg_verify.hosts or [] if source_agg_verify else []
-                is_in_source = host in source_hosts
-                
-                # Determine verification result
-                if is_in_target and not is_in_source:
-                    # Perfect! Host is in target and not in source
-                    verification_msg = f"✅ Verified: {host} successfully migrated to {target_aggregate}"
-                    print(verification_msg)
-                    results.append({
-                        'command': verify_command,
-                        'success': True,
-                        'output': verification_msg
-                    })
-                    
-                    # Log successful verification
-                    log_command(verify_command, {
-                        'success': True,
-                        'stdout': verification_msg,
-                        'stderr': '',
-                        'returncode': 0
-                    }, 'executed')
-                    
-                elif is_in_target and is_in_source:
-                    # Host is in both aggregates - partial migration
-                    verification_msg = f"⚠️ Partial migration: {host} is in both {source_aggregate} and {target_aggregate}"
-                    print(verification_msg)
-                    results.append({
-                        'command': verify_command,
-                        'success': False,
-                        'output': verification_msg
-                    })
-                    return jsonify({
-                        'error': 'Migration partially completed - host exists in both aggregates',
-                        'results': results
-                    }), 500
-                    
-                elif not is_in_target and not is_in_source:
-                    # Host is in neither aggregate - lost!
-                    verification_msg = f"❌ Host lost: {host} is not in {source_aggregate} or {target_aggregate}"
-                    print(verification_msg)
-                    results.append({
-                        'command': verify_command,
-                        'success': False,
-                        'output': verification_msg
-                    })
-                    return jsonify({
-                        'error': 'Migration failed - host not found in any expected aggregate',
-                        'results': results
-                    }), 500
-                    
-                else:
-                    # Host is still in source aggregate only - migration failed
-                    verification_msg = f"❌ Migration failed: {host} is still in {source_aggregate}, not in {target_aggregate}"
-                    print(verification_msg)
-                    results.append({
-                        'command': verify_command,
-                        'success': False,
-                        'output': verification_msg
-                    })
-                    return jsonify({
-                        'error': 'Migration failed - host remains in source aggregate',
-                        'results': results
-                    }), 500
-                    
-            except Exception as e:
-                verification_error = f"Verification failed: {str(e)}"
-                print(f"❌ {verification_error}")
-                results.append({
-                    'command': verify_command,
-                    'success': False,
-                    'output': verification_error
-                })
-                # Don't fail the entire migration for verification errors - the operations might have worked
-                print("⚠️ Continuing despite verification error - migration operations may have succeeded")
+                elif operation == 'add':
+                    print(f"🔍 Verifying add operation: checking if {host} is in {target_aggregate}...")
+                    try:
+                        target_agg_verify = find_aggregate_by_name(conn, target_aggregate)
+                        target_hosts = target_agg_verify.hosts or [] if target_agg_verify else []
+                        is_in_target = host in target_hosts
+                        
+                        if is_in_target:
+                            verification_msg = f"✅ Verified: {host} successfully added to {target_aggregate}"
+                            print(verification_msg)
+                        else:
+                            verification_msg = f"⚠️ Add operation may have failed: {host} not in {target_aggregate}"
+                            print(verification_msg)
+                    except Exception as e:
+                        print(f"⚠️ Could not verify add operation: {str(e)}")
 
             # Clear cache after successful migration to ensure fresh data on next request
             from modules.parallel_agents import clear_parallel_cache
