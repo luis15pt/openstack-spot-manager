@@ -38,6 +38,18 @@ function executeHostMigration(hostname, sourceAggregate, targetAggregate, operat
             if (data.success) {
                 console.log(`✅ Migration ${operation} successful for ${hostname}`);
                 window.Logs.addToDebugLog('OpenStack', `${operation} operation completed successfully`, 'success', hostname);
+                
+                // Check if backend signals to refresh frontend data
+                if (data.refresh_frontend || data.cache_refreshed) {
+                    console.log(`🔄 Backend cache refreshed, reloading page to show fresh data...`);
+                    window.Logs.addToDebugLog('OpenStack', 'Refreshing frontend with updated aggregate data', 'info', hostname);
+                    
+                    // Small delay to let user see the success message, then refresh
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                }
+                
                 resolve(data);
             } else {
                 console.error(`❌ Migration ${operation} failed for ${hostname}:`, data.error);

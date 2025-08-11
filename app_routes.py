@@ -662,42 +662,34 @@ def register_routes(app):
                     except Exception as e:
                         print(f"⚠️ Could not verify add operation: {str(e)}")
 
-            # Clear cache and immediately fetch fresh data after migration
-            # RULE: Both source and target aggregates need fresh data after host migration
-            from modules.parallel_agents import clear_parallel_cache, get_all_data_parallel
-            from modules.aggregate_operations import clear_host_aggregate_cache, clear_gpu_aggregates_cache, discover_gpu_aggregates
+            # OPTIMIZATION: Only refresh cache once after ALL operations are complete
+            # Single call updates all relevant aggregates, so no need for multiple refreshes
+            print(f"🔄 Refreshing cache after completing all migration operations...")
             
-            print(f"🔄 Clearing caches and fetching fresh data for both aggregates...")
-            
-            # Step 1: Clear all caches
-            cleared_parallel = clear_parallel_cache()  # Clears aggregate host/VM/GPU data
-            cleared_host = clear_host_aggregate_cache()  # Clears host-to-aggregate mappings
-            clear_gpu_aggregates_cache()  # Clear GPU aggregates discovery cache
-            
-            print(f"✅ Cache cleared: {cleared_parallel} parallel entries, {cleared_host} host entries")
-            
-            # Step 2: Immediately fetch fresh data to warm the cache
-            print(f"🔄 Fetching fresh data for source ({source_aggregate}) and target ({target_aggregate}) aggregates...")
             try:
-                # Force refresh GPU aggregates discovery
-                fresh_gpu_aggregates = discover_gpu_aggregates(force_refresh=True)
-                print(f"✅ Refreshed GPU aggregates: {len(fresh_gpu_aggregates)} types discovered")
+                from modules.parallel_agents import clear_parallel_cache, get_all_data_parallel
+                from modules.aggregate_operations import clear_host_aggregate_cache, clear_gpu_aggregates_cache, discover_gpu_aggregates
                 
-                # Force refresh all parallel data (hosts, VMs, GPU info for all aggregates)
+                # Clear all caches
+                cleared_parallel = clear_parallel_cache()
+                cleared_host = clear_host_aggregate_cache() 
+                clear_gpu_aggregates_cache()
+                print(f"✅ Cache cleared: {cleared_parallel} parallel + {cleared_host} host entries")
+                
+                # Single refresh call updates all aggregates
                 fresh_parallel_data = get_all_data_parallel()
                 aggregate_count = sum(len(gpu_data.get('aggregates', {})) for gpu_data in fresh_parallel_data.values())
-                print(f"✅ Refreshed parallel data: {aggregate_count} aggregates with fresh host/VM/GPU data")
-                
-                print(f"🎯 Both {source_aggregate} and {target_aggregate} now have fresh data available")
+                print(f"✅ Refreshed all aggregate data: {aggregate_count} aggregates updated")
                 
             except Exception as e:
-                print(f"⚠️ Warning: Could not pre-fetch fresh data: {e}")
-                print(f"🔄 Fresh data will be fetched on next request")
+                print(f"⚠️ Warning: Cache refresh failed: {e}")
             
             return jsonify({
                 'success': True,
                 'results': results,
-                'message': f'Successfully migrated {host} from {source_aggregate} to {target_aggregate}'
+                'message': f'Successfully migrated {host} from {source_aggregate} to {target_aggregate}',
+                'cache_refreshed': True,  # Signal to frontend that data is fresh
+                'refresh_frontend': True  # Tell frontend to refresh the page
             })
             
         except Exception as e:
