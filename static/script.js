@@ -9,6 +9,16 @@ window.gpuDataCache = new Map(); // Cache for loaded GPU data
 window.backgroundLoadingInProgress = false;
 console.log('🎯 SCRIPT.JS: Global state initialized');
 
+// Column instances (v0.2 Modular Architecture)
+console.log('🏗️ SCRIPT.JS: Initializing column instances');
+window.columns = {
+    runpod: new RunpodColumn(),
+    spot: new SpotColumn(),
+    ondemand: new OndemandColumn(),
+    contract: new ContractColumn()
+};
+console.log('✅ SCRIPT.JS: Column instances created');
+
 // Main script initialization
 console.log('Main script loaded');
 
@@ -546,23 +556,23 @@ async function loadSpecificAggregateData(gpuType, aggregateType) {
         // IMPORTANT: When refreshing one column, also update the other columns to handle moved hosts
         // This ensures hosts that moved between aggregates are properly reflected in the UI
         
-        // Update RunPod column
+        // Update RunPod column (v0.2)
         if (fullData.runpod) {
-            updateRunpodColumn(fullData.runpod);
+            window.columns.runpod.update(fullData.runpod);
         } else {
             console.warn(`⚠️ No runpod data found in response for ${gpuType}`);
         }
         
-        // Update Spot column
+        // Update Spot column (v0.2)
         if (fullData.spot) {
-            updateSpotColumn(fullData.spot);
+            window.columns.spot.update(fullData.spot);
         } else {
             console.warn(`⚠️ No spot data found in response for ${gpuType}`);
         }
         
-        // Update On-Demand column(s)
+        // Update On-Demand column(s) (v0.2)
         if (fullData.ondemand) {
-            updateOnDemandColumn(fullData.ondemand);
+            window.columns.ondemand.update(fullData.ondemand);
         } else {
             console.warn(`⚠️ No ondemand data found in response for ${gpuType}`);
         }
@@ -582,75 +592,14 @@ async function loadSpecificAggregateData(gpuType, aggregateType) {
 }
 
 // Update RunPod column specifically
-function updateRunpodColumn(data) {
-    console.log(`🔄 Updating RunPod column with ${data.hosts.length} hosts`);
-    
-    // Update header counts
-    document.getElementById('runpodCount').textContent = data.hosts.length;
-    
-    // Update GPU statistics if available
-    if (data.gpu_summary) {
-        const runpodPercent = Math.round((data.gpu_summary.gpu_used / data.gpu_summary.gpu_capacity) * 100) || 0;
-        document.getElementById('runpodGpuUsage').textContent = data.gpu_summary.gpu_usage_ratio;
-        document.getElementById('runpodGpuPercent').textContent = runpodPercent + '%';
-        document.getElementById('runpodGpuProgressBar').style.width = runpodPercent + '%';
-    } else {
-        // Fallback if gpu_summary is missing
-        console.warn('⚠️ RunPod gpu_summary is missing:', data);
-        document.getElementById('runpodGpuUsage').textContent = '0/0';
-        document.getElementById('runpodGpuPercent').textContent = '0%';
-        document.getElementById('runpodGpuProgressBar').style.width = '0%';
-    }
-    
-    // Re-render the hosts
-    window.Frontend.renderHosts('runpodHosts', data.hosts, 'runpod', data.name);
-}
+// DEPRECATED: Replaced by RunpodColumn class in v0.2
+// function updateRunpodColumn(data) - moved to static/columns/runpod-column.js
 
-// Update Spot column specifically
-function updateSpotColumn(data) {
-    console.log(`🔄 Updating Spot column with ${data.hosts.length} hosts`);
-    
-    // Update header counts
-    document.getElementById('spotCount').textContent = data.hosts.length;
-    
-    // Update GPU statistics if available
-    if (data.gpu_summary) {
-        const spotPercent = Math.round((data.gpu_summary.gpu_used / data.gpu_summary.gpu_capacity) * 100) || 0;
-        document.getElementById('spotGpuUsage').textContent = data.gpu_summary.gpu_usage_ratio;
-        document.getElementById('spotGpuPercent').textContent = spotPercent + '%';
-        document.getElementById('spotGpuProgressBar').style.width = spotPercent + '%';
-    }
-    
-    // Re-render the hosts
-    window.Frontend.renderHosts('spotHosts', data.hosts, 'spot', data.name);
-}
+// DEPRECATED: Replaced by SpotColumn class in v0.2
+// function updateSpotColumn(data) - moved to static/columns/spot-column.js
 
-// Update On-Demand column(s) specifically
-function updateOnDemandColumn(data) {
-    console.log(`🔄 Updating On-Demand column(s) with ${data.hosts.length} hosts`);
-    
-    // Update header counts (fallback column)
-    document.getElementById('ondemandCount').textContent = data.hosts.length;
-    
-    // Update GPU statistics if available
-    if (data.gpu_summary) {
-        const ondemandPercent = Math.round((data.gpu_summary.gpu_used / data.gpu_summary.gpu_capacity) * 100) || 0;
-        document.getElementById('ondemandGpuUsage').textContent = data.gpu_summary.gpu_usage_ratio;
-        document.getElementById('ondemandGpuPercent').textContent = ondemandPercent + '%';
-        document.getElementById('ondemandGpuProgressBar').style.width = ondemandPercent + '%';
-    }
-    
-    // Store the data for variant column rendering
-    const ondemandData = {
-        name: data.name,
-        hosts: data.hosts,
-        variants: data.variants,
-        gpu_summary: data.gpu_summary
-    };
-    
-    // Re-render the variant columns with NVLink logic
-    window.Frontend.renderOnDemandVariantColumns(ondemandData);
-}
+// DEPRECATED: Replaced by OndemandColumn class in v0.2
+// function updateOnDemandColumn(data) - moved to static/columns/ondemand-column.js
 
 // Toggle group visibility - removed duplicate function
 // Using the correct toggleGroup function from frontend.js instead
@@ -2018,7 +1967,7 @@ async function loadContractDataForColumn(contractAggregate) {
                 gpu_summary: calculateContractGpuSummary(selectedContract.hosts)
             };
             
-            updateContractColumn(standardizedData);
+            window.columns.contract.update(standardizedData);
         } else {
             console.error(`❌ Contract ${contractAggregate} not found in response`);
             if (contractHostsList) {
@@ -2064,30 +2013,8 @@ function calculateContractGpuSummary(hosts) {
     };
 }
 
-// Update Contract column specifically (following same pattern as other columns)
-function updateContractColumn(data) {
-    console.log(`🔄 Updating Contract column with ${data.hosts.length} hosts`);
-    
-    // Update header counts
-    document.getElementById('contractHostCount').textContent = data.hosts.length;
-    
-    // Update contract name
-    const contractName = document.getElementById('contractName');
-    if (contractName) {
-        contractName.textContent = data.name || '';
-    }
-    
-    // Update GPU statistics if available
-    if (data.gpu_summary) {
-        const contractPercent = Math.round((data.gpu_summary.gpu_used / data.gpu_summary.gpu_capacity) * 100) || 0;
-        document.getElementById('contractGpuUsage').textContent = data.gpu_summary.gpu_usage_ratio;
-        document.getElementById('contractGpuPercent').textContent = contractPercent + '%';
-        document.getElementById('contractGpuProgressBar').style.width = contractPercent + '%';
-    }
-    
-    // Re-render the hosts (same as other columns)
-    window.Frontend.renderHosts('contractHostsList', data.hosts, 'contract', data.name);
-}
+// DEPRECATED: Replaced by ContractColumn class in v0.2
+// function updateContractColumn(data) - moved to static/columns/contract-column.js
 
 // Legacy function name for backwards compatibility - will be replaced
 function populateContractPanel(contractData) {
