@@ -1570,6 +1570,12 @@ body {
     border: 1px solid #e0e0e0;
 }
 
+.nvlinks-badge.unknown {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
 .nvlinks-badge i {
     font-size: 0.9em;
 }

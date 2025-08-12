@@ -592,7 +592,8 @@ function createHostCard(host, type, aggregateName = null) {
              data-type="${type}"
              data-aggregate="${host.variant || aggregateName || ''}"
              data-has-vms="${hasVms}"
-             data-owner-group="${ownerGroup}">
+             data-owner-group="${ownerGroup}"
+             data-nvlinks="${host.nvlinks}">
             <div class="machine-card-header">
                 <i class="fas fa-grip-vertical drag-handle"></i>
                 <div class="machine-name">${host.name}</div>
@@ -616,9 +617,9 @@ function createHostCard(host, type, aggregateName = null) {
                     </span>
                 </div>
                 <div class="nvlinks-info">
-                    <span class="nvlinks-badge ${host.nvlinks ? 'enabled' : 'disabled'}" title="NVLinks ${host.nvlinks ? 'Enabled' : 'Disabled'}">
+                    <span class="nvlinks-badge ${host.nvlinks === true ? 'enabled' : (host.nvlinks === false ? 'disabled' : 'unknown')}" title="NVLinks ${host.nvlinks === true ? 'Enabled' : (host.nvlinks === false ? 'Disabled' : 'Unknown')}">
                         <i class="fas fa-link"></i>
-                        NVLinks: ${host.nvlinks ? 'Yes' : 'No'}
+                        NVLinks: ${host.nvlinks === true ? 'Yes' : (host.nvlinks === false ? 'No' : 'Unknown')}
                     </span>
                 </div>
                 ${host.variant ? `

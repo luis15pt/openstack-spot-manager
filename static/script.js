@@ -2012,7 +2012,7 @@ async function loadContractDataForColumn(contractAggregate) {
                     owner_group: extractTenantName(host) === 'Chris Starkey' ? 'Nexgen Cloud' : 'Investors',
                     gpu_used: host.gpu_info?.gpu_used || 0,
                     gpu_usage_ratio: host.gpu_info?.gpu_usage_ratio || `${host.gpu_info?.gpu_used || 0}/${host.gpu_info?.gpu_capacity || 8}`,
-                    nvlinks: host.nvlinks !== false,
+                    nvlinks: host.nvlinks === true ? true : (host.nvlinks === false ? false : 'unknown'), // Use actual NetBox value or unknown
                     variant: selectedContract.aggregate || selectedContract.name
                 })),
                 gpu_summary: calculateContractGpuSummary(selectedContract.hosts)
@@ -2173,7 +2173,7 @@ function populateContractPanel(contractData) {
             owner_group: tenantName === 'Chris Starkey' ? 'Nexgen Cloud' : 'Investors',
             gpu_used: usedGpus,
             gpu_usage_ratio: gpuInfo.gpu_usage_ratio || `${usedGpus}/${totalGpus}`,
-            nvlinks: host.nvlinks !== false, // Default to true for contract hosts
+            nvlinks: host.nvlinks === true ? true : (host.nvlinks === false ? false : 'unknown'), // Use actual NetBox value or unknown
             variant: contractData.aggregate || contractData.name
         };
     });
