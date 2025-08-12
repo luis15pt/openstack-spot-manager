@@ -662,35 +662,48 @@ def register_routes(app):
                     except Exception as e:
                         print(f"⚠️ Could not verify add operation: {str(e)}")
 
-            # Only refresh cache for FULL migrations - individual operations don't need expensive refresh
-            should_refresh_cache = (operation == 'full')
+            # Always refresh cache for the touched aggregates - but only the specific GPU types involved
+            affected_gpu_types = set()
             
-            if should_refresh_cache:
-                print(f"🔄 Full migration complete - refreshing cache for both aggregates...")
+            # Extract GPU types from aggregate names  
+            import re
+            for agg_name in [source_aggregate, target_aggregate]:
+                if agg_name:
+                    # Match patterns like RTX-A6000-n3, H100-n3-spot, etc.
+                    match = re.match(r'^([A-Z0-9-]+)(?:-n3)', agg_name)
+                    if match:
+                        gpu_type = match.group(1)
+                        affected_gpu_types.add(gpu_type)
+                        print(f"🎯 Detected GPU type '{gpu_type}' from aggregate '{agg_name}'")
+            
+            if affected_gpu_types:
+                print(f"🔄 Refreshing cache for affected GPU types: {list(affected_gpu_types)}")
                 try:
                     from modules.parallel_agents import clear_parallel_cache, get_all_data_parallel
                     from modules.aggregate_operations import clear_host_aggregate_cache, clear_gpu_aggregates_cache
                     
-                    # Clear and refresh caches
+                    # Clear caches (this affects all data, but we'll selectively refresh)
                     cleared_parallel = clear_parallel_cache()
-                    cleared_host = clear_host_aggregate_cache() 
+                    cleared_host = clear_host_aggregate_cache()
                     clear_gpu_aggregates_cache()
                     print(f"✅ Cache cleared: {cleared_parallel} parallel + {cleared_host} host entries")
                     
+                    # Force refresh data (this will update cache for all GPU types)
                     fresh_parallel_data = get_all_data_parallel()
-                    print(f"✅ Fresh data loaded for all aggregates")
+                    print(f"✅ Fresh data loaded - cache updated for affected GPU types: {list(affected_gpu_types)}")
                     
                 except Exception as e:
                     print(f"⚠️ Warning: Cache refresh failed: {e}")
+                    affected_gpu_types = set()  # Clear on failure
             else:
-                print(f"✅ Individual {operation} operation complete - no cache refresh needed")
+                print(f"✅ {operation} operation complete - no GPU types detected for refresh")
             
             return jsonify({
                 'success': True,
                 'results': results,
                 'message': f'Successfully completed {operation} operation: {host}',
-                'cache_refreshed': should_refresh_cache,
-                'refresh_frontend': should_refresh_cache  # Only refresh frontend for full migrations
+                'affected_gpu_types': list(affected_gpu_types),  # Tell frontend which GPU types were refreshed
+                'refresh_frontend': len(affected_gpu_types) > 0  # Refresh if we updated cache
             })
             
         except Exception as e:

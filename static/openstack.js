@@ -10,6 +10,12 @@ window.gpuAggregatesCache = {
     }
 };
 
+// Helper function to get currently selected GPU type from UI
+function getCurrentGpuType() {
+    const select = document.getElementById('gpuTypeSelect');
+    return select ? select.value : null;
+}
+
 // Execute host migration between aggregates
 function executeHostMigration(hostname, sourceAggregate, targetAggregate, operation) {
     return new Promise((resolve, reject) => {
@@ -39,15 +45,27 @@ function executeHostMigration(hostname, sourceAggregate, targetAggregate, operat
                 console.log(`✅ Migration ${operation} successful for ${hostname}`);
                 window.Logs.addToDebugLog('OpenStack', `${operation} operation completed successfully`, 'success', hostname);
                 
-                // Check if backend signals to refresh frontend data
-                if (data.refresh_frontend || data.cache_refreshed) {
-                    console.log(`🔄 Backend cache refreshed, reloading page to show fresh data...`);
-                    window.Logs.addToDebugLog('OpenStack', 'Refreshing frontend with updated aggregate data', 'info', hostname);
+                // Check if backend refreshed cache for specific GPU types
+                if (data.refresh_frontend && data.affected_gpu_types && data.affected_gpu_types.length > 0) {
+                    console.log(`🔄 Backend refreshed cache for GPU types: ${data.affected_gpu_types.join(', ')}`);
+                    window.Logs.addToDebugLog('OpenStack', `Cache refreshed for GPU types: ${data.affected_gpu_types.join(', ')}`, 'info', hostname);
                     
-                    // Small delay to let user see the success message, then refresh
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
+                    // Store the affected GPU types for when user switches tabs
+                    if (!window.refreshedGpuTypes) window.refreshedGpuTypes = new Set();
+                    data.affected_gpu_types.forEach(gpuType => {
+                        window.refreshedGpuTypes.add(gpuType);
+                        console.log(`📝 Marked GPU type '${gpuType}' as needing frontend refresh`);
+                    });
+                    
+                    // If currently viewing one of the affected GPU types, refresh immediately
+                    const currentGpuType = getCurrentGpuType(); // Function to get current GPU type from UI
+                    if (currentGpuType && data.affected_gpu_types.includes(currentGpuType)) {
+                        console.log(`🔄 Currently viewing affected GPU type '${currentGpuType}' - refreshing data...`);
+                        setTimeout(() => {
+                            // Force refresh the aggregate data for current GPU type
+                            loadAggregateData(currentGpuType, false);
+                        }, 1000);
+                    }
                 }
                 
                 resolve(data);
@@ -70,8 +88,15 @@ function loadAggregateData(gpuType, isBackgroundLoad = false) {
     console.log(`📊 Loading aggregate data for ${gpuType} (background: ${isBackgroundLoad})`);
     window.Logs.addToDebugLog('OpenStack', `Loading aggregate data for ${gpuType}`, 'info');
     
-    // Check cache first
-    if (window.gpuDataCache && window.gpuDataCache.has(gpuType)) {
+    // Check if this GPU type needs fresh data due to recent migration
+    const needsFreshData = window.refreshedGpuTypes && window.refreshedGpuTypes.has(gpuType);
+    if (needsFreshData) {
+        console.log(`🔄 GPU type '${gpuType}' marked for refresh - bypassing cache`);
+        window.refreshedGpuTypes.delete(gpuType); // Remove flag after handling
+    }
+    
+    // Check cache first (unless fresh data is needed)
+    if (!needsFreshData && window.gpuDataCache && window.gpuDataCache.has(gpuType)) {
         console.log(`✅ Loading ${gpuType} from cache`);
         if (!isBackgroundLoad) {
             const cachedData = window.gpuDataCache.get(gpuType);
