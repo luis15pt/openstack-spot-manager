@@ -407,6 +407,34 @@ def register_routes(app):
         if not all([host, target_aggregate]):
             return jsonify({'error': 'Missing required parameters (host and target_aggregate)'}), 400
         
+        # CRITICAL VALIDATION: Prevent cross-GPU-type migrations
+        import re
+        source_gpu_type = None
+        target_gpu_type = None
+        
+        # Extract GPU types from aggregate names
+        if source_aggregate:
+            source_match = re.match(r'^([A-Z0-9-]+)(?:-n3)', source_aggregate)
+            if source_match:
+                source_gpu_type = source_match.group(1)
+        
+        if target_aggregate:
+            target_match = re.match(r'^([A-Z0-9-]+)(?:-n3)', target_aggregate)
+            if target_match:
+                target_gpu_type = target_match.group(1)
+        
+        # Validate GPU types match (unless it's a contract aggregate)
+        if source_gpu_type and target_gpu_type and not target_aggregate.startswith('Contract-'):
+            if source_gpu_type != target_gpu_type:
+                error_msg = f"❌ INVALID MIGRATION: Cannot move host with {source_gpu_type} GPUs to {target_gpu_type} aggregate! Hardware mismatch detected."
+                print(error_msg)
+                return jsonify({
+                    'error': error_msg,
+                    'source_gpu_type': source_gpu_type,
+                    'target_gpu_type': target_gpu_type,
+                    'validation_failed': True
+                }), 400
+        
         # OPTIMIZATION: Skip expensive aggregate discovery - trust the frontend's source_aggregate
         # If source_aggregate is not provided, fall back to discovery as a safety net
         if not source_aggregate:
