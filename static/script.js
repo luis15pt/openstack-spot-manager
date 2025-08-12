@@ -692,7 +692,7 @@ function showVmDetails(hostname) {
             }, { once: true });
             
             // Update modal title
-            modalTitle.textContent = `VMs on Host: ${hostname}`;
+            modalTitle.textContent = `GPUs on Host: ${hostname}`;
             
             if (data.error) {
                 modalBody.innerHTML = `

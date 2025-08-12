@@ -12,7 +12,7 @@ _parallel_cache = {}
 _cache_timestamps = {}
 _cache_lock = threading.Lock()
 _active_requests = {}  # Track active requests to prevent duplicates
-PARALLEL_CACHE_TTL = 600  # 10 minutes - balance between freshness and performance
+PARALLEL_CACHE_TTL = 60  # 1 minute - reduced for debugging, should be 600 normally
 
 def get_all_data_parallel():
     """
@@ -467,16 +467,22 @@ def get_host_vm_count_direct(hostname):
         # Method 1: Direct host filtering with all_projects (admin required)
         try:
             servers = list(conn.compute.servers(host=hostname, all_projects=True))
-            return len(servers)
+            vm_count = len(servers)
+            print(f"💻 VM Count Agent: Host {hostname} has {vm_count} VMs")
+            return vm_count
         except Exception as e:
             # Method 2: Try without all_projects as fallback
             try:
                 servers = list(conn.compute.servers(host=hostname))
-                return len(servers)
+                vm_count = len(servers)
+                print(f"💻 VM Count Agent: Host {hostname} has {vm_count} VMs (no admin)")
+                return vm_count
             except Exception as e2:
+                print(f"❌ VM Count Agent error for {hostname}: {e2}")
                 return 0
         
     except Exception as e:
+        print(f"❌ VM Count Agent error for {hostname}: {e}")
         return 0
 
 def get_host_gpu_info_direct(hostname):
@@ -490,7 +496,13 @@ def get_host_gpu_info_direct(hostname):
         try:
             servers = list(conn.compute.servers(host=hostname, all_projects=True))
         except:
-            servers = list(conn.compute.servers(host=hostname))
+            try:
+                servers = list(conn.compute.servers(host=hostname))
+            except:
+                servers = []
+        
+        # Debug logging
+        print(f"🎮 GPU Info Agent: Host {hostname} has {len(servers)} VMs")
         
         # Calculate total GPU usage from all VMs
         total_gpu_used = 0
@@ -504,9 +516,17 @@ def get_host_gpu_info_direct(hostname):
                 if match:
                     gpu_count = int(match.group(1))
                     total_gpu_used += gpu_count
+                    print(f"🎮 GPU Info Agent: VM {server.name} uses {gpu_count} GPUs (flavor: {flavor_name})")
         
         # Determine total GPU capacity based on host type
         host_gpu_capacity = 10 if 'A4000' in hostname else 8
+        
+        print(f"🎮 GPU Info Agent: Host {hostname} final: {total_gpu_used}/{host_gpu_capacity} GPUs used")
+        
+        # CRITICAL FIX: If no VMs found, total_gpu_used should definitely be 0
+        if len(servers) == 0:
+            total_gpu_used = 0
+            print(f"🎮 GPU Info Agent: Host {hostname} has NO VMs, forcing GPU usage to 0")
         
         return {
             'gpu_used': total_gpu_used,
@@ -515,6 +535,7 @@ def get_host_gpu_info_direct(hostname):
         }
         
     except Exception as e:
+        print(f"❌ GPU Info Agent error for {hostname}: {e}")
         return {
             'gpu_used': 0,
             'gpu_capacity': 8,  # Default to 8 GPUs

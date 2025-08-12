@@ -1109,7 +1109,7 @@ function showVmDetails(hostname) {
             const modalTitle = document.querySelector('#vmDetailsModal .modal-title');
             
             // Update modal title
-            modalTitle.textContent = `VMs on Host: ${hostname}`;
+            modalTitle.textContent = `GPUs on Host: ${hostname}`;
             
             if (data.vms && data.vms.length > 0) {
                 const vmTableRows = data.vms.map(vm => {
