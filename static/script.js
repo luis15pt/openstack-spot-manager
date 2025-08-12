@@ -12,10 +12,12 @@ console.log('🎯 SCRIPT.JS: Global state initialized');
 // Column instances (v0.2 Modular Architecture)
 console.log('🏗️ SCRIPT.JS: Initializing column instances');
 window.columns = {
+    summary: new SummaryColumn(),
     runpod: new RunpodColumn(),
     spot: new SpotColumn(),
     ondemand: new OndemandColumn(),
-    contract: new ContractColumn()
+    contract: new ContractColumn(),
+    outofstock: new OutOfStockColumn()
 };
 console.log('✅ SCRIPT.JS: Column instances created');
 
@@ -576,6 +578,13 @@ async function loadSpecificAggregateData(gpuType, aggregateType) {
         } else {
             console.warn(`⚠️ No ondemand data found in response for ${gpuType}`);
         }
+        
+        // Update Summary column (v0.2) - needs all data
+        window.columns.summary.update(fullData);
+        
+        // Update Out of Stock column (v0.2) - calculate from all data
+        const outofstockData = OutOfStockColumn.calculateOutOfStockHosts(fullData);
+        window.columns.outofstock.update(outofstockData);
         
         // Setup drag and drop for new elements  
         if (window.Frontend && window.Frontend.setupDragAndDrop) {

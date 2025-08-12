@@ -2385,6 +2385,46 @@ body {
 }
 
 /* =============================================================================
+   SUMMARY COLUMN STYLES (v0.2)
+   ============================================================================= */
+
+.summary-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 5px;
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.summary-label {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.summary-count {
+    font-size: 10px;
+    min-width: 24px;
+    text-align: center;
+}
+
+.text-purple {
+    color: #6f42c1 !important;
+}
+
+.bg-purple {
+    background-color: #6f42c1 !important;
+}
+
+/* =============================================================================
    CACHE MANAGEMENT STYLES
    ============================================================================= */
 

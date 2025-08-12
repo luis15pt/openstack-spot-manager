@@ -167,8 +167,37 @@
                             </div>
                             
                             <div class="row mt-3 hosts-row d-none" id="hostsRow">
+                                <!-- Summary Column (v0.2) -->
+                                <div class="col-md-2" style="flex: 0 0 10%;">
+                                    <div class="aggregate-column" id="summaryColumn">
+                                        <div class="card">
+                                            <div class="card-header bg-info text-white">
+                                                <h4 class="mb-0 d-flex justify-content-between align-items-center">
+                                                    <span>
+                                                        <i class="fas fa-chart-bar"></i> 
+                                                        <span id="summaryName">Summary</span>
+                                                        <span class="badge bg-light text-dark ms-2" id="summaryTotalCount">0</span>
+                                                    </span>
+                                                    <button class="btn btn-sm btn-outline-light" id="refreshSummaryBtn" title="Refresh Summary">
+                                                        <i class="fas fa-sync"></i>
+                                                    </button>
+                                                </h4>
+                                                <div class="mt-2">
+                                                    <small class="text-light">Allocated: <span id="summaryAllocation">0/0</span> (<span id="summaryAllocationPercent">0%</span>)</small>
+                                                    <div class="progress mt-1" style="height: 6px;">
+                                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="summaryAllocationProgressBar"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="card-body" id="summaryContent">
+                                                <!-- Summary content will be dynamically inserted here -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <!-- Runpod Column -->
-                                <div class="col-md-2" style="flex: 0 0 12.5%;">
+                                <div class="col-md-2" style="flex: 0 0 10%;">
                                     <div class="aggregate-column" id="runpodColumn">
                                         <div class="card">
                                             <div class="card-header bg-purple text-white">
@@ -228,7 +257,7 @@
                                 </div>
                                 
                                 <!-- Spot Column -->
-                                <div class="col-md-2" style="flex: 0 0 12.5%;">
+                                <div class="col-md-2" style="flex: 0 0 10%;">
                                     <div class="aggregate-column" id="spotColumn">
                                         <div class="card">
                                             <div class="card-header bg-warning text-dark">
@@ -257,7 +286,7 @@
                                 </div>
                                 
                                 <!-- Contract Column -->
-                                <div class="col-md-2" id="contractColumn" style="flex: 0 0 25%;">
+                                <div class="col-md-2" id="contractColumn" style="flex: 0 0 10%;">
                                     <div class="aggregate-column" id="contractAggregateColumn">
                                         <div class="card">
                                             <div class="card-header bg-success text-white">
@@ -301,6 +330,35 @@
                                                         <p class="small">Select a contract above to view hosts</p>
                                                     </div>
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Out of Stock Column (v0.2) -->
+                                <div class="col-md-2" style="flex: 0 0 10%;">
+                                    <div class="aggregate-column" id="outofstockColumn">
+                                        <div class="card">
+                                            <div class="card-header bg-danger text-white">
+                                                <h4 class="mb-0 d-flex justify-content-between align-items-center">
+                                                    <span>
+                                                        <i class="fas fa-exclamation-triangle"></i> 
+                                                        <span id="outofstockName">Out of Stock</span>
+                                                        <span class="badge bg-light text-dark ms-2" id="outofstockCount">0</span>
+                                                    </span>
+                                                    <button class="btn btn-sm btn-outline-light" id="refreshOutofstockBtn" title="Refresh Out of Stock">
+                                                        <i class="fas fa-sync"></i>
+                                                    </button>
+                                                </h4>
+                                                <div class="mt-2">
+                                                    <small class="text-light">Unused: <span id="outofstockGpuUsage">0/0</span> (<span id="outofstockGpuPercent">0%</span>)</small>
+                                                    <div class="progress mt-1" style="height: 6px;">
+                                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="outofstockGpuProgressBar"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="card-body" id="outofstockHosts">
+                                                <!-- Out of stock hosts will be dynamically inserted here -->
                                             </div>
                                         </div>
                                     </div>
@@ -1120,10 +1178,12 @@
     
     <!-- Column Architecture (v0.2) -->
     <script src="{{ url_for('static', filename='columns/column-base.js') }}"></script>
+    <script src="{{ url_for('static', filename='columns/summary-column.js') }}"></script>
     <script src="{{ url_for('static', filename='columns/runpod-column.js') }}"></script>
     <script src="{{ url_for('static', filename='columns/spot-column.js') }}"></script>
     <script src="{{ url_for('static', filename='columns/ondemand-column.js') }}"></script>
     <script src="{{ url_for('static', filename='columns/contract-column.js') }}"></script>
+    <script src="{{ url_for('static', filename='columns/outofstock-column.js') }}"></script>
     
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script src="{{ url_for('static', filename='customer-view.js') }}"></script>
