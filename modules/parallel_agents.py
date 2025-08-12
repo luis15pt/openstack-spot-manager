@@ -12,7 +12,7 @@ _parallel_cache = {}
 _cache_timestamps = {}
 _cache_lock = threading.Lock()
 _active_requests = {}  # Track active requests to prevent duplicates
-PARALLEL_CACHE_TTL = 60  # 1 minute - reduced for debugging, should be 600 normally
+PARALLEL_CACHE_TTL = 1  # 1 second - force immediate refresh for debugging
 
 def get_all_data_parallel():
     """
@@ -548,7 +548,14 @@ def clear_parallel_cache():
     cleared_count = len(_parallel_cache)
     _parallel_cache.clear()
     _cache_timestamps.clear()
+    print(f"🧹 Cleared {cleared_count} items from parallel cache")
     return cleared_count
+
+def force_cache_refresh():
+    """Force immediate cache refresh by clearing and re-fetching"""
+    print("🔄 FORCING IMMEDIATE CACHE REFRESH...")
+    clear_parallel_cache()
+    return get_all_data_parallel()
 
 def get_parallel_cache_stats():
     """Get parallel cache statistics"""
