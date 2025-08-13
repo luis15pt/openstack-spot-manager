@@ -25,23 +25,52 @@ class ContractColumn extends BaseColumn {
      */
     update(allData) {
         console.log('🔄 Updating Contract column with ALL contracts');
+        console.log('🔍 DEBUG: allData structure:', allData);
+        console.log('🔍 DEBUG: window.currentGpuType:', window.currentGpuType);
         
-        // Get contract data from the organized data structure
+        // Handle different data structures
+        let contracts = [];
+        let contractHosts = [];
+        
+        // Check if this is parallel agents organized data (has GPU types as keys)
         const currentGpuType = window.currentGpuType;
-        if (!currentGpuType || !allData[currentGpuType]) {
-            console.warn('⚠️ No GPU type selected or no data available');
-            this.renderEmptyContracts();
-            return;
+        if (currentGpuType && allData[currentGpuType]) {
+            console.log('🔍 Using parallel agents organized data structure');
+            const gpuData = allData[currentGpuType];
+            contracts = gpuData.config?.contracts || [];
+            contractHosts = gpuData.hosts || [];
         }
-        
-        const gpuData = allData[currentGpuType];
-        const contracts = gpuData.config?.contracts || [];
+        // Check if this is individual GPU type data (has contracts array directly)
+        else if (allData.contracts) {
+            console.log('🔍 Using individual GPU type data structure');
+            contracts = allData.contracts || [];
+            // Extract all hosts from contracts
+            contractHosts = [];
+            contracts.forEach(contract => {
+                if (contract.hosts) {
+                    contractHosts = contractHosts.concat(contract.hosts);
+                }
+            });
+        }
+        // Check if this is contract aggregates API data
+        else if (allData.gpu_type && allData.contracts) {
+            console.log('🔍 Using contract aggregates API data structure');
+            contracts = allData.contracts || [];
+            contractHosts = [];
+            contracts.forEach(contract => {
+                if (contract.hosts) {
+                    contractHosts = contractHosts.concat(contract.hosts);
+                }
+            });
+        }
         
         if (contracts.length === 0) {
-            console.log('📋 No contracts found for GPU type:', currentGpuType);
+            console.log('📋 No contracts found in data structure');
             this.renderEmptyContracts();
             return;
         }
+        
+        console.log(`🔍 Found ${contracts.length} contracts to process`);
         
         // Calculate total hosts and GPU stats across all contracts
         let totalHosts = 0;
@@ -52,16 +81,16 @@ class ContractColumn extends BaseColumn {
         
         // Process each contract
         contracts.forEach(contract => {
-            const contractHosts = gpuData.hosts.filter(host => 
+            const contractHostsForThisContract = contractHosts.filter(host => 
                 host.aggregate === contract.aggregate
             );
             
-            if (contractHosts.length > 0) {
+            if (contractHostsForThisContract.length > 0) {
                 // Calculate GPU stats for this contract
                 let contractGpuUsed = 0;
                 let contractGpuCapacity = 0;
                 
-                contractHosts.forEach(host => {
+                contractHostsForThisContract.forEach(host => {
                     const gpuInfo = host.gpu_info || {};
                     contractGpuUsed += gpuInfo.gpu_used || 0;
                     contractGpuCapacity += gpuInfo.gpu_capacity || 8;
@@ -69,13 +98,13 @@ class ContractColumn extends BaseColumn {
                 
                 contractsWithHosts.push({
                     ...contract,
-                    hosts: contractHosts,
-                    hostCount: contractHosts.length,
+                    hosts: contractHostsForThisContract,
+                    hostCount: contractHostsForThisContract.length,
                     gpuUsed: contractGpuUsed,
                     gpuCapacity: contractGpuCapacity
                 });
                 
-                totalHosts += contractHosts.length;
+                totalHosts += contractHostsForThisContract.length;
                 totalGpuUsed += contractGpuUsed;
                 totalGpuCapacity += contractGpuCapacity;
             }
