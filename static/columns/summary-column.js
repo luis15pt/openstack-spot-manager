@@ -116,7 +116,22 @@ class SummaryColumn extends BaseColumn {
             return;
         }
 
+        // Calculate missing (total installed minus allocated)
+        const totalAllocated = breakdown.runpod + breakdown.ondemand + breakdown.contracts + breakdown.outofstock;
+        const missing = breakdown.physical - totalAllocated;
+
+        // Generate summary text in requested format
+        const summaryText = `Total installed: ${breakdown.physical} | ` +
+                           `Runpod: ${breakdown.runpod} | ` +
+                           `On-demand: ${breakdown.ondemand} | ` +
+                           `Contract: ${breakdown.contracts} | ` +
+                           `Out of stock: ${breakdown.outofstock} | ` +
+                           `Missing: ${missing}`;
+
         container.innerHTML = `
+            <div class="summary-text mb-3">
+                <p class="text-muted small">${summaryText}</p>
+            </div>
             <div class="summary-breakdown">
                 <div class="summary-item">
                     <i class="fas fa-server text-secondary"></i>
@@ -130,7 +145,7 @@ class SummaryColumn extends BaseColumn {
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-server text-primary"></i>
-                    <span class="summary-label">Hyperstack</span>
+                    <span class="summary-label">On-demand</span>
                     <span class="summary-count badge bg-primary">${breakdown.ondemand}</span>
                 </div>
                 <div class="summary-item">
@@ -147,6 +162,11 @@ class SummaryColumn extends BaseColumn {
                     <i class="fas fa-exclamation-triangle text-danger"></i>
                     <span class="summary-label">Out of Stock</span>
                     <span class="summary-count badge bg-danger">${breakdown.outofstock}</span>
+                </div>
+                <div class="summary-item">
+                    <i class="fas fa-question-circle text-secondary"></i>
+                    <span class="summary-label">Missing</span>
+                    <span class="summary-count badge bg-secondary">${missing}</span>
                 </div>
             </div>
         `;
