@@ -610,9 +610,6 @@ async function loadSpecificAggregateData(gpuType, aggregateType) {
         const outofstockData = OutOfStockColumn.calculateOutOfStockHosts(fullData);
         window.columns.outofstock.update(outofstockData);
         
-        // Update Contract column (v0.2) - show all contracts with nested groups
-        window.columns.contract.update(fullData);
-        
         // Setup drag and drop for new elements  
         if (window.Frontend && window.Frontend.setupDragAndDrop) {
             window.Frontend.setupDragAndDrop();

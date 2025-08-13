@@ -244,6 +244,14 @@ function renderAggregateData(data) {
         renderHosts('spotHosts', data.spot.hosts, 'spot', data.spot.name);
     }
     
+    // Update Contract column (v0.2) - use cached parallel agents data
+    if (window.columns && window.columns.contract && window.loadedParallelData) {
+        console.log('🔄 Updating Contract column from renderAggregateData using cached parallel data');
+        window.columns.contract.update(window.loadedParallelData);
+    } else {
+        console.warn('⚠️ Contract column or parallel data not available in renderAggregateData');
+    }
+    
     // Setup drag and drop
     setupDragAndDrop();
 }
