@@ -357,12 +357,12 @@ function initializeEventListeners() {
         if (contractSelect && !contractSelect.hasAttribute('data-listener-attached')) {
             contractSelect.addEventListener('change', function() {
                 const selectedContract = this.value;
-                if (selectedContract) {
-                    console.log(`📋 Selected contract from column: ${selectedContract}`);
+                if (selectedContract && selectedContract !== '__ALL__') {
+                    console.log(`📋 Selected specific contract from column: ${selectedContract}`);
                     loadContractDataForColumn(selectedContract);
                 } else {
-                    // When no contract is selected, reload overall contract statistics
-                    console.log(`📋 No contract selected, showing overall statistics`);
+                    // When "Show All Contracts" is selected, reload overall contract statistics
+                    console.log(`📋 Show All Contracts selected, showing overall statistics`);
                     if (window.currentGpuType) {
                         loadContractAggregatesForColumn(window.currentGpuType);
                     } else {
@@ -372,6 +372,20 @@ function initializeEventListeners() {
             });
             contractSelect.setAttribute('data-listener-attached', 'true');
             console.log('✅ Contract column event listener attached');
+        }
+        
+        // Add listener for "Hide empty contracts" checkbox
+        const hideEmptyCheckbox = document.getElementById('hideEmptyContracts');
+        if (hideEmptyCheckbox && !hideEmptyCheckbox.hasAttribute('data-listener-attached')) {
+            hideEmptyCheckbox.addEventListener('change', function() {
+                console.log(`📋 Hide empty contracts toggled: ${this.checked}`);
+                // Refresh the contract dropdown to apply the filter
+                if (window.currentGpuType) {
+                    loadContractAggregatesForColumn(window.currentGpuType);
+                }
+            });
+            hideEmptyCheckbox.setAttribute('data-listener-attached', 'true');
+            console.log('✅ Hide empty contracts checkbox listener attached');
         }
     }
     
@@ -1844,12 +1858,20 @@ async function loadContractAggregatesForColumn(gpuType) {
         
         console.log(`📊 Found ${data.contracts?.length || 0} contract aggregates for ${gpuType}`);
         
-        // Clear loading state and populate dropdown
-        contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+        // Clear loading state and populate dropdown with unified options
+        contractSelect.innerHTML = '<option value="__ALL__">Show All Contracts</option>';
         contractSelect.disabled = false;
         
         if (data.contracts && data.contracts.length > 0) {
+            // Check if we should hide empty contracts
+            const hideEmpty = document.getElementById('hideEmptyContracts')?.checked ?? true;
+            
             data.contracts.forEach(contract => {
+                // Skip empty contracts if hideEmpty is enabled
+                if (hideEmpty && (!contract.host_count || contract.host_count === 0)) {
+                    return;
+                }
+                
                 const option = document.createElement('option');
                 option.value = contract.aggregate;
                 option.textContent = `${contract.name} (${contract.host_count} hosts)`;
@@ -1895,7 +1917,7 @@ function clearContractColumn() {
     const contractGpuProgressBar = document.getElementById('contractGpuProgressBar');
     
     if (contractSelect) {
-        contractSelect.innerHTML = '<option value="">Select Contract...</option>';
+        contractSelect.innerHTML = '<option value="__ALL__">Show All Contracts</option>';
         contractSelect.disabled = false;
     }
     if (contractName) contractName.textContent = '';

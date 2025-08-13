@@ -228,7 +228,7 @@
                                 <!-- On-Demand Columns will be dynamically inserted here -->
                                 
                                 <!-- Fallback On-Demand Column (for compatibility) -->
-                                <div class="col-md-6" id="ondemandColumnFallback" style="display: none; flex: 0 0 50%;">
+                                <div class="col-md-6" id="ondemandColumnFallback" style="display: none; flex: 0 0 40%;">
                                     <div class="aggregate-column" id="ondemandColumn">
                                         <div class="card">
                                             <div class="card-header bg-primary text-white">
@@ -286,7 +286,7 @@
                                 </div>
                                 
                                 <!-- Contract Column -->
-                                <div class="col-md-2" id="contractColumn" style="flex: 0 0 10%;">
+                                <div class="col-md-2" id="contractColumn" style="flex: 0 0 20%;">
                                     <div class="aggregate-column" id="contractAggregateColumn">
                                         <div class="card">
                                             <div class="card-header bg-success text-white">
@@ -313,14 +313,23 @@
                                                 </div>
                                             </div>
                                             <div class="card-body drop-zone" id="contractHosts" data-type="contract">
-                                                <!-- Contract Selection Dropdown -->
+                                                <!-- Contract Selection Controls -->
                                                 <div class="mb-3" id="contractSelectionDiv">
                                                     <label for="contractColumnSelect" class="form-label">
-                                                        <small>Select Contract:</small>
+                                                        <small>Contracts:</small>
                                                     </label>
-                                                    <select id="contractColumnSelect" class="form-select form-select-sm">
-                                                        <option value="">Select Contract...</option>
+                                                    <select id="contractColumnSelect" class="form-select form-select-sm mb-2">
+                                                        <option value="">Show All Contracts</option>
+                                                        <option value="__ALL__">Show All Contracts</option>
                                                     </select>
+                                                    
+                                                    <!-- Hide Empty Contracts Option -->
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="hideEmptyContracts" checked>
+                                                        <label class="form-check-label" for="hideEmptyContracts">
+                                                            <small>Hide empty contracts</small>
+                                                        </label>
+                                                    </div>
                                                 </div>
                                                 
                                                 <!-- Contract hosts will be dynamically inserted here -->

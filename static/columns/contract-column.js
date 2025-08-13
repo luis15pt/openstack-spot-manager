@@ -241,19 +241,68 @@ class ContractColumn extends BaseColumn {
     }
 
     /**
-     * Render individual host list
+     * Render individual host list using standardized machine-card format
      */
     renderHostList(hosts, aggregateType) {
-        if (window.Frontend && window.Frontend.renderHostList) {
-            return window.Frontend.renderHostList(hosts, aggregateType);
+        if (window.Frontend && window.Frontend.createHostCard) {
+            return hosts.map(host => window.Frontend.createHostCard(host, aggregateType)).join('');
         } else {
-            // Fallback rendering
-            return hosts.map(host => `
-                <div class="host-card" data-hostname="${host.hostname}">
-                    <strong>${host.hostname}</strong>
-                    <small class="text-muted d-block">VMs: ${host.vm_count || 0}</small>
-                </div>
-            `).join('');
+            // Fallback rendering with standardized machine-card format
+            return hosts.map(host => {
+                const hasVms = host.has_vms || (host.vm_count && host.vm_count > 0);
+                const vmBadgeClass = hasVms ? 'vm-badge active' : 'vm-badge zero';
+                const warningIcon = hasVms ? '<i class="fas fa-exclamation-triangle warning-icon"></i>' : '';
+                const cardClass = hasVms ? 'machine-card has-vms' : 'machine-card';
+                
+                const tenant = host.tenant || 'Unknown';
+                const ownerGroup = host.owner_group || 'Investors';
+                const tenantBadgeClass = ownerGroup === 'Nexgen Cloud' ? 'tenant-badge nexgen' : 'tenant-badge investors';
+                const tenantIcon = ownerGroup === 'Nexgen Cloud' ? 'fas fa-cloud' : 'fas fa-users';
+                
+                return `
+                    <div class="${cardClass}" 
+                         draggable="true" 
+                         data-host="${host.name || host.hostname}" 
+                         data-type="${aggregateType}"
+                         data-aggregate="${host.variant || host.aggregate || ''}"
+                         data-has-vms="${hasVms}"
+                         data-owner-group="${ownerGroup}"
+                         data-nvlinks="${host.nvlinks}">
+                        <div class="machine-card-header">
+                            <i class="fas fa-grip-vertical drag-handle"></i>
+                            <div class="machine-name">${host.name || host.hostname}</div>
+                            ${warningIcon}
+                        </div>
+                        <div class="machine-status">
+                            <div class="vm-info ${(host.vm_count || 0) > 0 ? 'clickable-vm-count' : ''}" 
+                                 ${(host.vm_count || 0) > 0 ? `onclick="showVmDetails('${host.name || host.hostname}')"` : ''}>
+                                <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
+                                <span class="gpu-badge ${(host.gpu_used || 0) > 0 ? 'active' : 'zero'}">${host.gpu_usage_ratio || '0/8'}</span>
+                                <span class="gpu-label">GPUs</span>
+                            </div>
+                            <div class="tenant-info">
+                                <span class="${tenantBadgeClass}" title="${tenant}">
+                                    <i class="${tenantIcon}"></i>
+                                    ${ownerGroup === 'Nexgen Cloud' ? ownerGroup : tenant}
+                                </span>
+                            </div>
+                            <div class="nvlinks-info">
+                                <span class="nvlinks-badge ${host.nvlinks === true ? 'enabled' : (host.nvlinks === false ? 'disabled' : 'unknown')}" title="NVLinks ${host.nvlinks === true ? 'Enabled' : (host.nvlinks === false ? 'Disabled' : 'Unknown')}">
+                                    <i class="fas fa-link"></i>
+                                    NVLinks: ${host.nvlinks === true ? 'Yes' : (host.nvlinks === false ? 'No' : 'Unknown')}
+                                </span>
+                            </div>
+                            ${host.variant ? `
+                            <div class="variant-info">
+                                <span class="variant-badge" title="Aggregate: ${host.variant}">
+                                    <i class="fas fa-tag"></i>
+                                    ${host.variant}
+                                </span>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
     }
 
