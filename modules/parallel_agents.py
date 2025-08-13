@@ -252,7 +252,9 @@ def vm_count_agent():
                     vm_counts[hostname] = 0
         
         elapsed = time.time() - start_time
-        print(f"💻 VM Count Agent: Got VM counts for {len(vm_counts)} hosts in {elapsed:.2f}s")
+        total_vms = sum(vm_counts.values())
+        hosts_with_vms = sum(1 for count in vm_counts.values() if count > 0)
+        print(f"💻 VM Count Agent: Processed {len(vm_counts)} hosts, found {total_vms} VMs on {hosts_with_vms} hosts in {elapsed:.2f}s")
         return vm_counts
         
     except Exception as e:
@@ -302,7 +304,10 @@ def gpu_info_agent():
                     }
         
         elapsed = time.time() - start_time
-        print(f"🎮 GPU Info Agent: Got GPU info for {len(gpu_info)} hosts in {elapsed:.2f}s")
+        total_gpus_used = sum(info.get('gpu_used', 0) for info in gpu_info.values())
+        total_gpu_capacity = sum(info.get('gpu_capacity', 8) for info in gpu_info.values()) 
+        hosts_with_gpus_used = sum(1 for info in gpu_info.values() if info.get('gpu_used', 0) > 0)
+        print(f"🎮 GPU Info Agent: Processed {len(gpu_info)} hosts, {total_gpus_used}/{total_gpu_capacity} GPUs used across {hosts_with_gpus_used} hosts in {elapsed:.2f}s")
         return gpu_info
         
     except Exception as e:
@@ -468,16 +473,15 @@ def get_host_vm_count_direct(hostname):
         try:
             servers = list(conn.compute.servers(host=hostname, all_projects=True))
             vm_count = len(servers)
-            print(f"💻 VM Count Agent: Host {hostname} has {vm_count} VMs")
             return vm_count
         except Exception as e:
             # Method 2: Try without all_projects as fallback
             try:
                 servers = list(conn.compute.servers(host=hostname))
                 vm_count = len(servers)
-                print(f"💻 VM Count Agent: Host {hostname} has {vm_count} VMs (no admin)")
                 return vm_count
             except Exception as e2:
+                # Only log errors, not per-host success
                 print(f"❌ VM Count Agent error for {hostname}: {e2}")
                 return 0
         
@@ -501,9 +505,6 @@ def get_host_gpu_info_direct(hostname):
             except:
                 servers = []
         
-        # Debug logging
-        print(f"🎮 GPU Info Agent: Host {hostname} has {len(servers)} VMs")
-        
         # Calculate total GPU usage from all VMs
         total_gpu_used = 0
         for server in servers:
@@ -516,17 +517,13 @@ def get_host_gpu_info_direct(hostname):
                 if match:
                     gpu_count = int(match.group(1))
                     total_gpu_used += gpu_count
-                    print(f"🎮 GPU Info Agent: VM {server.name} uses {gpu_count} GPUs (flavor: {flavor_name})")
         
         # Determine total GPU capacity based on host type
         host_gpu_capacity = 10 if 'A4000' in hostname else 8
         
-        print(f"🎮 GPU Info Agent: Host {hostname} final: {total_gpu_used}/{host_gpu_capacity} GPUs used")
-        
         # CRITICAL FIX: If no VMs found, total_gpu_used should definitely be 0
         if len(servers) == 0:
             total_gpu_used = 0
-            print(f"🎮 GPU Info Agent: Host {hostname} has NO VMs, forcing GPU usage to 0")
         
         return {
             'gpu_used': total_gpu_used,

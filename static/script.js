@@ -139,6 +139,9 @@ document.addEventListener('DOMContentLoaded', function() {
             contract: new ContractColumn(),
             outofstock: new OutOfStockColumn()
         };
+        
+        // Make contract column available globally for dropdown selection
+        window.contractColumn = window.columns.contract;
         console.log('✅ SCRIPT.JS: Column instances created successfully');
         console.log('📋 SCRIPT.JS: Column instances:', Object.keys(window.columns));
         console.log('🔍 SCRIPT.JS: Summary column:', window.columns.summary);
@@ -606,6 +609,9 @@ async function loadSpecificAggregateData(gpuType, aggregateType) {
         // Update Out of Stock column (v0.2) - calculate from all data
         const outofstockData = OutOfStockColumn.calculateOutOfStockHosts(fullData);
         window.columns.outofstock.update(outofstockData);
+        
+        // Update Contract column (v0.2) - show all contracts with nested groups
+        window.columns.contract.update(fullData);
         
         // Setup drag and drop for new elements  
         if (window.Frontend && window.Frontend.setupDragAndDrop) {

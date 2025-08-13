@@ -342,7 +342,6 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                 <div class="host-group-header clickable" onclick="toggleGroup('${availableId}')">
                     <i class="fas fa-circle-check text-success"></i>
                     <h6 class="mb-0">Available (${availableHosts.length})</h6>
-                    <small class="text-muted">No VMs - Ready to move</small>
                     <i class="fas fa-chevron-right toggle-icon" id="${availableId}-icon"></i>
                 </div>
                 <div class="host-group-content collapsed" id="${availableId}">
@@ -391,7 +390,6 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                 <div class="host-group-header clickable" onclick="toggleGroup('${inUseId}')">
                     <i class="fas fa-exclamation-triangle text-warning"></i>
                     <h6 class="mb-0">In Use (${inUseHosts.length})</h6>
-                    <small class="text-muted">Has VMs - Move carefully</small>
                     <i class="fas fa-chevron-right toggle-icon" id="${inUseId}-icon"></i>
                 </div>
                 <div class="host-group-content collapsed" id="${inUseId}">
@@ -1892,6 +1890,51 @@ function getContractGpuTotals() {
     }
 }
 
+/**
+ * Render a simple list of hosts as HTML (for nested groups)
+ */
+function renderHostList(hosts, type) {
+    if (!hosts || hosts.length === 0) {
+        return '<div class="text-muted text-center p-2">No hosts</div>';
+    }
+    
+    return hosts.map(host => {
+        const vmCount = host.vm_count || 0;
+        const gpuInfo = host.gpu_info || {};
+        const gpuUsed = gpuInfo.gpu_used || 0;
+        const gpuCapacity = gpuInfo.gpu_capacity || 8;
+        const gpuPercent = gpuCapacity > 0 ? Math.round((gpuUsed / gpuCapacity) * 100) : 0;
+        
+        // Determine owner group style
+        const ownerClass = (host.tenant_info?.owner_group === 'Nexgen Cloud') ? 'nexgen-host' : 'investor-host';
+        
+        return `
+            <div class="host-card ${ownerClass}" data-hostname="${host.hostname}" draggable="true">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="host-name">${host.hostname}</div>
+                        <div class="host-details">
+                            <small class="text-muted">
+                                VMs: ${vmCount} | GPUs: ${gpuUsed}/${gpuCapacity} (${gpuPercent}%)
+                            </small>
+                        </div>
+                        <div class="host-owner">
+                            <small class="badge ${ownerClass === 'nexgen-host' ? 'bg-info' : 'bg-secondary'}">
+                                ${host.tenant_info?.owner_group || 'Unknown'}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="host-actions">
+                        <button class="btn btn-sm btn-outline-primary" onclick="showHostDetails('${host.hostname}')" title="View Details">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
 // Export for modular access - only the minimum needed
 window.Frontend = {
     // State
@@ -1909,6 +1952,7 @@ window.Frontend = {
     // Functions
     renderAggregateData,
     renderHosts,
+    renderHostList,
     renderOnDemandVariantColumns,
     setupDragAndDrop,
     showLoading,
