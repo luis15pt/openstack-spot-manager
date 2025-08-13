@@ -122,6 +122,9 @@ class ContractColumn extends BaseColumn {
         };
         this.updateGpuStats(gpuSummary);
         
+        // The v0.2 ContractColumn takes full control - hide static elements that conflict
+        this.hideStaticElements();
+        
         // Render all contracts with nested groups
         this.renderAllContracts(contractsWithHosts);
     }
@@ -141,6 +144,26 @@ class ContractColumn extends BaseColumn {
     }
 
     /**
+     * Hide static HTML elements that conflict with the v0.2 dynamic rendering
+     * The v0.2 ContractColumn renders everything itself and doesn't need the static UI
+     */
+    hideStaticElements() {
+        // Hide the entire static contract selection div (dropdown + checkbox)
+        const contractSelectionDiv = document.getElementById('contractSelectionDiv');
+        if (contractSelectionDiv) {
+            contractSelectionDiv.style.display = 'none';
+            console.log('🔧 Hidden static contractSelectionDiv (dropdown + checkbox)');
+        }
+        
+        // Hide the static empty state message  
+        const contractEmptyState = document.getElementById('contractEmptyState');
+        if (contractEmptyState) {
+            contractEmptyState.style.display = 'none';
+            console.log('🔧 Hidden static contractEmptyState message');
+        }
+    }
+
+    /**
      * Render all contracts with nested Available/In Use groups
      */
     renderAllContracts(contracts) {
@@ -156,20 +179,6 @@ class ContractColumn extends BaseColumn {
         }
         
         let html = '';
-        
-        // Add contract selection dropdown if there are many contracts
-        if (contracts.length > 3) {
-            html += `
-                <div class="mb-3">
-                    <select class="form-select form-select-sm" id="contractSelector" onchange="window.contractColumn?.selectContract(this.value)">
-                        <option value="">Show All Contracts (${contracts.length})</option>
-                        ${contracts.map(contract => `
-                            <option value="${contract.aggregate}">${contract.name || contract.aggregate} (${contract.hostCount} hosts)</option>
-                        `).join('')}
-                    </select>
-                </div>
-            `;
-        }
         
         // Render each contract as a collapsible group
         contracts.forEach(contract => {

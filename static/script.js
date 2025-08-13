@@ -2204,8 +2204,18 @@ function populateContractPanel(contractData) {
 
 // New function to show overall contract statistics when no specific contract is selected
 function loadOverallContractStatistics(contracts) {
-    console.log(`📊 Loading overall statistics for ${contracts.length} contracts`);
+    console.log(`📊 Loading overall statistics for ${contracts.length} contracts - v0.2 ContractColumn handles this automatically`);
     
+    // In v0.2, the ContractColumn is automatically updated by the parallel agents system
+    // No need to manually call it here as it causes double loading
+    if (window.columns && window.columns.contract) {
+        console.log('✅ v0.2 ContractColumn is active - no manual loading needed');
+        console.log('ℹ️ Contract data is automatically updated via parallel agents in renderAggregateData()');
+        return;
+    }
+    
+    // Fallback to legacy DOM manipulation if ContractColumn is not available
+    console.warn('⚠️ ContractColumn not available, falling back to legacy DOM updates');
     const contractName = document.getElementById('contractName');
     const contractHostCount = document.getElementById('contractHostCount');
     const contractGpuUsage = document.getElementById('contractGpuUsage');
