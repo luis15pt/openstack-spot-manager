@@ -150,29 +150,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('  - outofstockHosts:', document.getElementById('outofstockHosts'));
         console.log('  - outofstockCount:', document.getElementById('outofstockCount'));
         
-        // Test column functionality with sample data
-        console.log('🧪 SCRIPT.JS: Testing column functionality...');
-        setTimeout(() => {
-            if (window.columns && window.columns.summary) {
-                console.log('🧪 Testing Summary column with sample data...');
-                const testData = {
-                    runpod: { hosts: [{}, {}] },
-                    spot: { hosts: [{}] },
-                    ondemand: { hosts: [{}, {}, {}] },
-                    contracts: { hosts: [{}] }
-                };
-                window.columns.summary.update(testData);
-            }
-            
-            if (window.columns && window.columns.outofstock) {
-                console.log('🧪 Testing Out of Stock column with sample data...');
-                const outofstockTestData = {
-                    hosts: [],
-                    gpu_summary: { gpu_used: 0, gpu_capacity: 16, gpu_usage_ratio: '0/16' }
-                };
-                window.columns.outofstock.update(outofstockTestData);
-            }
-        }, 1000);
+        // Columns are ready for use
         
     } catch (error) {
         console.error('❌ SCRIPT.JS: Error creating column instances:', error);

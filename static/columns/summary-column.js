@@ -24,26 +24,19 @@ class SummaryColumn extends BaseColumn {
      * @param {Object} allData - Contains data from all columns: {runpod, spot, ondemand, contracts, netbox}
      */
     update(allData) {
-        console.log('🔄 SUMMARY COLUMN: Starting update with allocation overview');
-        console.log('📊 SUMMARY COLUMN: Received data:', allData);
+        console.log('🔄 Updating Summary column with allocation overview');
         
         // Calculate allocation breakdown
         const breakdown = this.calculateAllocationBreakdown(allData);
-        console.log('📈 SUMMARY COLUMN: Calculated breakdown:', breakdown);
         
         // Update count (total physical hosts)
-        console.log('🔢 SUMMARY COLUMN: Updating count to:', breakdown.physical);
         this.updateCount(breakdown.physical);
         
         // Update allocation stats instead of GPU stats
-        console.log('📊 SUMMARY COLUMN: Updating allocation stats');
         this.updateAllocationStats(breakdown);
         
         // Render summary content
-        console.log('🎨 SUMMARY COLUMN: Rendering summary content');
         this.renderSummaryContent(breakdown);
-        
-        console.log('✅ SUMMARY COLUMN: Update completed successfully');
     }
 
     /**

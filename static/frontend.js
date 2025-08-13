@@ -51,6 +51,8 @@ function renderAggregateData(data) {
             
             const isCoreColumn = col.id === 'ondemandColumnFallback' || 
                                col.id === 'contractColumn' ||
+                               col.querySelector('#summaryColumn') ||     // Summary column (v0.2)
+                               col.querySelector('#outofstockColumn') ||  // Out of Stock column (v0.2)
                                hasRunpodColumn || hasSpotColumn || hasOndemandColumn || hasContractColumn;
             
             if (!isCoreColumn) {
@@ -66,6 +68,8 @@ function renderAggregateData(data) {
                     columnDivId: columnDiv ? columnDiv.id : 'no div',
                     reason: col.id === 'ondemandColumnFallback' ? 'fallback' : 
                            col.id === 'contractColumn' ? 'contract' :
+                           col.querySelector('#summaryColumn') ? 'summary' :
+                           col.querySelector('#outofstockColumn') ? 'outofstock' :
                            hasRunpodColumn ? 'runpod' :
                            hasSpotColumn ? 'spot' :
                            hasOndemandColumn ? 'ondemand' :
