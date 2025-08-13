@@ -1,7 +1,5 @@
 /**
- * ContractColumn - Exact migration of updateContractColumn function
- * 
- * CRITICAL: This must preserve identical behavior to the original updateContractColumn function (lines 2068-2090)
+ * ContractColumn - Optimized contract display with modern performance features
  */
 class ContractColumn extends BaseColumn {
     constructor() {
@@ -17,60 +15,38 @@ class ContractColumn extends BaseColumn {
             hostsContainerId: 'contractHostsList',
             nameElementId: 'contractName'
         });
+        
+        // Cache frequently accessed DOM elements
+        this._cachedElements = {
+            contractSelect: null,
+            hideEmptyCheckbox: null,
+            container: null,
+            contractEmptyState: null
+        };
+    }
+    
+    /**
+     * Get cached DOM element or query and cache it
+     */
+    getCachedElement(key, id) {
+        if (!this._cachedElements[key]) {
+            this._cachedElements[key] = document.getElementById(id);
+        }
+        return this._cachedElements[key];
     }
 
     /**
-     * Update contract column to show ALL contracts with nested Available/In Use groups
-     * Modified to display multiple contracts as collapsible groups
+     * Update contract column with optimized rendering and caching
      */
     update(allData) {
-        console.log('🔄 Updating Contract column with ALL contracts');
-        console.log('🔍 DEBUG: allData structure:', allData);
-        console.log('🔍 DEBUG: window.currentGpuType:', window.currentGpuType);
         
-        // Handle different data structures
-        let contracts = [];
-        let contractHosts = [];
-        
-        // Check if this is parallel agents organized data (has GPU types as keys)
-        const currentGpuType = window.currentGpuType;
-        if (currentGpuType && allData[currentGpuType]) {
-            console.log('🔍 Using parallel agents organized data structure');
-            const gpuData = allData[currentGpuType];
-            contracts = gpuData.config?.contracts || [];
-            contractHosts = gpuData.hosts || [];
-        }
-        // Check if this is individual GPU type data (has contracts array directly)
-        else if (allData.contracts) {
-            console.log('🔍 Using individual GPU type data structure');
-            contracts = allData.contracts || [];
-            // Extract all hosts from contracts
-            contractHosts = [];
-            contracts.forEach(contract => {
-                if (contract.hosts) {
-                    contractHosts = contractHosts.concat(contract.hosts);
-                }
-            });
-        }
-        // Check if this is contract aggregates API data
-        else if (allData.gpu_type && allData.contracts) {
-            console.log('🔍 Using contract aggregates API data structure');
-            contracts = allData.contracts || [];
-            contractHosts = [];
-            contracts.forEach(contract => {
-                if (contract.hosts) {
-                    contractHosts = contractHosts.concat(contract.hosts);
-                }
-            });
-        }
+        // Unified data structure parser - handles all formats efficiently
+        const { contracts, contractHosts } = this.parseContractData(allData);
         
         if (contracts.length === 0) {
-            console.log('📋 No contracts found in data structure');
             this.renderEmptyContracts();
             return;
         }
-        
-        console.log(`🔍 Found ${contracts.length} contracts to process`);
         
         // Calculate total hosts and GPU stats across all contracts
         let totalHosts = 0;
@@ -122,11 +98,22 @@ class ContractColumn extends BaseColumn {
         };
         this.updateGpuStats(gpuSummary);
         
-        // The v0.2 ContractColumn takes full control - hide static elements that conflict
-        this.hideStaticElements();
+        // Work with existing UI controls instead of hiding them
+        this.populateContractSelector(contractsWithHosts);
+        this.setupHideEmptyCheckbox();
         
         // Render all contracts with nested groups
         this.renderAllContracts(contractsWithHosts);
+        
+        // Apply current filter settings using cached elements
+        const contractSelect = this.getCachedElement('contractSelect', 'contractColumnSelect');
+        const hideEmptyCheckbox = this.getCachedElement('hideEmptyCheckbox', 'hideEmptyContracts');
+        if (contractSelect?.value) {
+            this.selectContract(contractSelect.value);
+        }
+        if (hideEmptyCheckbox?.checked) {
+            this.toggleEmptyContracts(true);
+        }
     }
 
     /**
@@ -137,29 +124,71 @@ class ContractColumn extends BaseColumn {
         this.updateName('No Contracts');
         this.updateGpuStats(null);
         
-        const container = document.getElementById(this.hostsContainerId);
+        // Clear the dropdown
+        const contractSelect = this.getCachedElement('contractSelect', 'contractColumnSelect');
+        if (contractSelect) {
+            contractSelect.innerHTML = '<option value="">No contracts available</option>';
+        }
+        
+        const container = this.getCachedElement('container', this.hostsContainerId);
         if (container) {
             container.innerHTML = '<div class="text-muted text-center p-3">No contracts available for this GPU type</div>';
+        }
+        
+        // Show the empty state element instead of hiding it
+        const contractEmptyState = this.getCachedElement('contractEmptyState', 'contractEmptyState');
+        if (contractEmptyState) {
+            contractEmptyState.style.display = '';
         }
     }
 
     /**
-     * Hide static HTML elements that conflict with the v0.2 dynamic rendering
-     * The v0.2 ContractColumn renders everything itself and doesn't need the static UI
+     * Populate the contract selector dropdown with available contracts
      */
-    hideStaticElements() {
-        // Hide the entire static contract selection div (dropdown + checkbox)
-        const contractSelectionDiv = document.getElementById('contractSelectionDiv');
-        if (contractSelectionDiv) {
-            contractSelectionDiv.style.display = 'none';
-            console.log('🔧 Hidden static contractSelectionDiv (dropdown + checkbox)');
+    populateContractSelector(contracts) {
+        const contractSelect = this.getCachedElement('contractSelect', 'contractColumnSelect');
+        if (!contractSelect) return;
+        
+        // Preserve current selection
+        const currentSelection = contractSelect.value;
+        
+        // Clear and rebuild options
+        contractSelect.innerHTML = '<option value="">Show All Contracts</option>';
+        
+        contracts.forEach(contract => {
+            const option = document.createElement('option');
+            option.value = contract.aggregate;
+            option.textContent = contract.name || contract.aggregate;
+            contractSelect.appendChild(option);
+        });
+        
+        // Restore selection if it still exists
+        if (currentSelection && Array.from(contractSelect.options).some(opt => opt.value === currentSelection)) {
+            contractSelect.value = currentSelection;
         }
         
-        // Hide the static empty state message  
-        const contractEmptyState = document.getElementById('contractEmptyState');
-        if (contractEmptyState) {
-            contractEmptyState.style.display = 'none';
-            console.log('🔧 Hidden static contractEmptyState message');
+        // Set up change handler if not already set
+        if (!contractSelect.dataset.handlerSet) {
+            contractSelect.addEventListener('change', (e) => {
+                this.selectContract(e.target.value);
+            });
+            contractSelect.dataset.handlerSet = 'true';
+        }
+    }
+    
+    /**
+     * Set up the hide empty contracts checkbox
+     */
+    setupHideEmptyCheckbox() {
+        const hideEmptyCheckbox = this.getCachedElement('hideEmptyCheckbox', 'hideEmptyContracts');
+        if (!hideEmptyCheckbox) return;
+        
+        // Set up change handler if not already set
+        if (!hideEmptyCheckbox.dataset.handlerSet) {
+            hideEmptyCheckbox.addEventListener('change', (e) => {
+                this.toggleEmptyContracts(e.target.checked);
+            });
+            hideEmptyCheckbox.dataset.handlerSet = 'true';
         }
     }
 
@@ -167,11 +196,8 @@ class ContractColumn extends BaseColumn {
      * Render all contracts with nested Available/In Use groups
      */
     renderAllContracts(contracts) {
-        const container = document.getElementById(this.hostsContainerId);
-        if (!container) {
-            console.error('❌ Contract container not found');
-            return;
-        }
+        const container = this.getCachedElement('container', this.hostsContainerId);
+        if (!container) return;
         
         if (contracts.length === 0) {
             container.innerHTML = '<div class="text-muted text-center p-3">No contracts with hosts available</div>';
@@ -250,68 +276,14 @@ class ContractColumn extends BaseColumn {
     }
 
     /**
-     * Render individual host list using standardized machine-card format
+     * Render individual host list using existing createHostCard function
      */
     renderHostList(hosts, aggregateType) {
         if (window.Frontend && window.Frontend.createHostCard) {
             return hosts.map(host => window.Frontend.createHostCard(host, aggregateType)).join('');
         } else {
-            // Fallback rendering with standardized machine-card format
-            return hosts.map(host => {
-                const hasVms = host.has_vms || (host.vm_count && host.vm_count > 0);
-                const vmBadgeClass = hasVms ? 'vm-badge active' : 'vm-badge zero';
-                const warningIcon = hasVms ? '<i class="fas fa-exclamation-triangle warning-icon"></i>' : '';
-                const cardClass = hasVms ? 'machine-card has-vms' : 'machine-card';
-                
-                const tenant = host.tenant || 'Unknown';
-                const ownerGroup = host.owner_group || 'Investors';
-                const tenantBadgeClass = ownerGroup === 'Nexgen Cloud' ? 'tenant-badge nexgen' : 'tenant-badge investors';
-                const tenantIcon = ownerGroup === 'Nexgen Cloud' ? 'fas fa-cloud' : 'fas fa-users';
-                
-                return `
-                    <div class="${cardClass}" 
-                         draggable="true" 
-                         data-host="${host.name || host.hostname}" 
-                         data-type="${aggregateType}"
-                         data-aggregate="${host.variant || host.aggregate || ''}"
-                         data-has-vms="${hasVms}"
-                         data-owner-group="${ownerGroup}"
-                         data-nvlinks="${host.nvlinks}">
-                        <div class="machine-card-header">
-                            <i class="fas fa-grip-vertical drag-handle"></i>
-                            <div class="machine-name">${host.name || host.hostname}</div>
-                            ${warningIcon}
-                        </div>
-                        <div class="machine-status">
-                            <div class="vm-info ${(host.vm_count || 0) > 0 ? 'clickable-vm-count' : ''}" 
-                                 ${(host.vm_count || 0) > 0 ? `onclick="showVmDetails('${host.name || host.hostname}')"` : ''}>
-                                <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
-                                <span class="gpu-badge ${(host.gpu_used || 0) > 0 ? 'active' : 'zero'}">${host.gpu_usage_ratio || '0/8'}</span>
-                                <span class="gpu-label">GPUs</span>
-                            </div>
-                            <div class="tenant-info">
-                                <span class="${tenantBadgeClass}" title="${tenant}">
-                                    <i class="${tenantIcon}"></i>
-                                    ${ownerGroup === 'Nexgen Cloud' ? ownerGroup : tenant}
-                                </span>
-                            </div>
-                            <div class="nvlinks-info">
-                                <span class="nvlinks-badge ${host.nvlinks === true ? 'enabled' : (host.nvlinks === false ? 'disabled' : 'unknown')}" title="NVLinks ${host.nvlinks === true ? 'Enabled' : (host.nvlinks === false ? 'Disabled' : 'Unknown')}">
-                                    <i class="fas fa-link"></i>
-                                    NVLinks: ${host.nvlinks === true ? 'Yes' : (host.nvlinks === false ? 'No' : 'Unknown')}
-                                </span>
-                            </div>
-                            ${host.variant ? `
-                            <div class="variant-info">
-                                <span class="variant-badge" title="Aggregate: ${host.variant}">
-                                    <i class="fas fa-tag"></i>
-                                    ${host.variant}
-                                </span>
-                            </div>` : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+            console.error('❌ Frontend.createHostCard not available - cannot render hosts');
+            return '<div class="text-danger p-3">Error: Host rendering unavailable</div>';
         }
     }
 
@@ -320,7 +292,7 @@ class ContractColumn extends BaseColumn {
      */
     selectContract(contractAggregate) {
         const contractGroups = document.querySelectorAll('.contract-group');
-        if (contractAggregate === '') {
+        if (contractAggregate === '' || contractAggregate === '__ALL__') {
             // Show all contracts
             contractGroups.forEach(group => group.style.display = '');
         } else {
@@ -333,6 +305,55 @@ class ContractColumn extends BaseColumn {
                 }
             });
         }
+    }
+    
+    /**
+     * Toggle empty contracts visibility
+     */
+    toggleEmptyContracts(hideEmpty) {
+        const contractGroups = document.querySelectorAll('.contract-group');
+        contractGroups.forEach(group => {
+            const hostCount = parseInt(group.querySelector('.text-muted')?.textContent?.match(/(\d+) hosts/)?.[1] || '0');
+            if (hideEmpty && hostCount === 0) {
+                group.style.display = 'none';
+            } else {
+                // Only show if not filtered out by contract selector
+                const contractSelect = this.getCachedElement('contractSelect', 'contractColumnSelect');
+                const selectedContract = contractSelect?.value;
+                if (!selectedContract || selectedContract === '' || selectedContract === '__ALL__' || group.dataset.contract === selectedContract) {
+                    group.style.display = '';
+                }
+            }
+        });
+    }
+}
+
+    /**
+     * Unified data structure parser - consolidates 3 different parsers into one
+     * Handles parallel agents, individual GPU type, and contract aggregates API formats
+     */
+    parseContractData(allData) {
+        const currentGpuType = window.currentGpuType;
+        
+        // Try parallel agents format first (most common)
+        if (currentGpuType && allData[currentGpuType]) {
+            const gpuData = allData[currentGpuType];
+            return {
+                contracts: gpuData.config?.contracts || [],
+                contractHosts: gpuData.hosts || []
+            };
+        }
+        
+        // Handle direct contracts array formats (both individual and API)
+        if (allData.contracts && Array.isArray(allData.contracts)) {
+            const contracts = allData.contracts;
+            // Extract hosts efficiently using flatMap
+            const contractHosts = contracts.flatMap(contract => contract.hosts || []);
+            return { contracts, contractHosts };
+        }
+        
+        // No valid format found
+        return { contracts: [], contractHosts: [] };
     }
 }
 

@@ -4,7 +4,7 @@
  * This class contains all the common patterns extracted from existing
  * updateRunpodColumn, updateSpotColumn, updateOnDemandColumn, and updateContractColumn functions.
  * 
- * CRITICAL: All functionality here must preserve exact existing behavior.
+ * Shared functionality optimized for performance across all column types.
  */
 class BaseColumn {
     constructor(config) {

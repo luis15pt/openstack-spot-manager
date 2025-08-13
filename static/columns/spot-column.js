@@ -1,7 +1,7 @@
 /**
  * SpotColumn - Exact migration of updateSpotColumn function
  * 
- * CRITICAL: This must preserve identical behavior to the original updateSpotColumn function (lines 610-626)
+ * Optimized spot column implementation
  */
 class SpotColumn extends BaseColumn {
     constructor() {

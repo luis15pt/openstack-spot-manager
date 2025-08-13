@@ -1,7 +1,7 @@
 /**
  * OndemandColumn - Exact migration of updateOnDemandColumn function
  * 
- * CRITICAL: This must preserve identical behavior to the original updateOnDemandColumn function (lines 629-653)
+ * Optimized on-demand column implementation
  */
 class OndemandColumn extends BaseColumn {
     constructor() {

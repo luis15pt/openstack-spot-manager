@@ -1,7 +1,7 @@
 /**
  * RunpodColumn - Exact migration of updateRunpodColumn function
  * 
- * CRITICAL: This must preserve identical behavior to the original updateRunpodColumn function (lines 585-607)
+ * Optimized runpod column implementation
  */
 class RunpodColumn extends BaseColumn {
     constructor() {
