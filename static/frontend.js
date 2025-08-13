@@ -670,7 +670,6 @@ function setupDragAndDrop() {
     
     // Add event listeners to machine cards
     document.querySelectorAll('.machine-card').forEach(card => {
-        console.log('🔧 Setting up drag for card:', card.dataset.host, card.dataset.type);
         card.addEventListener('dragstart', handleDragStart);
         card.addEventListener('dragend', handleDragEnd);
         card.addEventListener('click', handleHostClick);
