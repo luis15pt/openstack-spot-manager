@@ -15,7 +15,7 @@ class OutOfStockColumn extends BaseColumn {
             gpuPercentElementId: 'outofstockGpuPercent',
             gpuProgressBarElementId: 'outofstockGpuProgressBar',
             hostsContainerId: 'outofstockHosts',
-            nameElementId: 'outofstockName'
+            nameElementId: null // Out of Stock name is fixed in HTML
         });
     }
 
@@ -24,22 +24,32 @@ class OutOfStockColumn extends BaseColumn {
      * @param {Object} data - Contains outofstock hosts and summary
      */
     update(data) {
+        console.log('🔄 OUT OF STOCK COLUMN: Starting update');
+        console.log('📊 OUT OF STOCK COLUMN: Received data:', data);
+        
         // Use same logging pattern as other columns
         this.logUpdate(data.hosts ? data.hosts.length : 0);
         
         // Update count
-        this.updateCount(data.hosts ? data.hosts.length : 0);
+        const hostCount = data.hosts ? data.hosts.length : 0;
+        console.log('🔢 OUT OF STOCK COLUMN: Updating count to:', hostCount);
+        this.updateCount(hostCount);
         
         // Update GPU statistics (for out of stock, this represents unused capacity)
+        console.log('📊 OUT OF STOCK COLUMN: Updating GPU stats:', data.gpu_summary);
         this.updateGpuStats(data.gpu_summary);
         
         // Render hosts using same pattern as other columns
         if (data.hosts && data.hosts.length > 0) {
+            console.log('🎨 OUT OF STOCK COLUMN: Rendering', data.hosts.length, 'hosts');
             this.renderHosts(data.hosts, 'Out of Stock');
         } else {
+            console.log('🎨 OUT OF STOCK COLUMN: Rendering empty state');
             // Show empty state
             this.renderEmptyState();
         }
+        
+        console.log('✅ OUT OF STOCK COLUMN: Update completed successfully');
     }
 
     /**

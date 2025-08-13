@@ -9,17 +9,8 @@ window.gpuDataCache = new Map(); // Cache for loaded GPU data
 window.backgroundLoadingInProgress = false;
 console.log('🎯 SCRIPT.JS: Global state initialized');
 
-// Column instances (v0.2 Modular Architecture)
-console.log('🏗️ SCRIPT.JS: Initializing column instances');
-window.columns = {
-    summary: new SummaryColumn(),
-    runpod: new RunpodColumn(),
-    spot: new SpotColumn(),
-    ondemand: new OndemandColumn(),
-    contract: new ContractColumn(),
-    outofstock: new OutOfStockColumn()
-};
-console.log('✅ SCRIPT.JS: Column instances created');
+// Column instances will be initialized after DOM is ready
+window.columns = null;
 
 // Main script initialization
 console.log('Main script loaded');
@@ -134,6 +125,58 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('SCRIPT.JS: This will cause functionality issues!');
     } else {
         console.log('✅ SCRIPT.JS: All required modules loaded successfully!');
+    }
+    
+    // Initialize column instances (v0.2 Modular Architecture)
+    console.log('\n================== COLUMN INITIALIZATION ==================');
+    console.log('🏗️ SCRIPT.JS: Initializing column instances');
+    try {
+        window.columns = {
+            summary: new SummaryColumn(),
+            runpod: new RunpodColumn(),
+            spot: new SpotColumn(),
+            ondemand: new OndemandColumn(),
+            contract: new ContractColumn(),
+            outofstock: new OutOfStockColumn()
+        };
+        console.log('✅ SCRIPT.JS: Column instances created successfully');
+        console.log('📋 SCRIPT.JS: Column instances:', Object.keys(window.columns));
+        console.log('🔍 SCRIPT.JS: Summary column:', window.columns.summary);
+        console.log('🔍 SCRIPT.JS: Out of Stock column:', window.columns.outofstock);
+        
+        // Test if column elements exist
+        console.log('🔍 SCRIPT.JS: Testing column element availability:');
+        console.log('  - summaryContent:', document.getElementById('summaryContent'));
+        console.log('  - outofstockHosts:', document.getElementById('outofstockHosts'));
+        console.log('  - outofstockCount:', document.getElementById('outofstockCount'));
+        
+        // Test column functionality with sample data
+        console.log('🧪 SCRIPT.JS: Testing column functionality...');
+        setTimeout(() => {
+            if (window.columns && window.columns.summary) {
+                console.log('🧪 Testing Summary column with sample data...');
+                const testData = {
+                    runpod: { hosts: [{}, {}] },
+                    spot: { hosts: [{}] },
+                    ondemand: { hosts: [{}, {}, {}] },
+                    contracts: { hosts: [{}] }
+                };
+                window.columns.summary.update(testData);
+            }
+            
+            if (window.columns && window.columns.outofstock) {
+                console.log('🧪 Testing Out of Stock column with sample data...');
+                const outofstockTestData = {
+                    hosts: [],
+                    gpu_summary: { gpu_used: 0, gpu_capacity: 16, gpu_usage_ratio: '0/16' }
+                };
+                window.columns.outofstock.update(outofstockTestData);
+            }
+        }, 1000);
+        
+    } catch (error) {
+        console.error('❌ SCRIPT.JS: Error creating column instances:', error);
+        console.error('❌ SCRIPT.JS: Stack trace:', error.stack);
     }
     
     // Enhanced DOM elements check
