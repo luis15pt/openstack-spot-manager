@@ -291,9 +291,7 @@ window.CacheManager = (function() {
         const refreshAllBtn = document.getElementById('refresh-all-btn');
         const clearCacheBtn = document.getElementById('clear-cache-btn');
 
-        if (refreshAllBtn) {
-            refreshAllBtn.addEventListener('click', refreshAllData);
-        }
+        // Refresh button now uses enhanced refreshData() function via onclick in HTML
 
         if (clearCacheBtn) {
             clearCacheBtn.addEventListener('click', clearCacheOnly);

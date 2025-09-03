@@ -35,7 +35,7 @@
                                 <div class="row mt-3">
                                     <div class="col-md-8">
                                         <div class="btn-group" role="group" aria-label="Cache management">
-                                            <button type="button" class="btn btn-outline-primary btn-sm" id="refresh-all-btn" title="Clear all caches and refresh current data">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="refreshData()" title="Refresh all data with detailed progress tracking">
                                                 <i class="fas fa-sync-alt"></i> Refresh All Data
                                             </button>
                                             <button type="button" class="btn btn-outline-warning btn-sm" id="clear-cache-btn" title="Clear caches without refreshing data">
@@ -55,9 +55,6 @@
                                         <i class="fas fa-info-circle"></i> 
                                         Types marked with ⚡ are cached and will load instantly
                                     </small>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" id="preloadAllBtn" style="display: none;">
-                                        <i class="fas fa-download"></i> Preload All
-                                    </button>
                                 </div>
                             </div>
                         </div>

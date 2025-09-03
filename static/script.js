@@ -420,8 +420,7 @@ function initializeEventListeners() {
     document.getElementById('clearDebugBtn').addEventListener('click', window.Logs.clearDebugLog);
     document.getElementById('exportDebugBtn').addEventListener('click', window.Logs.exportDebugLog);
     
-    // Preload button
-    document.getElementById('preloadAllBtn').addEventListener('click', preloadAllGpuTypes);
+    // Preload button removed - functionality consolidated into main refresh
     
     // Tab switching
     document.getElementById('commands-tab').addEventListener('click', () => {
@@ -434,17 +433,7 @@ function initializeEventListeners() {
 }
 
 // Preload all GPU types
-function preloadAllGpuTypes() {
-    const currentType = document.getElementById('gpuTypeSelect').value;
-    if (!currentType) {
-        window.Frontend.showNotification('Please select a GPU type first', 'warning');
-        return;
-    }
-    
-    if (!window.backgroundLoadingStarted) {
-        startBackgroundLoading(currentType);
-    }
-}
+// preloadAllGpuTypes function removed - functionality consolidated into refreshData with progress tracking
 
 // Move selected hosts to target type
 function moveSelectedHosts(targetType) {
