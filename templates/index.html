@@ -207,9 +207,6 @@
                                                         <span id="runpodName">Runpod</span>
                                                         <span class="badge bg-light text-dark ms-2" id="runpodCount">0</span>
                                                     </span>
-                                                    <button class="btn btn-sm btn-outline-light" id="refreshRunpodBtn" title="Refresh Runpod column">
-                                                        <i class="fas fa-sync"></i>
-                                                    </button>
                                                 </h4>
                                                 <div class="mt-2">
                                                     <small class="text-light">GPU Usage: <span id="runpodGpuUsage">0/0</span> (<span id="runpodGpuPercent">0%</span>)</small>
@@ -238,9 +235,6 @@
                                                         On-Demand <span id="ondemandName"></span>
                                                         <span class="badge bg-light text-dark ms-2" id="ondemandCount">0</span>
                                                     </span>
-                                                    <button class="btn btn-sm btn-outline-light" id="refreshOndemandBtn" title="Refresh On-Demand column">
-                                                        <i class="fas fa-sync"></i>
-                                                    </button>
                                                 </h4>
                                                 <div class="mt-2">
                                                     <small class="text-light">GPU Usage: <span id="ondemandGpuUsage">0/0</span> (<span id="ondemandGpuPercent">0%</span>)</small>
@@ -267,9 +261,6 @@
                                                         <span id="spotName">Spot</span>
                                                         <span class="badge bg-light text-dark ms-2" id="spotCount">0</span>
                                                     </span>
-                                                    <button class="btn btn-sm btn-outline-dark" id="refreshSpotBtn" title="Refresh Spot column">
-                                                        <i class="fas fa-sync"></i>
-                                                    </button>
                                                 </h4>
                                                 <div class="mt-2">
                                                     <small class="text-dark">GPU Usage: <span id="spotGpuUsage">0/0</span> (<span id="spotGpuPercent">0%</span>)</small>
@@ -1196,5 +1187,84 @@
     
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script src="{{ url_for('static', filename='customer-view.js') }}"></script>
+    
+    <!-- Enhanced Progress Modal for Data Refresh -->
+    <div id="refreshProgressModal" class="modal fade" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-sync-alt fa-spin text-primary"></i> Refreshing All Data
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <!-- Overall Progress -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span id="progress-stage" class="fw-bold">Initializing...</span>
+                            <span id="progress-percent" class="text-muted">0%</span>
+                        </div>
+                        <div class="progress mb-2" style="height: 8px;">
+                            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                                 style="width: 0%" role="progressbar"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detailed Steps -->
+                    <div class="progress-steps">
+                        <div class="step d-flex align-items-center mb-2" id="step-clearing">
+                            <i class="fas fa-circle-notch fa-spin text-primary me-3"></i>
+                            <span class="flex-grow-1">Clearing caches...</span>
+                            <small class="text-muted">~1s</small>
+                        </div>
+                        <div class="step d-flex align-items-center mb-2" id="step-netbox">
+                            <i class="fas fa-circle text-muted me-3"></i>
+                            <span class="flex-grow-1">NetBox devices <small class="text-muted">(~1,700 devices)</small></span>
+                            <small class="text-muted">~7s</small>
+                        </div>
+                        <div class="step d-flex align-items-center mb-2" id="step-openstack">
+                            <i class="fas fa-circle text-muted me-3"></i>
+                            <span class="flex-grow-1">OpenStack aggregates <small class="text-muted">(~75 aggregates)</small></span>
+                            <small class="text-muted">~1s</small>
+                        </div>
+                        <div class="step d-flex align-items-center mb-2" id="step-vms">
+                            <i class="fas fa-circle text-muted me-3"></i>
+                            <span class="flex-grow-1">VM counts <small class="text-muted">(~315 hosts)</small></span>
+                            <small class="text-muted">~8s</small>
+                        </div>
+                        <div class="step d-flex align-items-center mb-2" id="step-gpus">
+                            <i class="fas fa-circle text-muted me-3"></i>
+                            <span class="flex-grow-1">GPU usage <small class="text-muted">(~315 hosts)</small></span>
+                            <small class="text-muted">~1s</small>
+                        </div>
+                        <div class="step d-flex align-items-center mb-2" id="step-organizing">
+                            <i class="fas fa-circle text-muted me-3"></i>
+                            <span class="flex-grow-1">Organizing data by GPU types...</span>
+                            <small class="text-muted">~1s</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Estimated Time -->
+                    <div class="mt-4 pt-3 border-top d-flex justify-content-between text-muted">
+                        <div>
+                            <i class="fas fa-clock me-1"></i>
+                            Estimated time: <span id="estimated-time">~16 seconds</span>
+                        </div>
+                        <div>
+                            Elapsed: <span id="elapsed-time">0s</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Performance Note -->
+                    <div class="mt-2">
+                        <small class="text-info">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Refreshing all data from OpenStack, NetBox, and parallel agents for accuracy
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

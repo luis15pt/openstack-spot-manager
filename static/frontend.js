@@ -1399,12 +1399,6 @@ function renderOnDemandVariantColumns(ondemandData) {
                                         ${variant.variant}
                                         <span class="badge bg-light text-dark ms-2">${variantHosts.length}</span>
                                     </span>
-                                    <button class="btn btn-sm btn-outline-light refresh-variant-btn" 
-                                            data-variant="${variant.aggregate}" 
-                                            data-variant-id="${variantId}"
-                                            title="Refresh ${variant.variant} column">
-                                        <i class="fas fa-sync"></i>
-                                    </button>
                                 </h4>
                                 <div class="mt-2">
                                     <small class="text-light">GPU Usage: <span id="${variantId}GpuUsage">0/0</span> (<span id="${variantId}GpuPercent">0%</span>)</small>
@@ -1424,36 +1418,7 @@ function renderOnDemandVariantColumns(ondemandData) {
             spotColumnElement.insertAdjacentHTML('beforebegin', columnHtml);
         });
         
-        // Add event listeners for variant refresh buttons
-        document.querySelectorAll('.refresh-variant-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const variantAggregate = this.getAttribute('data-variant');
-                const variantId = this.getAttribute('data-variant-id');
-                console.log(`🔄 Refreshing variant column: ${variantAggregate}`);
-                window.Logs?.addToDebugLog('System', `Refreshing variant column: ${variantAggregate}`, 'info');
-                
-                // Add visual feedback
-                const originalContent = this.innerHTML;
-                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                this.disabled = true;
-                
-                // Restore button after a short delay
-                setTimeout(() => {
-                    this.innerHTML = originalContent;
-                    this.disabled = false;
-                }, 1000);
-                
-                // Refresh only the on-demand aggregate data (optimized)
-                const selectedType = document.getElementById('gpuTypeSelect').value;
-                if (selectedType && window.loadSpecificAggregateData) {
-                    window.loadSpecificAggregateData(selectedType, 'ondemand')
-                        .catch(error => {
-                            console.error('❌ Error refreshing variant column:', error);
-                            window.Frontend?.showNotification(`Error refreshing variant: ${error.message}`, 'error');
-                        });
-                }
-            });
-        });
+        // Variant refresh buttons removed - using single refresh for all data instead
         
         // Render hosts for each variant column
         ondemandData.variants.forEach(variant => {

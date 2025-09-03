@@ -404,10 +404,7 @@ function initializeEventListeners() {
     document.getElementById('moveToSpotBtn').addEventListener('click', () => moveSelectedHosts('spot'));
     document.getElementById('refreshBtn').addEventListener('click', refreshData);
     
-    // Individual column refresh buttons
-    document.getElementById('refreshRunpodBtn').addEventListener('click', () => refreshSpecificColumn('runpod'));
-    document.getElementById('refreshOndemandBtn').addEventListener('click', () => refreshSpecificColumn('ondemand'));
-    document.getElementById('refreshSpotBtn').addEventListener('click', () => refreshSpecificColumn('spot'));
+    // Individual column refresh buttons removed - using single refresh button instead
     
     // Pending operations buttons
     document.getElementById('commitBtn').addEventListener('click', commitSelectedCommands);
@@ -522,121 +519,9 @@ function refreshData() {
     }
 }
 
-// Refresh specific column
-function refreshSpecificColumn(columnType) {
-    const selectedType = document.getElementById('gpuTypeSelect').value;
-    if (selectedType) {
-        console.log(`🎯 Refreshing ONLY ${columnType} column for ${selectedType}`);
-        window.Logs.addToDebugLog('System', `Refreshing ${columnType} column for ${selectedType}`, 'info');
-        
-        // Add visual feedback - temporarily show loading state for the button
-        const buttonId = `refresh${columnType.charAt(0).toUpperCase() + columnType.slice(1)}Btn`;
-        const button = document.getElementById(buttonId);
-        if (button) {
-            const originalContent = button.innerHTML;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            button.disabled = true;
-            
-            // Load only the specific aggregate data
-            loadSpecificAggregateData(selectedType, columnType)
-                .then(() => {
-                    // Restore button after successful refresh
-                    button.innerHTML = originalContent;
-                    button.disabled = false;
-                })
-                .catch(error => {
-                    console.error(`❌ Error refreshing ${columnType} column:`, error);
-                    window.Frontend.showNotification(`Error refreshing ${columnType} column: ${error.message}`, 'error');
-                    
-                    // Restore button even on error
-                    button.innerHTML = originalContent;
-                    button.disabled = false;
-                });
-        }
-    }
-}
+// refreshSpecificColumn function removed - now using single refresh for all data
 
-// Load data for a specific aggregate type only
-async function loadSpecificAggregateData(gpuType, aggregateType) {
-    console.log(`🎯 Loading specific aggregate data: ${aggregateType} for ${gpuType}`);
-    
-    try {
-        // Force cache invalidation to ensure we get fresh data
-        if (window.gpuDataCache) {
-            window.gpuDataCache.delete(gpuType);
-            console.log(`🗑️ Invalidated cache for ${gpuType} to force fresh data fetch`);
-        }
-        
-        // Use the working full aggregate endpoint instead of the disabled individual one
-        // Add cache-busting parameter to ensure fresh data
-        const cacheBuster = Date.now();
-        const response = await window.Utils.fetchWithTimeout(`/api/aggregates/${gpuType}?_cb=${cacheBuster}`, {
-            method: 'GET',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache'
-            }
-        }, 30000);
-        
-        const result = await window.Utils.checkResponse(response);
-        const fullData = await result.json();
-        
-        if (fullData.error) {
-            throw new Error(fullData.error);
-        }
-        
-        console.log(`✅ Received fresh data for ${gpuType}, extracting ${aggregateType} section:`, fullData);
-        
-        // Update cache with the fresh full data
-        if (window.gpuDataCache) {
-            window.gpuDataCache.set(gpuType, fullData);
-            console.log(`📦 Updated cache for ${gpuType}`);
-        }
-        
-        // IMPORTANT: When refreshing one column, also update the other columns to handle moved hosts
-        // This ensures hosts that moved between aggregates are properly reflected in the UI
-        
-        // Update RunPod column (v0.2)
-        if (fullData.runpod) {
-            window.columns.runpod.update(fullData.runpod);
-        } else {
-            console.warn(`⚠️ No runpod data found in response for ${gpuType}`);
-        }
-        
-        // Update Spot column (v0.2)
-        if (fullData.spot) {
-            window.columns.spot.update(fullData.spot);
-        } else {
-            console.warn(`⚠️ No spot data found in response for ${gpuType}`);
-        }
-        
-        // Update On-Demand column(s) (v0.2)
-        if (fullData.ondemand) {
-            window.columns.ondemand.update(fullData.ondemand);
-        } else {
-            console.warn(`⚠️ No ondemand data found in response for ${gpuType}`);
-        }
-        
-        // Update Summary column (v0.2) - needs all data
-        window.columns.summary.update(fullData);
-        
-        // Update Out of Stock column (v0.2) - calculate from all data
-        const outofstockData = OutOfStockColumn.calculateOutOfStockHosts(fullData);
-        window.columns.outofstock.update(outofstockData);
-        
-        // Setup drag and drop for new elements  
-        if (window.Frontend && window.Frontend.setupDragAndDrop) {
-            window.Frontend.setupDragAndDrop();
-        }
-        
-        console.log(`✅ Successfully refreshed ${aggregateType} column`);
-        window.Frontend.showNotification(`${aggregateType.charAt(0).toUpperCase() + aggregateType.slice(1)} column refreshed`, 'success');
-        
-    } catch (error) {
-        console.error(`❌ Error loading ${aggregateType} data:`, error);
-        throw error;
-    }
-}
+// loadSpecificAggregateData function removed - now using single refresh for all data
 
 // Update RunPod column specifically
 // DEPRECATED: Replaced by RunpodColumn class in v0.2
@@ -1670,9 +1555,153 @@ function removeCompletedCommands() {
 // Refresh data function (adapted for refactored structure)
 function refreshData() {
     const selectedType = document.getElementById('gpuTypeSelect').value;
-    if (selectedType) {
-        window.OpenStack.loadAggregateData(selectedType);
+    if (!selectedType) {
+        window.Frontend.showNotification('Please select a GPU type first', 'warning');
+        return;
     }
+
+    console.log('🔄 Starting enhanced data refresh with progress tracking...');
+    
+    // Show progress modal
+    showProgressModal();
+    
+    // Start progress simulation and actual refresh
+    refreshDataWithProgress(selectedType);
+}
+
+function showProgressModal() {
+    const modal = new bootstrap.Modal(document.getElementById('refreshProgressModal'));
+    modal.show();
+    
+    // Reset progress state
+    updateProgress('clearing', 'Initializing...', 0);
+}
+
+function updateProgress(stage, message, progress) {
+    const progressStage = document.getElementById('progress-stage');
+    const progressPercent = document.getElementById('progress-percent');
+    const progressBar = document.getElementById('progress-bar');
+    
+    if (progressStage) progressStage.textContent = message;
+    if (progressPercent) progressPercent.textContent = progress + '%';
+    if (progressBar) progressBar.style.width = progress + '%';
+    
+    // Update step indicators
+    const steps = {
+        'clearing': 'step-clearing',
+        'netbox': 'step-netbox', 
+        'openstack': 'step-openstack',
+        'vms': 'step-vms',
+        'gpus': 'step-gpus',
+        'organizing': 'step-organizing'
+    };
+    
+    // Update step visual states
+    Object.entries(steps).forEach(([stepName, stepId]) => {
+        const element = document.getElementById(stepId);
+        if (element) {
+            const icon = element.querySelector('i');
+            if (icon) {
+                if (stepName === stage) {
+                    icon.className = 'fas fa-circle-notch fa-spin text-primary me-3';
+                } else if (getStepProgress(stepName) < progress) {
+                    icon.className = 'fas fa-check-circle text-success me-3';
+                } else {
+                    icon.className = 'fas fa-circle text-muted me-3';
+                }
+            }
+        }
+    });
+}
+
+function getStepProgress(stepName) {
+    const stepProgresses = {
+        'clearing': 10,
+        'netbox': 30,
+        'openstack': 45,
+        'vms': 65,
+        'gpus': 85,
+        'organizing': 95
+    };
+    return stepProgresses[stepName] || 0;
+}
+
+function refreshDataWithProgress(selectedType) {
+    const startTime = Date.now();
+    
+    // Update elapsed time counter
+    const elapsedInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const elapsedElement = document.getElementById('elapsed-time');
+        if (elapsedElement) {
+            elapsedElement.textContent = `${elapsed}s`;
+        }
+    }, 1000);
+    
+    // Progress simulation based on typical timing
+    const progressSteps = [
+        {stage: 'clearing', message: 'Clearing caches...', progress: 10, delay: 500},
+        {stage: 'netbox', message: 'Fetching NetBox devices (~1,700 devices)...', progress: 30, delay: 2000},
+        {stage: 'openstack', message: 'Scanning OpenStack aggregates (~75 aggregates)...', progress: 45, delay: 6000},
+        {stage: 'vms', message: 'Collecting VM counts (~315 hosts)...', progress: 65, delay: 9000},
+        {stage: 'gpus', message: 'Gathering GPU usage (~315 hosts)...', progress: 85, delay: 13000},
+        {stage: 'organizing', message: 'Organizing data by GPU types...', progress: 95, delay: 15000}
+    ];
+    
+    // Schedule progress updates
+    progressSteps.forEach(step => {
+        setTimeout(() => {
+            updateProgress(step.stage, step.message, step.progress);
+        }, step.delay);
+    });
+    
+    // Make actual API call to refresh all data
+    window.Utils.fetchWithTimeout('/api/refresh-all-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    }, 60000) // 60 second timeout for full refresh
+    .then(response => response.json())
+    .then(result => {
+        clearInterval(elapsedInterval);
+        
+        if (result.success) {
+            // Show completion
+            const actualTime = result.performance?.refresh_time || ((Date.now() - startTime) / 1000);
+            updateProgress('complete', `Refresh completed in ${actualTime}s!`, 100);
+            
+            // Show success message
+            setTimeout(() => {
+                window.Frontend.showNotification(
+                    `Data refreshed successfully in ${actualTime}s (${result.cleared?.total_hosts_refreshed || 0} hosts)`, 
+                    'success'
+                );
+                
+                // Hide modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('refreshProgressModal'));
+                if (modal) modal.hide();
+                
+                // Reload current GPU type data with fresh cache
+                window.OpenStack.loadAggregateData(selectedType);
+                
+            }, 1500); // Show completion for 1.5 seconds
+            
+        } else {
+            throw new Error(result.error || 'Refresh failed');
+        }
+    })
+    .catch(error => {
+        clearInterval(elapsedInterval);
+        console.error('❌ Enhanced refresh failed:', error);
+        
+        // Show error state
+        updateProgress('error', `Refresh failed: ${error.message}`, 0);
+        
+        setTimeout(() => {
+            window.Frontend.showNotification(`Refresh failed: ${error.message}`, 'error');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('refreshProgressModal'));
+            if (modal) modal.hide();
+        }, 2000);
+    });
 }
 
 // Refresh aggregate data after operations complete to show any changes
