@@ -1612,8 +1612,18 @@ function refreshDataWithProgress(selectedType) {
         }
     }, 1000);
     
-    // Check if we have cached data to show estimates
-    const hasCachedData = window.gpuDataCache && window.gpuDataCache.size > 0;
+    // Only show cached estimates if we've completed at least one successful refresh
+    // This prevents showing stale or incorrect data on first load
+    const hasCompletedRefresh = window.hasCompletedSuccessfulRefresh || false;
+    const hasCachedData = hasCompletedRefresh && window.gpuDataCache && window.gpuDataCache.size > 0;
+    
+    console.log('📊 Cache status for progress messages:', {
+        hasCompletedRefresh: hasCompletedRefresh,
+        gpuDataCacheExists: !!window.gpuDataCache,
+        cacheSize: window.gpuDataCache ? window.gpuDataCache.size : 0,
+        willShowEstimates: hasCachedData
+    });
+    
     let deviceCount = '';
     let aggregateCount = '';
     let hostCount = '';
@@ -1677,6 +1687,9 @@ function refreshDataWithProgress(selectedType) {
         clearInterval(elapsedInterval);
         
         if (result.success) {
+            // Mark that we've completed a successful refresh - enables estimates for future refreshes
+            window.hasCompletedSuccessfulRefresh = true;
+            
             // Show completion
             const actualTime = result.performance?.refresh_time || ((Date.now() - startTime) / 1000);
             updateProgress('complete', `Refresh completed in ${actualTime}s!`, 100);
