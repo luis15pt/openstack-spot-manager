@@ -234,6 +234,11 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('👁️ Main content and contract column are visible by default');
     
     console.log('📊 Loading GPU types...');
+    
+    // Show progress modal for initial data loading
+    showProgressModal();
+    simulateInitialLoadingProgress();
+    
     window.OpenStack.loadGpuTypes();
     
     // Check URL parameters for auto-selection
@@ -398,11 +403,8 @@ function initializeEventListeners() {
         }
     });
     
-    // Control buttons
-    document.getElementById('moveToOndemandBtn').addEventListener('click', () => moveSelectedHosts('ondemand'));
-    document.getElementById('moveToRunpodBtn').addEventListener('click', () => moveSelectedHosts('runpod'));
-    document.getElementById('moveToSpotBtn').addEventListener('click', () => moveSelectedHosts('spot'));
-    document.getElementById('refreshBtn').addEventListener('click', refreshData);
+    // Control buttons removed - drag and drop handles host migration
+    // Refresh button now in top navigation area with onclick handler
     
     // Individual column refresh buttons removed - using single refresh button instead
     
@@ -435,35 +437,7 @@ function initializeEventListeners() {
 // Preload all GPU types
 // preloadAllGpuTypes function removed - functionality consolidated into refreshData with progress tracking
 
-// Move selected hosts to target type
-function moveSelectedHosts(targetType) {
-    const selectedCards = document.querySelectorAll('.machine-card.selected');
-    if (selectedCards.length === 0) {
-        window.Frontend.showNotification('Please select hosts to move', 'warning');
-        return;
-    }
-    
-    console.log(`🔄 Moving ${selectedCards.length} hosts to ${targetType}`);
-    window.Logs.addToDebugLog('System', `Moving ${selectedCards.length} hosts to ${targetType}`, 'info');
-    
-    selectedCards.forEach(card => {
-        const hostname = card.dataset.host;
-        const sourceType = card.dataset.type;
-        
-        if (sourceType === targetType) {
-            console.log(`⚠️ ${hostname} is already in ${targetType}`);
-            return;
-        }
-        
-        // Add to pending operations
-        window.Frontend.addToPendingOperations(hostname, sourceType, targetType);
-    });
-    
-    // Clear selection
-    selectedCards.forEach(card => card.classList.remove('selected'));
-    window.Frontend.selectedHosts.clear();
-    updateControlButtons();
-}
+// moveSelectedHosts function removed - drag and drop handles host migration
 
 // Handle host card clicks
 function handleHostClick(e) {
@@ -482,21 +456,10 @@ function handleHostClick(e) {
         window.Frontend.selectedHosts.add(hostname);
     }
     
-    updateControlButtons();
+    // updateControlButtons() call removed - control buttons no longer exist
 }
 
-// Update control buttons based on selection
-function updateControlButtons() {
-    const selectedCount = window.Frontend.selectedHosts.size;
-    const buttons = ['moveToOndemandBtn', 'moveToRunpodBtn', 'moveToSpotBtn'];
-    
-    buttons.forEach(buttonId => {
-        const button = document.getElementById(buttonId);
-        if (button) {
-            button.disabled = selectedCount === 0;
-        }
-    });
-}
+// updateControlButtons function removed - control buttons no longer exist
 
 // Refresh data
 function refreshData() {
@@ -1615,6 +1578,28 @@ function getStepProgress(stepName) {
     return stepProgresses[stepName] || 0;
 }
 
+function simulateInitialLoadingProgress() {
+    console.log('🚀 Starting initial loading progress simulation...');
+    
+    // Progress simulation for initial page load
+    const initialProgressSteps = [
+        {stage: 'clearing', message: 'Initializing application...', progress: 5, delay: 200},
+        {stage: 'netbox', message: 'Loading GPU types and configurations...', progress: 15, delay: 1000},
+        {stage: 'openstack', message: 'Fetching aggregates and host information...', progress: 40, delay: 3000},
+        {stage: 'vms', message: 'Collecting system data...', progress: 70, delay: 6000},
+        {stage: 'gpus', message: 'Processing GPU information...', progress: 90, delay: 8000},
+    ];
+    
+    // Schedule progress updates
+    initialProgressSteps.forEach(step => {
+        setTimeout(() => {
+            updateProgress(step.stage, step.message, step.progress);
+        }, step.delay);
+    });
+    
+    // The modal will be hidden when GPU types finish loading
+}
+
 function refreshDataWithProgress(selectedType) {
     const startTime = Date.now();
     
@@ -2319,7 +2304,7 @@ function loadOverallContractStatistics(contracts) {
 
 window.showVmDetails = showVmDetails;
 window.removePendingOperation = removePendingOperation;
-window.updateControlButtons = updateControlButtons;
+// window.updateControlButtons removed - control buttons no longer exist
 window.pollVmStatus = pollVmStatus;
 // Initialize contract column on page load
 window.initializeContractColumn = async function initializeContractColumn() {

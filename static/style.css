@@ -131,7 +131,8 @@ body {
 }
 
 .aggregate-column {
-    min-height: 500px;
+    min-height: calc(100vh - 200px); /* Full viewport height minus header/padding */
+    height: calc(100vh - 200px);
 }
 
 /* Adjust card header font sizes for better fit in smaller columns */
@@ -726,18 +727,7 @@ body {
     pointer-events: none;
 }
 
-/* Responsive design */
-@media (max-width: 768px) {
-    .aggregate-column {
-        min-height: 300px;
-        margin-bottom: 20px;
-    }
-    
-    .machine-grid {
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-        gap: 10px;
-        padding: 10px;
-    }
+/* Mobile responsive design removed - desktop only application */
     
     .host-group-content {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

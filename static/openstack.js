@@ -459,11 +459,38 @@ function loadGpuTypes() {
                     aggregates: data.aggregates
                 });
             }
+            
+            // Hide progress modal if it's showing (initial load)
+            const progressModal = document.getElementById('progressModal');
+            if (progressModal) {
+                const modal = bootstrap.Modal.getInstance(progressModal);
+                if (modal && progressModal.style.display !== 'none') {
+                    console.log('🏁 Initial loading completed - hiding progress modal');
+                    // Update progress to 100% and show completion message
+                    updateProgressStep(6, 100, 'Initial loading completed!', 'success');
+                    setTimeout(() => {
+                        modal.hide();
+                    }, 1500); // Give user time to see completion
+                }
+            }
         })
         .catch(error => {
             console.error('❌ Error loading GPU types:', error);
             window.Logs.addToDebugLog('OpenStack', `Error loading GPU types: ${error.message}`, 'error');
             window.Frontend.showNotification('Failed to load GPU types', 'error');
+            
+            // Hide progress modal on error (if showing)
+            const progressModal = document.getElementById('progressModal');
+            if (progressModal) {
+                const modal = bootstrap.Modal.getInstance(progressModal);
+                if (modal && progressModal.style.display !== 'none') {
+                    console.log('❌ Initial loading failed - hiding progress modal');
+                    updateProgressStep(6, 100, 'Loading failed - please try refresh', 'error');
+                    setTimeout(() => {
+                        modal.hide();
+                    }, 2000);
+                }
+            }
         });
 }
 
