@@ -322,74 +322,9 @@ def get_gpu_count_from_hostname(hostname):
 # find_host_current_aggregate() is now imported from modules.aggregate_operations
 
 def build_flavor_name(hostname):
-    """OPTIMIZED: Build flavor name with direct aggregate lookup instead of scanning all aggregates"""
-    import re
-    
-    # Step 1: Get this host's aggregate directly (no expensive discovery)
-    try:
-        conn = get_openstack_connection()
-        if not conn:
-            print(f"❌ No OpenStack connection for {hostname}")
-            return f"n3-RTX-A6000x8"  # Safe fallback
-            
-        # Direct query: find which aggregate contains this specific host
-        print(f"🔍 Looking up aggregate for {hostname} (direct query)...")
-        aggregate_name = None
-        aggregates_checked = 0
-        
-        for agg in conn.compute.aggregates():
-            aggregates_checked += 1
-            if hostname in (agg.hosts or []):
-                aggregate_name = agg.name
-                print(f"✅ Found {hostname} in aggregate: {aggregate_name} (checked {aggregates_checked} aggregates)")
-                break
-        
-        if not aggregate_name:
-            print(f"⚠️ {hostname} not found in any aggregate - using hostname fallback")
-            # Extract from hostname pattern
-            match = re.search(r'(h200sxm|h100sxm|H200|H100|A100|RTX-A6000|L40)', hostname, re.IGNORECASE)
-            if match:
-                gpu_type = match.group(1).upper()
-                if 'h200sxm' in match.group(1).lower():
-                    gpu_type = 'H200-SXM5'
-                elif 'h100sxm' in match.group(1).lower():
-                    gpu_type = 'H100-SXM5'
-            else:
-                gpu_type = 'RTX-A6000'  # Fallback
-        else:
-            # Step 2: Extract GPU type from aggregate name (simple regex)
-            match = re.match(r'^([A-Z0-9-]+)-n3', aggregate_name)
-            if match:
-                gpu_type = match.group(1)
-            elif 'H200-SXM5' in aggregate_name:
-                gpu_type = 'H200-SXM5'
-            elif 'H100-SXM5' in aggregate_name:
-                gpu_type = 'H100-SXM5'  
-            else:
-                print(f"⚠️ Could not extract GPU type from aggregate {aggregate_name}")
-                gpu_type = 'RTX-A6000'  # Fallback
-        
-        # Step 3: Get GPU count (simple hostname logic)
-        gpu_count = get_gpu_count_from_hostname(hostname)
-        
-        # Step 4: Get NVLink info from NetBox (only if needed)
-        netbox_info = get_netbox_tenant(hostname)
-        has_nvlinks = netbox_info.get('nvlinks', False)
-        
-        # Step 5: Build final flavor name
-        print(f"🔍 Building flavor for {hostname}: gpu_type={gpu_type}, gpu_count={gpu_count}, has_nvlinks={has_nvlinks}")
-        
-        base_flavor = f"n3-{gpu_type}x{gpu_count}"
-        
-        # Add NVLink suffix for supported GPU types that have NVLinks
-        if has_nvlinks and gpu_type in ['H100', 'A100']:
-            return f"{base_flavor}-NVLink"
-        
-        return base_flavor
-        
-    except Exception as e:
-        print(f"❌ Error in optimized flavor building for {hostname}: {e}")
-        return f"n3-RTX-A6000x8"  # Safe fallback
+    """Build flavor name using cache-optimized method - NO OpenStack API calls during RunPod operations"""
+    from modules.aggregate_operations import build_flavor_name_optimized
+    return build_flavor_name_optimized(hostname)
 
 def mask_api_key(api_key, prefix=""):
     """Mask API key for display purposes"""

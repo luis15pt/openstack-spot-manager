@@ -397,3 +397,189 @@ def get_gpu_aggregates_cache_stats():
         'cache_ttl_seconds': GPU_AGGREGATES_CACHE_TTL,
         'cache_valid': _gpu_aggregates_cache is not None and cache_age < GPU_AGGREGATES_CACHE_TTL
     }
+
+# =============================================================================
+# PERFORMANCE OPTIMIZED FUNCTIONS - CACHE-FIRST APPROACH
+# =============================================================================
+
+def get_gpu_type_from_hostname_fast(hostname):
+    """Extract GPU type from hostname pattern without any API calls
+    
+    This is the fastest method - uses hostname patterns only.
+    Falls back to None if pattern doesn't match, allowing cache lookup.
+    """
+    hostname_lower = hostname.lower()
+    
+    # Pattern matching for common hostname formats
+    if 'h200sxm' in hostname_lower or 'h200-sxm' in hostname_lower:
+        return 'H200-SXM5'
+    elif 'h100sxm' in hostname_lower or 'h100-sxm' in hostname_lower:
+        return 'H100-SXM5'
+    elif 'h100' in hostname_lower:
+        return 'H100'
+    elif 'a100' in hostname_lower:
+        return 'A100'
+    elif 'rtx-a6000' in hostname_lower or 'rtx_a6000' in hostname_lower or 'esc8' in hostname_lower:
+        return 'RTX-A6000'
+    elif 'l40' in hostname_lower:
+        return 'L40'
+    elif 'a4000' in hostname_lower:
+        return 'A4000'
+    
+    return None  # Pattern didn't match, need to use cache lookup
+
+def find_gpu_type_in_parallel_data(hostname, parallel_data):
+    """Find GPU type for hostname in parallel agents cached data"""
+    try:
+        for gpu_type, gpu_data in parallel_data.items():
+            hosts = gpu_data.get('hosts', [])
+            for host_info in hosts:
+                if host_info.get('hostname') == hostname:
+                    return gpu_type
+        return None
+    except Exception as e:
+        print(f"❌ Error finding GPU type in parallel data for {hostname}: {e}")
+        return None
+
+def get_gpu_type_from_hostname_context_optimized(hostname):
+    """Optimized GPU type detection using hostname pattern + cached data only
+    
+    Priority order:
+    1. Fast hostname pattern matching (no API calls)
+    2. Parallel agents cached data (uses cache if available)
+    3. No expensive OpenStack discovery calls
+    """
+    try:
+        # Try fast hostname pattern first
+        gpu_type = get_gpu_type_from_hostname_fast(hostname)
+        if gpu_type:
+            print(f"✅ GPU type {gpu_type} extracted from hostname pattern: {hostname}")
+            return gpu_type
+        
+        # Fallback to parallel cache lookup (still no OpenStack API calls)
+        from .parallel_agents import get_all_data_parallel
+        parallel_data = get_all_data_parallel()  # Uses cache if available
+        gpu_type = find_gpu_type_in_parallel_data(hostname, parallel_data)
+        
+        if gpu_type:
+            print(f"✅ GPU type {gpu_type} found in parallel cache for hostname: {hostname}")
+            return gpu_type
+        
+        print(f"⚠️ GPU type not found for hostname {hostname} - no expensive discovery performed")
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error in optimized GPU type detection for {hostname}: {e}")
+        return None
+
+def build_flavor_name_optimized(hostname):
+    """Build dynamic flavor name using cache-first approach - NO OpenStack API calls
+    
+    This function should never trigger OpenStack API calls during RunPod operations.
+    Uses hostname patterns + cached parallel data only, includes NVLink support.
+    """
+    try:
+        # Get GPU type using optimized cache-first method
+        gpu_type = get_gpu_type_from_hostname_context_optimized(hostname)
+        
+        # Get GPU count from hostname (this doesn't make API calls)
+        from .utility_functions import get_gpu_count_from_hostname
+        gpu_count = get_gpu_count_from_hostname(hostname)
+        
+        # Get NVLink info from parallel cache if available
+        has_nvlinks = False
+        try:
+            from .parallel_agents import get_all_data_parallel
+            parallel_data = get_all_data_parallel()  # Uses cache if available
+            
+            # Find hostname in parallel data to get NVLink info
+            for gpu_data in parallel_data.values():
+                hosts = gpu_data.get('hosts', [])
+                for host_info in hosts:
+                    if host_info.get('hostname') == hostname:
+                        tenant_info = host_info.get('tenant_info', {})
+                        has_nvlinks = tenant_info.get('nvlinks', False)
+                        break
+                if has_nvlinks:
+                    break
+        except Exception as e:
+            print(f"⚠️ Could not get NVLink info from cache for {hostname}: {e}")
+        
+        if gpu_type:
+            base_flavor = f"n3-{gpu_type}x{gpu_count}"
+            
+            # Add NVLink suffix for supported GPU types that have NVLinks
+            if has_nvlinks and gpu_type in ['H100', 'A100']:
+                flavor_name = f"{base_flavor}-NVLink"
+                print(f"✅ Built NVLink flavor name {flavor_name} for {hostname} (cache-optimized, no API calls)")
+            else:
+                flavor_name = base_flavor
+                print(f"✅ Built flavor name {flavor_name} for {hostname} (cache-optimized, no API calls)")
+            
+            return flavor_name
+        
+        # Fallback with default GPU type
+        fallback_gpu = 'RTX-A6000'  # Safe default
+        flavor_name = f"n3-{fallback_gpu}x{gpu_count}"
+        print(f"⚠️ Using fallback flavor name {flavor_name} for {hostname}")
+        return flavor_name
+        
+    except Exception as e:
+        print(f"❌ Error building optimized flavor name for {hostname}: {e}")
+        # Safe fallback
+        return f"n3-RTX-A6000x8"
+
+def get_target_aggregate_optimized(hostname, target_type, target_variant=None):
+    """Determine target aggregate using cached parallel data only - NO OpenStack discovery
+    
+    This replaces the expensive discover_gpu_aggregates() call with cached data lookup.
+    """
+    try:
+        # Get GPU type using optimized method (no API calls)
+        gpu_type = get_gpu_type_from_hostname_context_optimized(hostname)
+        
+        if not gpu_type:
+            print(f"❌ Could not determine GPU type for {hostname}")
+            return None
+        
+        # Get configuration from parallel cache instead of discover_gpu_aggregates()
+        from .parallel_agents import get_all_data_parallel
+        parallel_data = get_all_data_parallel()  # Uses cache if available
+        
+        if gpu_type not in parallel_data:
+            print(f"❌ GPU type {gpu_type} not found in cached parallel data")
+            return None
+        
+        config = parallel_data[gpu_type]['config']
+        
+        # Determine target aggregate based on target type
+        target_aggregate = None
+        if target_type == 'spot' and config.get('spot'):
+            target_aggregate = config['spot']
+        elif target_type == 'runpod' and config.get('runpod'):
+            target_aggregate = config['runpod']
+        elif target_type == 'ondemand' and config.get('ondemand_variants'):
+            if target_variant:
+                # Use specific variant if provided
+                variant_info = next((v for v in config['ondemand_variants'] if v['aggregate'] == target_variant), None)
+                if variant_info:
+                    target_aggregate = variant_info['aggregate']
+            else:
+                # Use first available variant as fallback
+                target_aggregate = config['ondemand_variants'][0]['aggregate']
+        
+        if target_aggregate:
+            print(f"✅ Target aggregate {target_aggregate} found for {hostname} -> {target_type} (cache-optimized)")
+            return {
+                'hostname': hostname,
+                'gpu_type': gpu_type,
+                'target_type': target_type,
+                'target_aggregate': target_aggregate
+            }
+        
+        print(f"❌ No target aggregate found for GPU type {gpu_type} and target type {target_type}")
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error in optimized target aggregate lookup: {e}")
+        return None

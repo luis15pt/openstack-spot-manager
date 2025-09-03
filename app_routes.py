@@ -750,66 +750,15 @@ def register_routes(app):
         if not hostname or not target_type:
             return jsonify({'error': 'Missing hostname or target_type'}), 400
         
-        # OPTIMIZATION: Extract GPU type directly from hostname instead of expensive discovery
-        import re
+        # OPTIMIZATION: Use cache-optimized target aggregate lookup - NO OpenStack discovery
+        from modules.aggregate_operations import get_target_aggregate_optimized
         
-        # Try to extract GPU type from hostname pattern first
-        gpu_type = None
-        hostname_lower = hostname.lower()
+        result = get_target_aggregate_optimized(hostname, target_type, target_variant)
         
-        if 'h200sxm' in hostname_lower:
-            gpu_type = 'H200-SXM5'
-        elif 'h100sxm' in hostname_lower:
-            gpu_type = 'H100-SXM5'
-        elif 'h100' in hostname_lower:
-            gpu_type = 'H100'
-        elif 'a100' in hostname_lower:
-            gpu_type = 'A100'
-        elif 'rtx-a6000' in hostname_lower or 'esc8' in hostname_lower:
-            gpu_type = 'RTX-A6000'
-        elif 'l40' in hostname_lower:
-            gpu_type = 'L40'
+        if not result:
+            return jsonify({'error': f'Could not determine target aggregate for hostname {hostname}'}), 404
         
-        # If hostname-based detection fails, fall back to expensive discovery
-        if not gpu_type:
-            print(f"⚠️ Could not extract GPU type from hostname {hostname}, using expensive discovery...")
-            gpu_type = get_gpu_type_from_hostname_context(hostname)
-            if not gpu_type:
-                return jsonify({'error': f'Could not determine GPU type for hostname {hostname}'}), 404
-        else:
-            print(f"✅ Extracted GPU type {gpu_type} from hostname {hostname} (no discovery needed)")
-        
-        # Get aggregate configuration for this GPU type
-        gpu_aggregates = discover_gpu_aggregates()
-        config = gpu_aggregates.get(gpu_type)
-        if not config:
-            return jsonify({'error': f'No configuration found for GPU type {gpu_type}'}), 404
-        
-        # Determine target aggregate based on target type
-        target_aggregate = None
-        if target_type == 'spot' and config.get('spot'):
-            target_aggregate = config['spot']
-        elif target_type == 'runpod' and config.get('runpod'):
-            target_aggregate = config['runpod']
-        elif target_type == 'ondemand' and config.get('ondemand_variants'):
-            if target_variant:
-                # Use specific variant if provided
-                variant_info = next((v for v in config['ondemand_variants'] if v['aggregate'] == target_variant), None)
-                if variant_info:
-                    target_aggregate = variant_info['aggregate']
-            else:
-                # Use first available variant as fallback
-                target_aggregate = config['ondemand_variants'][0]['aggregate']
-        
-        if not target_aggregate:
-            return jsonify({'error': f'No target aggregate found for GPU type {gpu_type} and target type {target_type}'}), 404
-        
-        return jsonify({
-            'hostname': hostname,
-            'gpu_type': gpu_type,
-            'target_type': target_type,
-            'target_aggregate': target_aggregate
-        })
+        return jsonify(result)
 
     @app.route('/api/command-log')
     def get_command_log():
@@ -845,9 +794,10 @@ def register_routes(app):
         if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
             return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
         
-        # Build dynamic flavor name
-        flavor_name = build_flavor_name(hostname)
-        gpu_type = get_gpu_type_from_hostname_context(hostname)
+        # Build dynamic flavor name using cache-optimized method (no OpenStack API calls)
+        from modules.aggregate_operations import build_flavor_name_optimized, get_gpu_type_from_hostname_context_optimized
+        flavor_name = build_flavor_name_optimized(hostname)
+        gpu_type = get_gpu_type_from_hostname_context_optimized(hostname)
         
         # Build the curl command for preview (with masked API keys)
         masked_hyperstack_key = mask_api_key(HYPERSTACK_API_KEY)
@@ -914,8 +864,9 @@ def register_routes(app):
         if not HYPERSTACK_API_KEY or not RUNPOD_API_KEY:
             return jsonify({'error': 'Hyperstack or Runpod API keys not configured'}), 500
         
-        # Build dynamic flavor name
-        flavor_name = build_flavor_name(hostname)
+        # Build dynamic flavor name using cache-optimized method (no OpenStack API calls)
+        from modules.aggregate_operations import build_flavor_name_optimized
+        flavor_name = build_flavor_name_optimized(hostname)
         
         # Build the complete user_data with actual API key
         user_data_content = """Content-Type: multipart/mixed; boundary="==BOUNDARY=="
