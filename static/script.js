@@ -1657,6 +1657,12 @@ function refreshDataWithProgress(selectedType) {
                 // Reload current GPU type data with fresh cache
                 window.OpenStack.loadAggregateData(selectedType);
                 
+                // Now load overall GPU usage with fresh data
+                if (window.OpenStack.loadOverallGpuUsage) {
+                    console.log('📊 Loading overall GPU usage with fresh data after refresh...');
+                    window.OpenStack.loadOverallGpuUsage();
+                }
+                
             }, 1500); // Show completion for 1.5 seconds
             
         } else {

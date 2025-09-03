@@ -290,12 +290,25 @@ async function loadOverallGpuUsage() {
             console.log('🎯 About to update UI elements...');
             
             // Update UI elements
-            document.getElementById('totalGpuUsage').textContent = `${totalGpuUsed}/${totalGpuCapacity} GPUs`;
-            document.getElementById('gpuUsagePercentage').textContent = `${totalGpuPercentage}%`;
+            const totalGpuElement = document.getElementById('totalGpuUsage');
+            const gpuPercentElement = document.getElementById('gpuUsagePercentage');
+            const availableHostsElement = document.getElementById('availableHostsCount');
+            const inUseHostsElement = document.getElementById('inUseHostsCount');
+            
+            totalGpuElement.textContent = `${totalGpuUsed}/${totalGpuCapacity} GPUs`;
+            totalGpuElement.className = 'badge bg-primary fs-6'; // Restore proper color
+            
+            gpuPercentElement.textContent = `${totalGpuPercentage}%`;
+            gpuPercentElement.className = 'badge bg-success fs-6 ms-2'; // Restore proper color
+            
+            availableHostsElement.textContent = totalAvailableHosts;
+            availableHostsElement.className = 'badge bg-success fs-6'; // Restore proper color
+            
+            inUseHostsElement.textContent = totalInUseHosts;
+            inUseHostsElement.className = 'badge bg-warning fs-6'; // Restore proper color
+            
             document.getElementById('gpuProgressBar').style.width = `${totalGpuPercentage}%`;
             document.getElementById('gpuProgressText').textContent = `${totalGpuPercentage}%`;
-            document.getElementById('availableHostsCount').textContent = totalAvailableHosts;
-            document.getElementById('inUseHostsCount').textContent = totalInUseHosts;
             
             // Update progress bar color
             const progressBar = document.getElementById('gpuProgressBar');
@@ -400,17 +413,13 @@ function loadGpuTypes() {
                         window.Frontend.availableGpuTypes = data.gpu_types;
                         console.log('✅ GPU types stored after frontend module loaded');
                         
-                        // Load overall GPU usage data now that we have GPU types
-                        console.log('📊 Loading overall GPU usage across all types (deferred)...');
-                        loadOverallGpuUsage();
+                        // Skip loading overall GPU usage on initial load - will be populated on first refresh
                     }
                 }, 100);
             } else {
                 window.Frontend.availableGpuTypes = data.gpu_types;
                 
-                // Load overall GPU usage data now that we have GPU types
-                console.log('📊 Loading overall GPU usage across all types...');
-                loadOverallGpuUsage();
+                // Skip loading overall GPU usage on initial load - will be populated on first refresh
             }
             
             // Add discovered GPU types
@@ -461,13 +470,15 @@ function loadGpuTypes() {
             }
             
             // Hide progress modal if it's showing (initial load)
-            const progressModal = document.getElementById('progressModal');
+            const progressModal = document.getElementById('refreshProgressModal');
             if (progressModal) {
                 const modal = bootstrap.Modal.getInstance(progressModal);
-                if (modal && progressModal.style.display !== 'none') {
+                if (modal && progressModal.classList.contains('show')) {
                     console.log('🏁 Initial loading completed - hiding progress modal');
                     // Update progress to 100% and show completion message
-                    updateProgressStep(6, 100, 'Initial loading completed!', 'success');
+                    if (typeof updateProgress === 'function') {
+                        updateProgress('complete', 'Initial loading completed!', 100);
+                    }
                     setTimeout(() => {
                         modal.hide();
                     }, 1500); // Give user time to see completion
@@ -480,12 +491,14 @@ function loadGpuTypes() {
             window.Frontend.showNotification('Failed to load GPU types', 'error');
             
             // Hide progress modal on error (if showing)
-            const progressModal = document.getElementById('progressModal');
+            const progressModal = document.getElementById('refreshProgressModal');
             if (progressModal) {
                 const modal = bootstrap.Modal.getInstance(progressModal);
-                if (modal && progressModal.style.display !== 'none') {
+                if (modal && progressModal.classList.contains('show')) {
                     console.log('❌ Initial loading failed - hiding progress modal');
-                    updateProgressStep(6, 100, 'Loading failed - please try refresh', 'error');
+                    if (typeof updateProgress === 'function') {
+                        updateProgress('error', 'Loading failed - please try refresh', 100);
+                    }
                     setTimeout(() => {
                         modal.hide();
                     }, 2000);
