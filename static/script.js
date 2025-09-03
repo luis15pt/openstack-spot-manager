@@ -1612,13 +1612,51 @@ function refreshDataWithProgress(selectedType) {
         }
     }, 1000);
     
+    // Check if we have cached data to show estimates
+    const hasCachedData = window.gpuDataCache && window.gpuDataCache.size > 0;
+    let deviceCount = '';
+    let aggregateCount = '';
+    let hostCount = '';
+    
+    if (hasCachedData) {
+        // Try to get counts from cache for estimates
+        try {
+            const sampleData = Array.from(window.gpuDataCache.values())[0];
+            if (sampleData && sampleData.parallel_data) {
+                const parallelData = sampleData.parallel_data;
+                if (parallelData.netbox_cache && parallelData.netbox_cache.tenant_cache_size) {
+                    deviceCount = ` (~${parallelData.netbox_cache.tenant_cache_size} devices)`;
+                }
+                if (parallelData.host_aggregate_cache && parallelData.host_aggregate_cache.host_aggregate_cache_size) {
+                    aggregateCount = ` (~${parallelData.host_aggregate_cache.host_aggregate_cache_size} aggregates)`;
+                }
+                // Estimate host count from cached data
+                let totalHosts = 0;
+                window.gpuDataCache.forEach(data => {
+                    if (data.data) {
+                        ['runpod', 'spot', 'ondemand'].forEach(type => {
+                            if (data.data[type] && data.data[type].hosts) {
+                                totalHosts += data.data[type].hosts.length;
+                            }
+                        });
+                    }
+                });
+                if (totalHosts > 0) {
+                    hostCount = ` (~${totalHosts} hosts)`;
+                }
+            }
+        } catch (e) {
+            console.log('Could not extract cache counts for progress estimates');
+        }
+    }
+    
     // Progress simulation based on typical timing
     const progressSteps = [
         {stage: 'clearing', message: 'Clearing caches...', progress: 10, delay: 500},
-        {stage: 'netbox', message: 'Fetching NetBox devices (~1,700 devices)...', progress: 30, delay: 2000},
-        {stage: 'openstack', message: 'Scanning OpenStack aggregates (~75 aggregates)...', progress: 45, delay: 6000},
-        {stage: 'vms', message: 'Collecting VM counts (~315 hosts)...', progress: 65, delay: 9000},
-        {stage: 'gpus', message: 'Gathering GPU usage (~315 hosts)...', progress: 85, delay: 13000},
+        {stage: 'netbox', message: `Fetching NetBox devices${deviceCount}...`, progress: 30, delay: 2000},
+        {stage: 'openstack', message: `Scanning OpenStack aggregates${aggregateCount}...`, progress: 45, delay: 6000},
+        {stage: 'vms', message: `Collecting VM counts${hostCount}...`, progress: 65, delay: 9000},
+        {stage: 'gpus', message: `Gathering GPU usage information${hostCount}...`, progress: 85, delay: 13000},
         {stage: 'organizing', message: 'Organizing data by GPU types...', progress: 95, delay: 15000}
     ];
     
