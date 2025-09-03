@@ -12,7 +12,7 @@ _parallel_cache = {}
 _cache_timestamps = {}
 _cache_lock = threading.Lock()
 _active_requests = {}  # Track active requests to prevent duplicates
-PARALLEL_CACHE_TTL = 1  # 1 second - force immediate refresh for debugging
+PARALLEL_CACHE_TTL = 600  # 10 minutes - production cache TTL
 
 def get_all_data_parallel():
     """
