@@ -2092,24 +2092,49 @@ async function loadContractDataForColumn(contractAggregate) {
                 
                 let hostsHtml = '';
                 selectedContract.hosts.forEach(host => {
-                    const vmStatus = host.has_vms ? 'In Use' : 'Available';
-                    const statusClass = host.has_vms ? 'text-warning' : 'text-success';
-                    
-                    hostsHtml += `
-                        <div class="machine-card mb-2" data-host="${host.name}">
-                            <div class="card-body p-2">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>${host.name}</strong>
-                                        <small class="${statusClass} d-block">${vmStatus}</small>
+                    // Use the same createHostCard function as other columns for consistency
+                    if (typeof window.Frontend?.createHostCard === 'function') {
+                        hostsHtml += window.Frontend.createHostCard(host, 'contract', selectedContract.aggregate);
+                    } else {
+                        // Fallback with proper machine-card styling matching other columns
+                        const hasVms = host.has_vms;
+                        const cardClass = hasVms ? 'machine-card has-vms' : 'machine-card';
+                        const warningIcon = hasVms ? '<i class="fas fa-exclamation-triangle warning-icon"></i>' : '';
+                        
+                        hostsHtml += `
+                            <div class="${cardClass}" 
+                                 draggable="true" 
+                                 data-host="${host.name}" 
+                                 data-type="contract"
+                                 data-aggregate="${selectedContract.aggregate}"
+                                 data-has-vms="${hasVms}">
+                                <div class="machine-card-header">
+                                    <i class="fas fa-grip-vertical drag-handle"></i>
+                                    <div class="machine-name">${host.name}</div>
+                                    ${warningIcon}
+                                </div>
+                                <div class="machine-status">
+                                    <div class="vm-info">
+                                        <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
+                                        <span class="gpu-badge ${host.gpu_used > 0 ? 'active' : 'zero'}">${host.gpu_usage_ratio || '0/8'}</span>
+                                        <span class="gpu-label">GPUs</span>
                                     </div>
-                                    <div class="text-end">
-                                        <small>GPUs: ${host.gpu_usage_ratio}</small>
+                                    <div class="tenant-info">
+                                        <span class="tenant-badge ${host.owner_group === 'Nexgen Cloud' ? 'nexgen' : 'investors'}">
+                                            <i class="${host.owner_group === 'Nexgen Cloud' ? 'fas fa-cloud' : 'fas fa-users'}"></i>
+                                            ${host.owner_group === 'Nexgen Cloud' ? host.owner_group : host.tenant || 'Unknown'}
+                                        </span>
+                                    </div>
+                                    <div class="nvlinks-info">
+                                        <span class="nvlinks-badge ${host.nvlinks === true ? 'enabled' : (host.nvlinks === false ? 'disabled' : 'unknown')}">
+                                            <i class="fas fa-link"></i>
+                                            NVLinks: ${host.nvlinks === true ? 'Yes' : (host.nvlinks === false ? 'No' : 'Unknown')}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    `;
+                        `;
+                    }
                 });
                 
                 contractHostsList.innerHTML = hostsHtml;
@@ -2121,7 +2146,7 @@ async function loadContractDataForColumn(contractAggregate) {
                 if (contractNameEl) contractNameEl.textContent = selectedContract.name;
                 if (contractCountEl) contractCountEl.textContent = selectedContract.hosts.length;
                 
-                console.log(`✅ Contract column updated with direct DOM manipulation`);
+                console.log(`✅ Contract column updated with standard host cards`);
             }
         } else {
             console.error(`❌ Contract ${contractAggregate} not found in response`);
