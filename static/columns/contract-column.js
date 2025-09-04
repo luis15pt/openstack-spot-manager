@@ -36,7 +36,7 @@ class ContractColumn extends BaseColumn {
     }
 
     /**
-     * Update contract column with filterable contract list
+     * Update contract column with filterable dropdown
      */
     update(data) {
         console.log('🔄 ContractColumn.update() called with data keys:', data ? Object.keys(data) : 'none');
@@ -64,90 +64,112 @@ class ContractColumn extends BaseColumn {
         this.updateCount(contractHosts.length);
         this.updateGpuStats(data.contracts.gpu_summary);
         
-        // Show contract list view by default
-        this.renderContractList();
+        // Populate the dropdown with contracts
+        this.populateContractDropdown();
+        
+        // Show all contract hosts by default
+        this.showAllContracts();
+        
+        // Set up dropdown change listener
+        this.setupDropdownListener();
     }
     
     /**
-     * Render the filterable contract list
+     * Populate the contract dropdown with available contracts
      */
-    renderContractList() {
-        const container = this.getCachedElement('container', this.hostsContainerId);
-        if (!container || !this.contractData) return;
+    populateContractDropdown() {
+        const dropdown = document.getElementById('contractColumnSelect');
+        if (!dropdown || !this.contractData) return;
         
         const { allHosts, contractsList } = this.contractData;
         
-        if (contractsList.length === 0) {
-            container.innerHTML = '<div class="text-muted text-center p-3">No contracts available for this GPU type</div>';
-            return;
-        }
-        
-        // Group hosts by contract aggregate
+        // Group hosts by contract aggregate to get counts
         const contractHostsMap = {};
         allHosts.forEach(host => {
-            const contractName = host.aggregate;
-            if (!contractHostsMap[contractName]) {
-                contractHostsMap[contractName] = [];
+            const contractAggregate = host.aggregate;
+            if (!contractHostsMap[contractAggregate]) {
+                contractHostsMap[contractAggregate] = [];
             }
-            contractHostsMap[contractName].push(host);
+            contractHostsMap[contractAggregate].push(host);
         });
         
-        // Render contract list with host counts
-        let contractListHtml = `
-            <div class="contract-filter-controls mb-3">
-                <button class="btn btn-sm btn-outline-primary me-2" onclick="window.columns.contract.renderContractList()">
-                    <i class="fas fa-list me-1"></i>Show All Contracts
-                </button>
-                <small class="text-muted">Click a contract to view its hosts</small>
-            </div>
-            <div class="contract-list">`;
+        // Clear existing options except the first "Show All Contracts"
+        dropdown.innerHTML = '<option value="">Show All Contracts</option>';
         
+        // Add contract options with host counts
         contractsList.forEach(contract => {
             const contractHosts = contractHostsMap[contract.aggregate] || [];
             const hostCount = contractHosts.length;
-            const isEmpty = hostCount === 0;
+            const hideEmpty = document.getElementById('hideEmptyContracts')?.checked || false;
             
-            // Calculate GPU usage for this contract
-            let totalUsed = 0, totalCapacity = 0;
-            contractHosts.forEach(host => {
-                if (host.gpu_info) {
-                    totalUsed += host.gpu_info.gpu_used || 0;
-                    totalCapacity += host.gpu_info.gpu_capacity || 0;
-                }
-            });
+            // Skip empty contracts if hide empty is checked
+            if (hideEmpty && hostCount === 0) return;
             
-            const usagePercent = totalCapacity > 0 ? Math.round((totalUsed / totalCapacity) * 100) : 0;
-            
-            contractListHtml += `
-                <div class="contract-item card mb-2 ${isEmpty ? 'border-secondary opacity-50' : 'border-primary'}" 
-                     style="cursor: ${isEmpty ? 'default' : 'pointer'}" 
-                     ${!isEmpty ? `onclick="window.columns.contract.showContractHosts('${contract.aggregate}')"` : ''}>
-                    <div class="card-body p-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1 text-truncate" title="${contract.name}">${contract.name}</h6>
-                                <small class="text-muted">${contract.aggregate}</small>
-                            </div>
-                            <div class="text-end">
-                                <span class="badge ${isEmpty ? 'bg-secondary' : 'bg-primary'} me-1">${hostCount} hosts</span>
-                                ${!isEmpty ? `<small class="text-muted d-block">${totalUsed}/${totalCapacity} GPUs (${usagePercent}%)</small>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
+            const option = document.createElement('option');
+            option.value = contract.aggregate;
+            option.textContent = `${contract.name} (${hostCount} hosts)`;
+            dropdown.appendChild(option);
         });
         
-        contractListHtml += '</div>';
-        container.innerHTML = contractListHtml;
+        console.log(`📋 Populated contract dropdown with ${dropdown.options.length - 1} contracts`);
+    }
+    
+    /**
+     * Set up dropdown change listener
+     */
+    setupDropdownListener() {
+        const dropdown = document.getElementById('contractColumnSelect');
+        if (!dropdown) return;
+        
+        // Remove existing listener to prevent duplicates
+        dropdown.removeEventListener('change', this.handleDropdownChange);
+        
+        // Bind the method to maintain 'this' context
+        this.handleDropdownChange = this.handleDropdownChange.bind(this);
+        dropdown.addEventListener('change', this.handleDropdownChange);
+    }
+    
+    /**
+     * Handle dropdown selection changes
+     */
+    handleDropdownChange(event) {
+        const selectedAggregate = event.target.value;
+        
+        if (!selectedAggregate) {
+            // Show all contracts
+            this.showAllContracts();
+        } else {
+            // Show specific contract
+            this.showSpecificContract(selectedAggregate);
+        }
+    }
+    
+    /**
+     * Show all contract hosts
+     */
+    showAllContracts() {
+        if (!this.contractData) return;
+        
+        const { allHosts, gpuSummary } = this.contractData;
+        
+        console.log(`🔄 Showing all ${allHosts.length} contract hosts`);
+        
+        // Update count and GPU stats for all contracts
+        this.updateCount(allHosts.length);
+        this.updateGpuStats(gpuSummary);
+        this.updateName('Contracts');
+        
+        // Render all contract hosts
+        this.renderHosts(allHosts, 'All Contracts');
     }
     
     /**
      * Show hosts for a specific contract
      */
-    showContractHosts(contractAggregate) {
+    showSpecificContract(contractAggregate) {
         if (!this.contractData) return;
         
-        const { allHosts } = this.contractData;
+        const { allHosts, contractsList } = this.contractData;
         const contractHosts = allHosts.filter(host => host.aggregate === contractAggregate);
         
         console.log(`🔍 Showing ${contractHosts.length} hosts for contract: ${contractAggregate}`);
@@ -172,25 +194,13 @@ class ContractColumn extends BaseColumn {
         
         this.updateGpuStats(contractGpuSummary);
         
-        // Find contract name
-        const contract = this.contractData.contractsList.find(c => c.aggregate === contractAggregate);
+        // Find contract name and update column header
+        const contract = contractsList.find(c => c.aggregate === contractAggregate);
         const contractName = contract ? contract.name : contractAggregate;
+        this.updateName(contractName);
         
-        // Render hosts using the base column method
+        // Render hosts for this specific contract
         this.renderHosts(contractHosts, contractName);
-        
-        // Add back button
-        const container = this.getCachedElement('container', this.hostsContainerId);
-        if (container) {
-            const backButton = `
-                <div class="contract-filter-controls mb-3">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="window.columns.contract.renderContractList()">
-                        <i class="fas fa-arrow-left me-1"></i>Back to Contract List
-                    </button>
-                    <span class="ms-2 text-muted">Showing: ${contractName}</span>
-                </div>`;
-            container.innerHTML = backButton + container.innerHTML;
-        }
     }
 
     /**
