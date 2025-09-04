@@ -39,10 +39,23 @@ class ContractColumn extends BaseColumn {
      * Update contract column using cached aggregate data - contracts are just aggregates
      */
     update(allData) {
-        // Contract aggregates are just regular aggregates - use same cached data structure
-        const currentGpuType = window.currentGpuType;
+        console.log('🔥 ContractColumn.update() ENTRY - Method called!');
         
-        if (!currentGpuType || !allData || !allData[currentGpuType]) {
+        try {
+            // Contract aggregates are just regular aggregates - use same cached data structure
+            const currentGpuType = window.currentGpuType;
+            
+            console.log('🔍 ContractColumn.update() - currentGpuType:', currentGpuType);
+            console.log('🔍 ContractColumn.update() - allData exists:', !!allData);
+            console.log('🔍 ContractColumn.update() - allData keys:', allData ? Object.keys(allData) : 'none');
+            
+            if (!currentGpuType || !allData || !allData[currentGpuType]) {
+                console.log('❌ ContractColumn.update() - Early exit condition met');
+                this.renderEmptyContracts();
+                return;
+            }
+        } catch (error) {
+            console.error('❌ ContractColumn.update() - Error in entry section:', error);
             this.renderEmptyContracts();
             return;
         }
