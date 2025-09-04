@@ -163,9 +163,20 @@ def register_routes(app):
             contract_hosts = []
             ondemand_host_variants = {}
             
+            # Debug: Print contract configuration
+            if config.get('contracts'):
+                print(f"🔍 DEBUG: Found {len(config['contracts'])} contract aggregates for {gpu_type}:")
+                for contract in config['contracts']:
+                    print(f"   Contract: {contract}")
+            else:
+                print(f"🔍 DEBUG: No contracts configured for {gpu_type}")
+            
+            print(f"🔍 DEBUG: Processing {len(all_hosts)} total hosts for {gpu_type}")
+            
             for host_data in all_hosts:
                 hostname = host_data['hostname']
                 aggregate = host_data['aggregate']
+                print(f"🔍 DEBUG: Host {hostname} belongs to aggregate '{aggregate}'")
                 
                 # Determine aggregate type
                 if config.get('runpod') and aggregate == config['runpod']:
@@ -180,10 +191,15 @@ def register_routes(app):
                             break
                 elif config.get('contracts'):
                     # Check if this host belongs to any contract aggregate
+                    print(f"🔍 DEBUG: Checking host {hostname} with aggregate '{aggregate}' against contracts")
                     for contract in config['contracts']:
+                        print(f"   Comparing '{aggregate}' == '{contract['aggregate']}'")
                         if aggregate == contract['aggregate']:
+                            print(f"   ✅ MATCH! Adding {hostname} to contract_hosts")
                             contract_hosts.append(hostname)
                             break
+                    else:
+                        print(f"   ❌ No match found for {hostname} (aggregate: {aggregate})")
             
             def process_hosts_from_parallel_data(host_list, aggregate_type):
                 """Process hosts using data from parallel agents"""
