@@ -67,8 +67,9 @@ class ContractColumn extends BaseColumn {
             dataKeys: data ? Object.keys(data) : []
         })));
         
+        // Always get all contract aggregates, filtering will be done by checkbox
         const contractAggregates = allContractEntries.filter(([name, data]) => {
-            return data && data.hosts && data.hosts.length > 0;
+            return data;  // Just require data to exist
         });
         
         if (contractAggregates.length === 0) {
@@ -85,29 +86,29 @@ class ContractColumn extends BaseColumn {
         
         contractAggregates.forEach(([aggregateName, aggregateData]) => {
             const hosts = aggregateData.hosts || [];
-            if (hosts.length > 0) {
-                // Calculate GPU stats
-                let contractGpuUsed = 0;
-                let contractGpuCapacity = 0;
-                
-                hosts.forEach(host => {
-                    contractGpuUsed += host.gpu_used || 0;
-                    contractGpuCapacity += host.gpu_capacity || 8;
-                });
-                
-                contractsWithHosts.push({
-                    aggregate: aggregateName,
-                    name: aggregateName,
-                    hosts: hosts,
-                    hostCount: hosts.length,
-                    gpuUsed: contractGpuUsed,
-                    gpuCapacity: contractGpuCapacity
-                });
-                
-                totalHosts += hosts.length;
-                totalGpuUsed += contractGpuUsed;
-                totalGpuCapacity += contractGpuCapacity;
-            }
+            
+            // Calculate GPU stats (will be 0 for empty contracts)
+            let contractGpuUsed = 0;
+            let contractGpuCapacity = 0;
+            
+            hosts.forEach(host => {
+                contractGpuUsed += host.gpu_used || 0;
+                contractGpuCapacity += host.gpu_capacity || 8;
+            });
+            
+            // Add ALL contracts to the list, even those with 0 hosts
+            contractsWithHosts.push({
+                aggregate: aggregateName,
+                name: aggregateName,
+                hosts: hosts,
+                hostCount: hosts.length,
+                gpuUsed: contractGpuUsed,
+                gpuCapacity: contractGpuCapacity
+            });
+            
+            totalHosts += hosts.length;
+            totalGpuUsed += contractGpuUsed;
+            totalGpuCapacity += contractGpuCapacity;
         });
         
         // Update header stats
