@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function() {
             runpod: new RunpodColumn(),
             spot: new SpotColumn(),
             ondemand: new OndemandColumn(),
-            contract: new ContractColumn(),
+            contract: typeof ContractColumn !== 'undefined' ? new ContractColumn() : null,
             outofstock: new OutOfStockColumn()
         };
         
@@ -145,7 +145,22 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅ SCRIPT.JS: Column instances created successfully');
         console.log('📋 SCRIPT.JS: Column instances:', Object.keys(window.columns));
         console.log('🔍 SCRIPT.JS: Summary column:', window.columns.summary);
+        console.log('🔍 SCRIPT.JS: Contract column:', window.columns.contract);
         console.log('🔍 SCRIPT.JS: Out of Stock column:', window.columns.outofstock);
+        
+        // If ContractColumn wasn't available initially, try to create it after a delay
+        if (!window.columns.contract) {
+            console.warn('⚠️ ContractColumn not available during initialization, will retry in 100ms');
+            setTimeout(() => {
+                if (typeof ContractColumn !== 'undefined') {
+                    window.columns.contract = new ContractColumn();
+                    window.contractColumn = window.columns.contract;
+                    console.log('✅ ContractColumn initialized on retry');
+                } else {
+                    console.error('❌ ContractColumn still not available after retry');
+                }
+            }, 100);
+        }
         
         // Test if column elements exist
         console.log('🔍 SCRIPT.JS: Testing column element availability:');
@@ -2082,7 +2097,17 @@ async function loadContractDataForColumn(contractAggregate) {
                 gpu_summary: calculateContractGpuSummary(selectedContract.hosts)
             };
             
-            window.columns.contract.update(standardizedData);
+            // Safety check to ensure contract column is initialized
+            if (window.columns && window.columns.contract && typeof window.columns.contract.update === 'function') {
+                window.columns.contract.update(standardizedData);
+            } else {
+                console.warn('⚠️ Contract column not properly initialized - skipping update');
+                console.log('Debug info:', {
+                    hasWindowColumns: !!window.columns,
+                    hasContractColumn: !!(window.columns && window.columns.contract),
+                    hasUpdateMethod: !!(window.columns && window.columns.contract && typeof window.columns.contract.update === 'function')
+                });
+            }
         } else {
             console.error(`❌ Contract ${contractAggregate} not found in response`);
             if (contractHostsList) {
