@@ -2025,16 +2025,34 @@ async function loadContractDataForColumn(contractAggregate) {
             contractHostsList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 small">Loading contract data...</p></div>';
         }
         
-        // Try to use already loaded data first (no API calls needed!)
+        // Contract is just an aggregate - get it from the same cached data as other columns
         let data = null;
-        if (window.OpenStack && typeof window.OpenStack.getContractAggregatesDirectly === 'function') {
-            data = window.OpenStack.getContractAggregatesDirectly(gpuType);
-            if (data) {
-                console.log('🚀 Using already loaded data for column - NO API CALL NEEDED');
-                if (contractHostsList) {
-                    contractHostsList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 small">Using loaded data...</p></div>';
+        if (window.gpuDataCache && window.gpuDataCache.has(gpuType)) {
+            const cachedData = window.gpuDataCache.get(gpuType);
+            if (cachedData && cachedData.data) {
+                // Look for the contract aggregate in the cached aggregate data
+                // Contract aggregate name is like "Contract-FLA-4145-0522-Flawless-16xRTX-A6000"
+                // It should be in the cached data just like runpod, spot, ondemand aggregates
+                const allAggregates = cachedData.data;
+                
+                // Find the contract aggregate by name
+                if (allAggregates[contractAggregate]) {
+                    data = {
+                        contracts: [{
+                            aggregate: contractAggregate,
+                            name: contractAggregate,
+                            hosts: allAggregates[contractAggregate].hosts || [],
+                            host_count: (allAggregates[contractAggregate].hosts || []).length
+                        }]
+                    };
+                    console.log('🚀 Using cached aggregate data for contract - NO API CALL NEEDED');
+                    console.log(`📋 Found contract aggregate "${contractAggregate}" with ${data.contracts[0].hosts.length} hosts`);
+                    
+                    if (contractHostsList) {
+                        contractHostsList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 small">Using cached data...</p></div>';
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 25));
                 }
-                await new Promise(resolve => setTimeout(resolve, 25));
             }
         }
         
@@ -2068,22 +2086,8 @@ async function loadContractDataForColumn(contractAggregate) {
         if (selectedContract) {
             console.log(`✅ Contract data loaded for column:`, selectedContract);
             
-            // Convert contract data to standard format like other columns
-            const standardizedData = {
-                name: selectedContract.name,
-                hosts: selectedContract.hosts.map(host => ({
-                    name: host.hostname,
-                    has_vms: (host.vm_count || 0) > 0,
-                    vm_count: host.vm_count || 0,
-                    tenant: extractTenantName(host),
-                    owner_group: extractTenantName(host) === 'Chris Starkey' ? 'Nexgen Cloud' : 'Investors',
-                    gpu_used: host.gpu_info?.gpu_used || 0,
-                    gpu_usage_ratio: host.gpu_info?.gpu_usage_ratio || `${host.gpu_info?.gpu_used || 0}/${host.gpu_info?.gpu_capacity || 8}`,
-                    nvlinks: host.nvlinks === true ? true : (host.nvlinks === false ? false : 'unknown'), // Use actual NetBox value or unknown
-                    variant: selectedContract.aggregate || selectedContract.name
-                })),
-                gpu_summary: calculateContractGpuSummary(selectedContract.hosts)
-            };
+            // Contract hosts should already be in standard format since they come from cached aggregate data
+            console.log(`📋 Contract hosts data structure:`, selectedContract.hosts[0]);
             
             // Update contract column with simple DOM manipulation (like other columns in legacy mode)
             const contractHostsList = document.getElementById('contractHostsList');
