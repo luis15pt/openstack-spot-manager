@@ -85,13 +85,26 @@ class ContractColumn extends BaseColumn {
         
         // Group hosts by contract aggregate to get counts
         const contractHostsMap = {};
-        allHosts.forEach(host => {
+        console.log('🔍 DEBUG: Contract hosts data structure:');
+        allHosts.forEach((host, index) => {
+            if (index < 3) { // Log first 3 hosts for debugging
+                console.log(`  Host ${index}: ${host.hostname}, aggregate: "${host.aggregate}"`);
+            }
             const contractAggregate = host.aggregate;
             if (!contractHostsMap[contractAggregate]) {
                 contractHostsMap[contractAggregate] = [];
             }
             contractHostsMap[contractAggregate].push(host);
         });
+        
+        console.log('🔍 DEBUG: Contracts list structure:');
+        contractsList.forEach((contract, index) => {
+            if (index < 3) { // Log first 3 contracts for debugging
+                console.log(`  Contract ${index}: ${contract.name}, aggregate: "${contract.aggregate}"`);
+            }
+        });
+        
+        console.log('🔍 DEBUG: Contract hosts map keys:', Object.keys(contractHostsMap));
         
         // Clear existing options except the first "Show All Contracts"
         dropdown.innerHTML = '<option value="">Show All Contracts</option>';
@@ -100,6 +113,8 @@ class ContractColumn extends BaseColumn {
         contractsList.forEach(contract => {
             const contractHosts = contractHostsMap[contract.aggregate] || [];
             const hostCount = contractHosts.length;
+            console.log(`🔍 Contract "${contract.name}": looking for aggregate "${contract.aggregate}", found ${hostCount} hosts`);
+            
             const hideEmpty = document.getElementById('hideEmptyContracts')?.checked || false;
             
             // Skip empty contracts if hide empty is checked
