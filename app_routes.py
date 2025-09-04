@@ -160,6 +160,7 @@ def register_routes(app):
             ondemand_hosts = []
             runpod_hosts = []
             spot_hosts = []
+            contract_hosts = []
             ondemand_host_variants = {}
             
             for host_data in all_hosts:
@@ -176,6 +177,12 @@ def register_routes(app):
                         if aggregate == variant['aggregate']:
                             ondemand_hosts.append(hostname)
                             ondemand_host_variants[hostname] = variant['variant']
+                            break
+                elif config.get('contracts'):
+                    # Check if this host belongs to any contract aggregate
+                    for contract in config['contracts']:
+                        if aggregate == contract['aggregate']:
+                            contract_hosts.append(hostname)
                             break
             
             def process_hosts_from_parallel_data(host_list, aggregate_type):
@@ -234,7 +241,7 @@ def register_routes(app):
             # OPTIMIZATION: Fast path for summary_only requests
             if summary_only:
                 total_time = time.time() - start_time
-                print(f"📊 SUMMARY MODE: {len(ondemand_hosts)} ondemand, {len(runpod_hosts)} runpod, {len(spot_hosts)} spot")
+                print(f"📊 SUMMARY MODE: {len(ondemand_hosts)} ondemand, {len(runpod_hosts)} runpod, {len(spot_hosts)} spot, {len(contract_hosts)} contracts")
                 print(f"⚡ Summary completed in {total_time:.2f}s (skipped expensive processing)")
                 
                 return jsonify({
@@ -255,13 +262,18 @@ def register_routes(app):
                         'host_count': len(spot_hosts),
                         'host_names': spot_hosts
                     },
+                    'contracts': {
+                        'name': f'Contracts ({len(config.get("contracts", []))} contracts)',
+                        'host_count': len(contract_hosts),
+                        'host_names': contract_hosts
+                    },
                     'performance': {
                         'total_time': total_time,
-                        'total_hosts': len(ondemand_hosts) + len(runpod_hosts) + len(spot_hosts)
+                        'total_hosts': len(ondemand_hosts) + len(runpod_hosts) + len(spot_hosts) + len(contract_hosts)
                     }
                 })
 
-            # Process all three aggregate types using parallel data
+            # Process all four aggregate types using parallel data
             processing_start = time.time()
             print(f"🏗️ Processing {len(ondemand_hosts)} ondemand hosts from parallel data...")
             ondemand_data = process_hosts_from_parallel_data(ondemand_hosts, 'ondemand')
@@ -271,6 +283,9 @@ def register_routes(app):
             
             print(f"🏗️ Processing {len(spot_hosts)} spot hosts from parallel data...")
             spot_data = process_hosts_from_parallel_data(spot_hosts, 'spot')
+            
+            print(f"🏗️ Processing {len(contract_hosts)} contract hosts from parallel data...")
+            contract_data = process_hosts_from_parallel_data(contract_hosts, 'contracts')
             
             processing_time = time.time() - processing_start
             print(f"🏁 All host processing completed in {processing_time:.2f}s")
@@ -288,10 +303,11 @@ def register_routes(app):
             ondemand_gpu_summary = calculate_gpu_summary(ondemand_data)
             runpod_gpu_summary = calculate_gpu_summary(runpod_data)
             spot_gpu_summary = calculate_gpu_summary(spot_data)
+            contract_gpu_summary = calculate_gpu_summary(contract_data)
             
-            # Overall GPU summary (On-Demand + RunPod + Spot)
-            total_gpu_used = ondemand_gpu_summary['gpu_used'] + runpod_gpu_summary['gpu_used'] + spot_gpu_summary['gpu_used']
-            total_gpu_capacity = ondemand_gpu_summary['gpu_capacity'] + runpod_gpu_summary['gpu_capacity'] + spot_gpu_summary['gpu_capacity']
+            # Overall GPU summary (On-Demand + RunPod + Spot + Contracts)
+            total_gpu_used = ondemand_gpu_summary['gpu_used'] + runpod_gpu_summary['gpu_used'] + spot_gpu_summary['gpu_used'] + contract_gpu_summary['gpu_used']
+            total_gpu_capacity = ondemand_gpu_summary['gpu_capacity'] + runpod_gpu_summary['gpu_capacity'] + spot_gpu_summary['gpu_capacity'] + contract_gpu_summary['gpu_capacity']
             gpu_usage_percentage = round((total_gpu_used / total_gpu_capacity * 100) if total_gpu_capacity > 0 else 0, 1)
             
             # Build on-demand name display
@@ -303,7 +319,7 @@ def register_routes(app):
                 ondemand_name = config['ondemand_variants'][0]['variant']
             
             total_time = time.time() - start_time
-            total_hosts = len(ondemand_hosts) + len(runpod_hosts) + len(spot_hosts)
+            total_hosts = len(ondemand_hosts) + len(runpod_hosts) + len(spot_hosts) + len(contract_hosts)
             
             # Performance logging
             print(f"🚀 PARALLEL AGENTS PERFORMANCE SUMMARY:")
@@ -331,6 +347,12 @@ def register_routes(app):
                     'name': config.get('spot', 'N/A'),
                     'hosts': spot_data,
                     'gpu_summary': spot_gpu_summary
+                },
+                'contracts': {
+                    'name': f'Contracts ({len(config.get("contracts", []))} contracts)',
+                    'hosts': contract_data,
+                    'gpu_summary': contract_gpu_summary,
+                    'contracts_list': config.get('contracts', [])
                 },
                 'gpu_overview': {
                     'total_gpu_used': total_gpu_used,
