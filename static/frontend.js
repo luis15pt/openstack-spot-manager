@@ -244,26 +244,10 @@ function renderAggregateData(data) {
         renderHosts('spotHosts', data.spot.hosts, 'spot', data.spot.name);
     }
     
-    // Update Contract column (v0.2) - use cached GPU data
-    console.log('🔍 Contract column check:', {
-        windowColumns: !!window.columns,
-        contract: !!window.columns?.contract,
-        contractType: typeof window.columns?.contract,
-        currentGpuType: window.currentGpuType,
-        hasCache: window.gpuDataCache && window.gpuDataCache.has(window.currentGpuType)
-    });
-    
-    if (window.columns && window.columns.contract && window.currentGpuType && window.gpuDataCache && window.gpuDataCache.has(window.currentGpuType)) {
-        console.log('🔄 Updating Contract column from renderAggregateData using cached GPU data');
-        const cachedData = window.gpuDataCache.get(window.currentGpuType);
-        if (cachedData && cachedData.data) {
-            console.log('🔍 About to call window.columns.contract.update() with data keys:', Object.keys(cachedData.data));
-            window.columns.contract.update(cachedData.data);
-        } else {
-            console.warn('⚠️ Cached data structure invalid:', cachedData);
-        }
-    } else {
-        console.warn('⚠️ Contract column or cached GPU data not available in renderAggregateData');
+    // Update Contract column (v0.2) - use same data as other columns
+    if (window.columns && window.columns.contract) {
+        console.log('🔄 Updating Contract column using same data as other columns');
+        window.columns.contract.update(data);
     }
     
     // Setup drag and drop
