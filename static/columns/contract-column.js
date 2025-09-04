@@ -198,13 +198,12 @@ class ContractColumn extends BaseColumn {
         // Update count for this contract
         this.updateCount(contractHosts.length);
         
-        // Calculate GPU stats for this contract only
+        // Calculate GPU stats for this contract only (standardized structure)
         let totalUsed = 0, totalCapacity = 0;
         contractHosts.forEach(host => {
-            if (host.gpu_info) {
-                totalUsed += host.gpu_info.gpu_used || 0;
-                totalCapacity += host.gpu_info.gpu_capacity || 0;
-            }
+            // GPU info is directly on host object in standardized structure
+            totalUsed += host.gpu_used || 0;
+            totalCapacity += host.gpu_capacity || 0;
         });
         
         const contractGpuSummary = {
