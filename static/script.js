@@ -333,11 +333,8 @@ function initializeEventListeners() {
                     window.contractColumnInitialized = true;
                     // Small delay to ensure DOM elements are ready
                     setTimeout(() => {
-                        // Update contract column using standard column pattern
-                        if (window.columns.contract && window.gpuDataCache && window.gpuDataCache.has(selectedType)) {
-                            const cachedData = window.gpuDataCache.get(selectedType);
-                            window.columns.contract.update(cachedData.data);
-                        }
+                        // Contract column will be updated via frontend.js renderAggregateData flow
+                        console.log('📋 Contract column will be updated via main data flow');
                     }, 100);
                 }).catch(error => {
                     console.error('❌ Error initializing contract column:', error);
@@ -347,11 +344,8 @@ function initializeEventListeners() {
                 // Contract column already initialized, just load data
                 // Small delay to ensure DOM elements are ready
                 setTimeout(() => {
-                    // Update contract column using standard column pattern
-                    if (window.columns.contract && window.gpuDataCache && window.gpuDataCache.has(selectedType)) {
-                        const cachedData = window.gpuDataCache.get(selectedType);
-                        window.columns.contract.update(cachedData.data);
-                    }
+                    // Contract column will be updated via frontend.js renderAggregateData flow
+                    console.log('📋 Contract column will be updated via main data flow');
                 }, 100);
             }
         } else {
@@ -398,11 +392,9 @@ function initializeEventListeners() {
                 console.log(`📋 Hide empty contracts toggled: ${this.checked}`);
                 // Refresh the contract dropdown to apply the filter
                 if (window.currentGpuType) {
-                    // Update contract column using standard column pattern
-                    if (window.columns.contract && window.gpuDataCache && window.gpuDataCache.has(window.currentGpuType)) {
-                        const cachedData = window.gpuDataCache.get(window.currentGpuType);
-                        window.columns.contract.update(cachedData.data);
-                    }
+                    // Trigger a fresh data load which will update contract column via frontend.js
+                    console.log('📋 Triggering fresh data load for contract filter change');
+                    document.getElementById('gpuTypeSelect').dispatchEvent(new Event('change'));
                 }
             });
             hideEmptyCheckbox.setAttribute('data-listener-attached', 'true');
@@ -415,11 +407,9 @@ function initializeEventListeners() {
         console.log('🔄 Refreshing contract column');
         const gpuType = window.currentGpuType;
         if (gpuType) {
-            // Update contract column using standard column pattern
-            if (window.columns.contract && window.gpuDataCache && window.gpuDataCache.has(gpuType)) {
-                const cachedData = window.gpuDataCache.get(gpuType);
-                window.columns.contract.update(cachedData.data);
-            }
+            // Trigger a fresh data load which will update contract column via frontend.js
+            console.log('📋 Triggering fresh data load for contract refresh');
+            document.getElementById('gpuTypeSelect').dispatchEvent(new Event('change'));
         }
     });
     
