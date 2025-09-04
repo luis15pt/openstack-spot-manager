@@ -135,6 +135,36 @@ body {
     height: calc(100vh - 200px);
 }
 
+/* Uniform column header styling */
+.aggregate-column .card {
+    height: 100%; /* Ensure all cards fill the column height uniformly */
+}
+
+.aggregate-column .card-header {
+    min-height: 90px; /* Consistent header height for all columns */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 12px 16px; /* Consistent padding */
+}
+
+.aggregate-column .card-header h4 {
+    margin-bottom: 8px; /* Consistent margin */
+    min-height: 30px; /* Consistent title area height */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.aggregate-column .card-header .mt-2 {
+    margin-top: 8px !important; /* Consistent spacing for usage info */
+}
+
+.aggregate-column .card-body {
+    padding: 16px; /* Consistent body padding */
+    overflow-y: auto; /* Consistent scroll behavior */
+}
+
 /* Adjust card header font sizes for better fit in smaller columns */
 .aggregate-column .card-header h4 {
     font-size: 1.1rem; /* Slightly smaller header font */
@@ -142,6 +172,13 @@ body {
 
 .aggregate-column .card-header small {
     font-size: 0.8rem; /* Smaller usage text */
+}
+
+/* Uniform progress bars in all column headers */
+.aggregate-column .card-header .progress {
+    height: 6px !important; /* Consistent progress bar height */
+    margin-top: 4px !important; /* Consistent margin */
+    border-radius: 3px; /* Consistent rounded corners */
 }
 
 .drop-zone {
@@ -163,9 +200,14 @@ body {
 
 /* Enhanced styling for card-body drop zones */
 .card-body.drop-zone {
-    min-height: 300px;
+    min-height: 400px; /* Increased uniform minimum height for all columns */
     position: relative;
     transition: all 0.3s ease;
+}
+
+/* Special handling for Contract column which has controls */
+#contractHosts.drop-zone {
+    min-height: 320px; /* Slightly less to account for selection controls */
 }
 
 .card-body.drop-zone.drag-over {
