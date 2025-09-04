@@ -48,28 +48,40 @@ class ContractColumn extends BaseColumn {
         }
         
         const gpuData = allData[currentGpuType];
-        // The cached data structure has aggregates as top-level keys under gpuData
-        const aggregates = gpuData || {};
         
-        console.log('🔍 ContractColumn DEBUG: allData structure:', allData);
-        console.log('🔍 ContractColumn DEBUG: gpuData structure:', gpuData);
-        console.log('🔍 ContractColumn DEBUG: aggregates keys:', Object.keys(aggregates));
+        console.log('🔍 ContractColumn DEBUG: allData structure keys:', Object.keys(allData));
+        console.log('🔍 ContractColumn DEBUG: gpuData structure keys:', Object.keys(gpuData || {}));
+        console.log('🔍 ContractColumn DEBUG: gpuData.config:', gpuData?.config);
         
-        // Find contract aggregates (those with "contract" in the name)
-        const allContractEntries = Object.entries(aggregates).filter(([name, data]) => {
-            return name.toLowerCase().includes('contract');
-        });
+        // Contract info is in gpuData.config.contracts, but hosts need to be filtered from all hosts
+        const contractsConfig = gpuData?.config?.contracts || [];
+        const allHosts = gpuData?.hosts || [];
         
-        console.log('🔍 ContractColumn DEBUG: found contract entries:', allContractEntries.map(([name, data]) => ({
-            name, 
-            hasHosts: !!(data && data.hosts),
-            hostCount: (data && data.hosts) ? data.hosts.length : 0,
-            dataKeys: data ? Object.keys(data) : []
-        })));
+        console.log('🔍 ContractColumn DEBUG: contracts config:', contractsConfig);
+        console.log('🔍 ContractColumn DEBUG: total hosts available:', allHosts.length);
         
-        // Always get all contract aggregates, filtering will be done by checkbox
-        const contractAggregates = allContractEntries.filter(([name, data]) => {
-            return data;  // Just require data to exist
+        // Build contract aggregates by filtering hosts that belong to each contract
+        const contractAggregates = [];
+        
+        contractsConfig.forEach(contractInfo => {
+            const contractAggregateName = contractInfo.aggregate;
+            
+            // Filter hosts that belong to this contract aggregate
+            const contractHosts = allHosts.filter(host => 
+                host.aggregate === contractAggregateName
+            );
+            
+            console.log(`🔍 ContractColumn DEBUG: Contract "${contractAggregateName}":`, {
+                hostCount: contractHosts.length,
+                sampleHost: contractHosts[0]?.hostname || 'none'
+            });
+            
+            // Create aggregate entry with filtered hosts
+            contractAggregates.push([contractAggregateName, {
+                hosts: contractHosts,
+                aggregate: contractAggregateName,
+                name: contractInfo.name || contractAggregateName
+            }]);
         });
         
         if (contractAggregates.length === 0) {
