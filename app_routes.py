@@ -162,6 +162,7 @@ def register_routes(app):
             spot_hosts = []
             contract_hosts = []
             ondemand_host_variants = {}
+            contract_host_mappings = {}  # hostname -> contract info
             
             for host_data in all_hosts:
                 hostname = host_data['hostname']
@@ -184,6 +185,11 @@ def register_routes(app):
                     for contract in config['contracts']:
                         if aggregate == contract['aggregate']:
                             contract_hosts.append(hostname)
+                            # Store contract info for this host (similar to ondemand variants)
+                            contract_host_mappings[hostname] = {
+                                'contract_aggregate': contract['aggregate'],
+                                'contract_name': contract['name']
+                            }
                             break
             
             def process_hosts_from_parallel_data(host_list, aggregate_type):
@@ -206,7 +212,7 @@ def register_routes(app):
                         'gpu_usage_ratio': '0/8'
                     }) if include_gpu_info else {'gpu_used': 0, 'gpu_capacity': 8, 'gpu_usage_ratio': '0/8'}
                     
-                    if aggregate_type in ['spot', 'ondemand']:
+                    if aggregate_type in ['spot', 'ondemand', 'contracts']:
                         host_data = {
                             'name': hostname,
                             'vm_count': vm_count,
@@ -221,6 +227,11 @@ def register_routes(app):
                         # Add variant information for on-demand hosts
                         if aggregate_type == 'ondemand' and hostname in ondemand_host_variants:
                             host_data['variant'] = ondemand_host_variants[hostname]
+                        # Add contract information for contract hosts
+                        elif aggregate_type == 'contracts' and hostname in contract_host_mappings:
+                            contract_info = contract_host_mappings[hostname]
+                            host_data['contract_aggregate'] = contract_info['contract_aggregate']
+                            host_data['contract_name'] = contract_info['contract_name']
                     else:
                         # For Runpod hosts
                         host_data = {

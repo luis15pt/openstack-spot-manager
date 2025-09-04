@@ -83,18 +83,24 @@ class ContractColumn extends BaseColumn {
         
         const { allHosts, contractsList } = this.contractData;
         
-        // Group hosts by contract aggregate to get counts
+        // Group hosts by contract using the contract_aggregate field (same pattern as ondemand variants)
         const contractHostsMap = {};
-        console.log('🔍 DEBUG: Contract hosts data structure:');
+        console.log('🔍 DEBUG: Contract hosts data structure (standardized):');
         allHosts.forEach((host, index) => {
             if (index < 3) { // Log first 3 hosts for debugging
-                console.log(`  Host ${index}: ${host.hostname}, aggregate: "${host.aggregate}"`);
+                console.log(`  Host ${index}: ${host.name}, contract_aggregate: "${host.contract_aggregate}", contract_name: "${host.contract_name}"`);
             }
-            const contractAggregate = host.aggregate;
-            if (!contractHostsMap[contractAggregate]) {
-                contractHostsMap[contractAggregate] = [];
+            
+            // Group by contract_aggregate (similar to how ondemand groups by variant)
+            const contractAggregate = host.contract_aggregate;
+            if (contractAggregate) {
+                if (!contractHostsMap[contractAggregate]) {
+                    contractHostsMap[contractAggregate] = [];
+                }
+                contractHostsMap[contractAggregate].push(host);
+            } else {
+                console.warn('⚠️ Contract host without contract_aggregate:', host);
             }
-            contractHostsMap[contractAggregate].push(host);
         });
         
         console.log('🔍 DEBUG: Contracts list structure:');
@@ -185,7 +191,7 @@ class ContractColumn extends BaseColumn {
         if (!this.contractData) return;
         
         const { allHosts, contractsList } = this.contractData;
-        const contractHosts = allHosts.filter(host => host.aggregate === contractAggregate);
+        const contractHosts = allHosts.filter(host => host.contract_aggregate === contractAggregate);
         
         console.log(`🔍 Showing ${contractHosts.length} hosts for contract: ${contractAggregate}`);
         
