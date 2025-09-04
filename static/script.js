@@ -136,22 +136,7 @@ document.addEventListener('DOMContentLoaded', function() {
             runpod: new RunpodColumn(),
             spot: new SpotColumn(),
             ondemand: new OndemandColumn(),
-            contract: (() => {
-                try {
-                    if (typeof ContractColumn !== 'undefined') {
-                        console.log('✅ ContractColumn class is available, creating instance...');
-                        const instance = new ContractColumn();
-                        console.log('✅ ContractColumn instance created successfully:', instance);
-                        return instance;
-                    } else {
-                        console.warn('⚠️ ContractColumn class not available during initialization');
-                        return null;
-                    }
-                } catch (error) {
-                    console.error('❌ Error creating ContractColumn instance:', error);
-                    return null;
-                }
-            })(),
+            contract: null, // Contract column uses direct DOM manipulation
             outofstock: new OutOfStockColumn()
         };
         
@@ -163,25 +148,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('🔍 SCRIPT.JS: Contract column:', window.columns.contract);
         console.log('🔍 SCRIPT.JS: Out of Stock column:', window.columns.outofstock);
         
-        // If ContractColumn wasn't available initially, try to create it after a delay
-        if (!window.columns.contract) {
-            console.warn('⚠️ ContractColumn not available during initialization, will retry in 100ms');
-            setTimeout(() => {
-                try {
-                    if (typeof ContractColumn !== 'undefined') {
-                        console.log('🔄 Retrying ContractColumn initialization...');
-                        window.columns.contract = new ContractColumn();
-                        window.contractColumn = window.columns.contract;
-                        console.log('✅ ContractColumn initialized on retry:', window.columns.contract);
-                    } else {
-                        console.error('❌ ContractColumn still not available after retry');
-                        console.log('Available classes:', Object.getOwnPropertyNames(window).filter(name => name.includes('Column')));
-                    }
-                } catch (error) {
-                    console.error('❌ Error during ContractColumn retry:', error);
-                }
-            }, 100);
-        }
+        // Contract column uses direct DOM manipulation, no complex initialization needed
         
         // Test if column elements exist
         console.log('🔍 SCRIPT.JS: Testing column element availability:');
