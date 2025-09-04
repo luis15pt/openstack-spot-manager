@@ -136,7 +136,22 @@ document.addEventListener('DOMContentLoaded', function() {
             runpod: new RunpodColumn(),
             spot: new SpotColumn(),
             ondemand: new OndemandColumn(),
-            contract: typeof ContractColumn !== 'undefined' ? new ContractColumn() : null,
+            contract: (() => {
+                try {
+                    if (typeof ContractColumn !== 'undefined') {
+                        console.log('✅ ContractColumn class is available, creating instance...');
+                        const instance = new ContractColumn();
+                        console.log('✅ ContractColumn instance created successfully:', instance);
+                        return instance;
+                    } else {
+                        console.warn('⚠️ ContractColumn class not available during initialization');
+                        return null;
+                    }
+                } catch (error) {
+                    console.error('❌ Error creating ContractColumn instance:', error);
+                    return null;
+                }
+            })(),
             outofstock: new OutOfStockColumn()
         };
         
@@ -152,12 +167,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!window.columns.contract) {
             console.warn('⚠️ ContractColumn not available during initialization, will retry in 100ms');
             setTimeout(() => {
-                if (typeof ContractColumn !== 'undefined') {
-                    window.columns.contract = new ContractColumn();
-                    window.contractColumn = window.columns.contract;
-                    console.log('✅ ContractColumn initialized on retry');
-                } else {
-                    console.error('❌ ContractColumn still not available after retry');
+                try {
+                    if (typeof ContractColumn !== 'undefined') {
+                        console.log('🔄 Retrying ContractColumn initialization...');
+                        window.columns.contract = new ContractColumn();
+                        window.contractColumn = window.columns.contract;
+                        console.log('✅ ContractColumn initialized on retry:', window.columns.contract);
+                    } else {
+                        console.error('❌ ContractColumn still not available after retry');
+                        console.log('Available classes:', Object.getOwnPropertyNames(window).filter(name => name.includes('Column')));
+                    }
+                } catch (error) {
+                    console.error('❌ Error during ContractColumn retry:', error);
                 }
             }, 100);
         }
@@ -2097,16 +2118,43 @@ async function loadContractDataForColumn(contractAggregate) {
                 gpu_summary: calculateContractGpuSummary(selectedContract.hosts)
             };
             
-            // Safety check to ensure contract column is initialized
-            if (window.columns && window.columns.contract && typeof window.columns.contract.update === 'function') {
-                window.columns.contract.update(standardizedData);
-            } else {
-                console.warn('⚠️ Contract column not properly initialized - skipping update');
-                console.log('Debug info:', {
-                    hasWindowColumns: !!window.columns,
-                    hasContractColumn: !!(window.columns && window.columns.contract),
-                    hasUpdateMethod: !!(window.columns && window.columns.contract && typeof window.columns.contract.update === 'function')
+            // Update contract column with simple DOM manipulation (like other columns in legacy mode)
+            const contractHostsList = document.getElementById('contractHostsList');
+            if (contractHostsList && selectedContract.hosts) {
+                console.log(`✅ Updating contract column with ${selectedContract.hosts.length} hosts`);
+                
+                let hostsHtml = '';
+                selectedContract.hosts.forEach(host => {
+                    const vmStatus = host.has_vms ? 'In Use' : 'Available';
+                    const statusClass = host.has_vms ? 'text-warning' : 'text-success';
+                    
+                    hostsHtml += `
+                        <div class="machine-card mb-2" data-host="${host.name}">
+                            <div class="card-body p-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>${host.name}</strong>
+                                        <small class="${statusClass} d-block">${vmStatus}</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <small>GPUs: ${host.gpu_usage_ratio}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
                 });
+                
+                contractHostsList.innerHTML = hostsHtml;
+                
+                // Update contract name and counts
+                const contractNameEl = document.getElementById('contractName');
+                const contractCountEl = document.getElementById('contractHostCount');
+                
+                if (contractNameEl) contractNameEl.textContent = selectedContract.name;
+                if (contractCountEl) contractCountEl.textContent = selectedContract.hosts.length;
+                
+                console.log(`✅ Contract column updated with direct DOM manipulation`);
             }
         } else {
             console.error(`❌ Contract ${contractAggregate} not found in response`);
