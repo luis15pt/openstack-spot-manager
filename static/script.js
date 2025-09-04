@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function() {
             runpod: new RunpodColumn(),
             spot: new SpotColumn(),
             ondemand: new OndemandColumn(),
-            contract: null, // Contract column uses direct DOM manipulation
+            contract: new ContractColumn(),
             outofstock: new OutOfStockColumn()
         };
         
@@ -333,7 +333,11 @@ function initializeEventListeners() {
                     window.contractColumnInitialized = true;
                     // Small delay to ensure DOM elements are ready
                     setTimeout(() => {
-                        loadContractAggregatesForColumn(selectedType);
+                        // Update contract column using standard column pattern
+                        if (window.columns.contract && window.gpuDataCache && window.gpuDataCache.has(selectedType)) {
+                            const cachedData = window.gpuDataCache.get(selectedType);
+                            window.columns.contract.update(cachedData.data);
+                        }
                     }, 100);
                 }).catch(error => {
                     console.error('❌ Error initializing contract column:', error);
@@ -343,7 +347,11 @@ function initializeEventListeners() {
                 // Contract column already initialized, just load data
                 // Small delay to ensure DOM elements are ready
                 setTimeout(() => {
-                    loadContractAggregatesForColumn(selectedType);
+                    // Update contract column using standard column pattern
+                    if (window.columns.contract && window.gpuDataCache && window.gpuDataCache.has(selectedType)) {
+                        const cachedData = window.gpuDataCache.get(selectedType);
+                        window.columns.contract.update(cachedData.data);
+                    }
                 }, 100);
             }
         } else {
@@ -367,14 +375,15 @@ function initializeEventListeners() {
                 const selectedContract = this.value;
                 if (selectedContract && selectedContract !== '__ALL__') {
                     console.log(`📋 Selected specific contract from column: ${selectedContract}`);
-                    loadContractDataForColumn(selectedContract);
+                    // Use ContractColumn selectContract method instead of separate loading
+                    if (window.columns.contract && window.columns.contract.selectContract) {
+                        window.columns.contract.selectContract(selectedContract);
+                    }
                 } else {
-                    // When "Show All Contracts" is selected, reload overall contract statistics
-                    console.log(`📋 Show All Contracts selected, showing overall statistics`);
-                    if (window.currentGpuType) {
-                        loadContractAggregatesForColumn(window.currentGpuType);
-                    } else {
-                        clearContractHosts();
+                    // When "Show All Contracts" is selected, show all contracts
+                    console.log(`📋 Show All Contracts selected, showing all contracts`);
+                    if (window.columns.contract && window.columns.contract.selectContract) {
+                        window.columns.contract.selectContract('');
                     }
                 }
             });
@@ -389,7 +398,11 @@ function initializeEventListeners() {
                 console.log(`📋 Hide empty contracts toggled: ${this.checked}`);
                 // Refresh the contract dropdown to apply the filter
                 if (window.currentGpuType) {
-                    loadContractAggregatesForColumn(window.currentGpuType);
+                    // Update contract column using standard column pattern
+                    if (window.columns.contract && window.gpuDataCache && window.gpuDataCache.has(window.currentGpuType)) {
+                        const cachedData = window.gpuDataCache.get(window.currentGpuType);
+                        window.columns.contract.update(cachedData.data);
+                    }
                 }
             });
             hideEmptyCheckbox.setAttribute('data-listener-attached', 'true');
@@ -402,7 +415,11 @@ function initializeEventListeners() {
         console.log('🔄 Refreshing contract column');
         const gpuType = window.currentGpuType;
         if (gpuType) {
-            loadContractAggregatesForColumn(gpuType);
+            // Update contract column using standard column pattern
+            if (window.columns.contract && window.gpuDataCache && window.gpuDataCache.has(gpuType)) {
+                const cachedData = window.gpuDataCache.get(gpuType);
+                window.columns.contract.update(cachedData.data);
+            }
         }
     });
     
@@ -1947,8 +1964,10 @@ async function loadContractAggregatesForColumn(gpuType) {
                 if (optionExists) {
                     contractSelect.value = currentSelection;
                     console.log(`🔄 Restored contract selection: ${currentSelection}`);
-                    // Reload the contract data to maintain the display
-                    loadContractDataForColumn(currentSelection);
+                    // Select the current contract to maintain the display
+                    if (window.columns.contract && window.columns.contract.selectContract) {
+                        window.columns.contract.selectContract(currentSelection);
+                    }
                 } else {
                     // Current selection no longer exists, show overall contract statistics
                     loadOverallContractStatistics(data.contracts);

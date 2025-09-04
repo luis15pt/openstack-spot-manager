@@ -36,51 +36,75 @@ class ContractColumn extends BaseColumn {
     }
 
     /**
-     * Update contract column with optimized rendering and caching
+     * Update contract column using cached aggregate data - contracts are just aggregates
      */
     update(allData) {
+        // Contract aggregates are just regular aggregates - use same cached data structure
+        const currentGpuType = window.currentGpuType;
         
-        // Unified data structure parser - handles all formats efficiently
-        const { contracts, contractHosts } = this.parseContractData(allData);
-        
-        if (contracts.length === 0) {
+        if (!currentGpuType || !allData || !allData[currentGpuType]) {
             this.renderEmptyContracts();
             return;
         }
         
-        // Calculate total hosts and GPU stats across all contracts
+        const gpuData = allData[currentGpuType];
+        // The cached data structure has aggregates as top-level keys under gpuData
+        const aggregates = gpuData || {};
+        
+        console.log('🔍 ContractColumn DEBUG: allData structure:', allData);
+        console.log('🔍 ContractColumn DEBUG: gpuData structure:', gpuData);
+        console.log('🔍 ContractColumn DEBUG: aggregates keys:', Object.keys(aggregates));
+        
+        // Find contract aggregates (those with "contract" in the name)
+        const allContractEntries = Object.entries(aggregates).filter(([name, data]) => {
+            return name.toLowerCase().includes('contract');
+        });
+        
+        console.log('🔍 ContractColumn DEBUG: found contract entries:', allContractEntries.map(([name, data]) => ({
+            name, 
+            hasHosts: !!(data && data.hosts),
+            hostCount: (data && data.hosts) ? data.hosts.length : 0,
+            dataKeys: data ? Object.keys(data) : []
+        })));
+        
+        const contractAggregates = allContractEntries.filter(([name, data]) => {
+            return data && data.hosts && data.hosts.length > 0;
+        });
+        
+        if (contractAggregates.length === 0) {
+            this.renderEmptyContracts();
+            return;
+        }
+        
+        // Calculate total stats
         let totalHosts = 0;
         let totalGpuUsed = 0;
         let totalGpuCapacity = 0;
         
         const contractsWithHosts = [];
         
-        // Process each contract
-        contracts.forEach(contract => {
-            const contractHostsForThisContract = contractHosts.filter(host => 
-                host.aggregate === contract.aggregate
-            );
-            
-            if (contractHostsForThisContract.length > 0) {
-                // Calculate GPU stats for this contract
+        contractAggregates.forEach(([aggregateName, aggregateData]) => {
+            const hosts = aggregateData.hosts || [];
+            if (hosts.length > 0) {
+                // Calculate GPU stats
                 let contractGpuUsed = 0;
                 let contractGpuCapacity = 0;
                 
-                contractHostsForThisContract.forEach(host => {
-                    const gpuInfo = host.gpu_info || {};
-                    contractGpuUsed += gpuInfo.gpu_used || 0;
-                    contractGpuCapacity += gpuInfo.gpu_capacity || 8;
+                hosts.forEach(host => {
+                    contractGpuUsed += host.gpu_used || 0;
+                    contractGpuCapacity += host.gpu_capacity || 8;
                 });
                 
                 contractsWithHosts.push({
-                    ...contract,
-                    hosts: contractHostsForThisContract,
-                    hostCount: contractHostsForThisContract.length,
+                    aggregate: aggregateName,
+                    name: aggregateName,
+                    hosts: hosts,
+                    hostCount: hosts.length,
                     gpuUsed: contractGpuUsed,
                     gpuCapacity: contractGpuCapacity
                 });
                 
-                totalHosts += contractHostsForThisContract.length;
+                totalHosts += hosts.length;
                 totalGpuUsed += contractGpuUsed;
                 totalGpuCapacity += contractGpuCapacity;
             }
@@ -98,14 +122,14 @@ class ContractColumn extends BaseColumn {
         };
         this.updateGpuStats(gpuSummary);
         
-        // Work with existing UI controls instead of hiding them
+        // Setup UI controls
         this.populateContractSelector(contractsWithHosts);
         this.setupHideEmptyCheckbox();
         
-        // Render all contracts with nested groups
+        // Render contracts
         this.renderAllContracts(contractsWithHosts);
         
-        // Apply current filter settings using cached elements
+        // Apply filters
         const contractSelect = this.getCachedElement('contractSelect', 'contractColumnSelect');
         const hideEmptyCheckbox = this.getCachedElement('hideEmptyCheckbox', 'hideEmptyContracts');
         if (contractSelect?.value) {
@@ -325,35 +349,6 @@ class ContractColumn extends BaseColumn {
                 }
             }
         });
-    }
-}
-
-    /**
-     * Unified data structure parser - consolidates 3 different parsers into one
-     * Handles parallel agents, individual GPU type, and contract aggregates API formats
-     */
-    parseContractData(allData) {
-        const currentGpuType = window.currentGpuType;
-        
-        // Try parallel agents format first (most common)
-        if (currentGpuType && allData[currentGpuType]) {
-            const gpuData = allData[currentGpuType];
-            return {
-                contracts: gpuData.config?.contracts || [],
-                contractHosts: gpuData.hosts || []
-            };
-        }
-        
-        // Handle direct contracts array formats (both individual and API)
-        if (allData.contracts && Array.isArray(allData.contracts)) {
-            const contracts = allData.contracts;
-            // Extract hosts efficiently using flatMap
-            const contractHosts = contracts.flatMap(contract => contract.hosts || []);
-            return { contracts, contractHosts };
-        }
-        
-        // No valid format found
-        return { contracts: [], contractHosts: [] };
     }
 }
 
