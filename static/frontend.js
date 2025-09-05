@@ -936,6 +936,48 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
             return;
         }
         
+        // Extract GPU types from aggregate names for validation
+        const extractGpuType = (aggregateName) => {
+            if (!aggregateName) return null;
+            // Extract base GPU type from aggregate name
+            const parts = aggregateName.split('-');
+            if (parts.length < 2) return null;
+            
+            // Handle special cases for common GPU types
+            if (parts[0] === 'RTX') {
+                if (parts[1] === 'PRO6000' && parts[2] === 'SE') {
+                    return 'RTX-PRO6000-SE';  // RTX-PRO6000-SE-n3 -> RTX-PRO6000-SE
+                } else {
+                    return `${parts[0]}-${parts[1]}`;  // RTX-A6000-n3 -> RTX-A6000
+                }
+            } else if (['H100', 'A100', 'L40', 'H200'].includes(parts[0])) {
+                if (parts[0] === 'H100' && parts[1] === 'SXM5') {
+                    return parts[2] === 'GB' ? 'H100-SXM5-GB' : 'H100-SXM5';  // Handle H100-SXM5-GB vs H100-SXM5
+                } else if (parts[0] === 'H200' && parts[1] === 'SXM5') {
+                    return 'H200-SXM5';  // H200-SXM5-n3 -> H200-SXM5
+                } else {
+                    return parts[0];  // H100, A100, L40, H200
+                }
+            }
+            return parts[0];  // Fallback to first part
+        };
+        
+        const sourceGpuType = extractGpuType(sourceAggregate);
+        const targetGpuType = extractGpuType(targetAggregate);
+        
+        // Validate GPU type compatibility
+        if (sourceGpuType && targetGpuType && sourceGpuType !== targetGpuType) {
+            console.log('❌ Invalid GPU type migration:', {
+                hostname,
+                sourceAggregate,
+                targetAggregate,
+                sourceGpuType,
+                targetGpuType
+            });
+            showNotification(`❌ Cannot migrate ${hostname}: GPU types don't match (${sourceGpuType} → ${targetGpuType})`, 'error');
+            return;
+        }
+        
         // For on-demand moves with variants, check NVLink compatibility
         if (targetType === 'ondemand' && targetVariant && aggregateData.ondemand?.variants) {
             const hostCard = document.querySelector(`[data-host="${hostname}"]`);
