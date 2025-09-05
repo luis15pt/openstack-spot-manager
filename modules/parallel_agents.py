@@ -71,10 +71,7 @@ def get_all_data_parallel():
             results = {}
             for agent_name, future in futures.items():
                 try:
-                    agent_start = time.time()
                     results[agent_name] = future.result()
-                    agent_time = time.time() - agent_start
-                    print(f"✅ {agent_name.title()} Agent completed in {agent_time:.2f}s")
                 except Exception as e:
                     print(f"❌ {agent_name.title()} Agent failed: {e}")
                     results[agent_name] = {}
@@ -318,7 +315,6 @@ def organize_parallel_results(results):
     """
     Organize the parallel agent results by GPU type
     """
-    print("📊 Organizing parallel results by GPU type...")
     start_time = time.time()
     
     netbox_data = results.get('netbox', {})
@@ -331,7 +327,6 @@ def organize_parallel_results(results):
     
     # Classify aggregates by GPU type using the aggregate data we already collected
     aggregates_dict = aggregate_data.get('aggregates', {})
-    print(f"📊 Organizing {len(aggregates_dict)} aggregates by GPU type...")
     gpu_aggregates = classify_aggregates_by_gpu_type(aggregates_dict)
     
     # Build final organized structure
@@ -388,8 +383,6 @@ def organize_parallel_results(results):
             'total_hosts': len(host_details)
         }
     
-    elapsed = time.time() - start_time
-    print(f"📊 Organization completed in {elapsed:.2f}s - {len(organized)} GPU types")
     return organized
 
 def classify_aggregates_by_gpu_type(aggregates_dict):
