@@ -736,17 +736,18 @@ def register_routes(app):
             # For partial operations (add/remove only), we may need cache updates too
             cache_update_success = True  # Assume success for full migrations
             
-            # For individual add/remove operations, also try smart cache updates
+            # For individual add/remove operations, we don't need to refresh parallel cache
+            # Only aggregate membership changes, not host data (VMs, GPU usage, etc.)
             if operation in ['add', 'remove'] and len(results) > 0 and results[-1]['success']:
-                from modules.parallel_agents import update_host_aggregate_in_cache
-                
-                if operation == 'add':
-                    # For add operations, we need to know the old aggregate (not easily available)
-                    # For now, fall back to normal cache clearing for safety
-                    cache_update_success = False
-                elif operation == 'remove' and source_aggregate:
-                    # For remove operations, we're removing from source, but where is it going?
-                    # Fall back to normal cache clearing for safety
+                print(f"✅ Individual {operation} operation completed - no parallel cache refresh needed")
+                # Only clear aggregate membership cache, not expensive parallel data
+                try:
+                    from modules.aggregate_operations import clear_host_aggregate_cache
+                    cleared_host = clear_host_aggregate_cache()
+                    print(f"✅ Cleared aggregate membership cache: {cleared_host} entries")
+                    cache_update_success = True  # Skip expensive parallel cache refresh
+                except Exception as e:
+                    print(f"⚠️ Failed to clear aggregate cache: {e}")
                     cache_update_success = False
             
             # Fallback to full cache refresh only if smart updates failed or for non-full operations
