@@ -736,36 +736,17 @@ def register_routes(app):
             # For partial operations (add/remove only), we may need cache updates too
             cache_update_success = True  # Assume success for full migrations
             
-            # For individual add/remove operations, use smart cache updates when we have both source and target
+            # For individual add/remove operations, just clear aggregate cache (smart updates already done for full migrations)
             if operation in ['add', 'remove'] and len(results) > 0 and results[-1]['success']:
-                # Only do smart updates if we have both source and target (i.e., this is part of a migration)
-                if source_aggregate and target_aggregate and source_aggregate != target_aggregate:
-                    try:
-                        from modules.parallel_agents import update_host_aggregate_in_cache
-                        cache_updated = update_host_aggregate_in_cache(host, source_aggregate, target_aggregate)
-                        if cache_updated:
-                            print(f"✅ Smart cache update: moved {host} from {source_aggregate} to {target_aggregate}")
-                            cache_update_success = True
-                        else:
-                            print(f"⚠️ Smart cache update failed - clearing aggregate cache instead")
-                            cache_update_success = False
-                    except Exception as e:
-                        print(f"⚠️ Smart cache update error: {e}")
-                        cache_update_success = False
-                else:
-                    print(f"✅ Individual {operation} operation completed - no migration context for smart update")
+                print(f"✅ Individual {operation} operation completed - clearing aggregate cache")
+                try:
+                    from modules.aggregate_operations import clear_host_aggregate_cache
+                    cleared_host = clear_host_aggregate_cache()
+                    print(f"✅ Cleared aggregate membership cache: {cleared_host} entries")
+                    cache_update_success = True  # Prevent expensive full refresh
+                except Exception as e:
+                    print(f"⚠️ Failed to clear aggregate cache: {e}")
                     cache_update_success = False
-                
-                # Fallback: clear aggregate membership cache
-                if not cache_update_success:
-                    try:
-                        from modules.aggregate_operations import clear_host_aggregate_cache
-                        cleared_host = clear_host_aggregate_cache()
-                        print(f"✅ Cleared aggregate membership cache: {cleared_host} entries")
-                        cache_update_success = True  # Prevent expensive full refresh
-                    except Exception as e:
-                        print(f"⚠️ Failed to clear aggregate cache: {e}")
-                        cache_update_success = False
             
             # Fallback to full cache refresh only if smart updates failed or for non-full operations
             if not cache_update_success:
