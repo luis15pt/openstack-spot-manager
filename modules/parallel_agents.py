@@ -563,3 +563,79 @@ def get_parallel_cache_stats():
             time.time() - ts for ts in _cache_timestamps.values()
         ]) if _cache_timestamps else 0
     }
+
+def update_host_vm_count_in_cache(hostname, new_vm_count):
+    """
+    Intelligently update a specific host's VM count in the cache without full refresh
+    This keeps the cache fresh while providing instant UI feedback
+    """
+    cache_key = "all_parallel_data"
+    
+    with _cache_lock:
+        if cache_key not in _parallel_cache:
+            print(f"⚠️ No cache data to update for {hostname}")
+            return False
+        
+        cache_data = _parallel_cache[cache_key]
+        updated_count = 0
+        
+        # Search through all GPU types to find this host
+        for gpu_type, gpu_data in cache_data.items():
+            if 'hosts' in gpu_data:
+                for host_detail in gpu_data['hosts']:
+                    if host_detail['hostname'] == hostname:
+                        old_count = host_detail['vm_count']
+                        host_detail['vm_count'] = new_vm_count
+                        updated_count += 1
+                        print(f"🔄 Updated {hostname} VM count: {old_count} -> {new_vm_count} in {gpu_type} cache")
+        
+        if updated_count > 0:
+            print(f"✅ Successfully updated VM count for {hostname} in {updated_count} cache locations")
+            return True
+        else:
+            print(f"⚠️ Host {hostname} not found in cache data")
+            return False
+
+def update_host_aggregate_in_cache(hostname, old_aggregate, new_aggregate):
+    """
+    Intelligently update a host's aggregate location in cache (for migrations)
+    This moves the host data between aggregates without full refresh
+    """
+    cache_key = "all_parallel_data"
+    
+    with _cache_lock:
+        if cache_key not in _parallel_cache:
+            print(f"⚠️ No cache data to update for {hostname}")
+            return False
+        
+        cache_data = _parallel_cache[cache_key]
+        host_data_to_move = None
+        
+        # Find and remove the host from its current location
+        for gpu_type, gpu_data in cache_data.items():
+            if 'hosts' in gpu_data:
+                for i, host_detail in enumerate(gpu_data['hosts']):
+                    if host_detail['hostname'] == hostname and host_detail['aggregate'] == old_aggregate:
+                        host_data_to_move = gpu_data['hosts'].pop(i)
+                        host_data_to_move['aggregate'] = new_aggregate  # Update aggregate
+                        gpu_data['total_hosts'] -= 1
+                        print(f"📤 Removed {hostname} from {old_aggregate} in {gpu_type} cache")
+                        break
+        
+        if not host_data_to_move:
+            print(f"⚠️ Host {hostname} not found in {old_aggregate}")
+            return False
+        
+        # Add the host to its new location
+        for gpu_type, gpu_data in cache_data.items():
+            if 'hosts' in gpu_data:
+                # Check if any host in this GPU type belongs to the new aggregate
+                for host_detail in gpu_data['hosts']:
+                    if host_detail['aggregate'] == new_aggregate:
+                        gpu_data['hosts'].append(host_data_to_move)
+                        gpu_data['total_hosts'] += 1
+                        print(f"📥 Added {hostname} to {new_aggregate} in {gpu_type} cache")
+                        return True
+        
+        print(f"⚠️ Could not find destination aggregate {new_aggregate} in cache")
+        return False

@@ -638,6 +638,14 @@ def register_routes(app):
                             'returncode': 0
                         }, 'executed')
                         
+                        # Smart cache update: move host between aggregates instead of full refresh
+                        from modules.parallel_agents import update_host_aggregate_in_cache
+                        cache_updated = update_host_aggregate_in_cache(host, source_aggregate, target_aggregate)
+                        if cache_updated:
+                            print(f"✅ Smart cache update: moved {host} from {source_aggregate} to {target_aggregate}")
+                        else:
+                            print(f"⚠️ Cache update failed - will fall back to normal cache expiry")
+                        
                     elif is_in_target and is_in_source:
                         # Host is in both aggregates - partial migration
                         verification_msg = f"⚠️ Partial migration: {host} is in both {source_aggregate} and {target_aggregate}"
@@ -724,48 +732,47 @@ def register_routes(app):
                     except Exception as e:
                         print(f"⚠️ Could not verify add operation: {str(e)}")
 
-            # Always refresh cache for the touched aggregates - but only the specific GPU types involved
-            affected_gpu_types = set()
+            # For successful full migrations, the smart cache update was already done above
+            # For partial operations (add/remove only), we may need cache updates too
+            cache_update_success = True  # Assume success for full migrations
             
-            # Extract GPU types from aggregate names  
-            import re
-            for agg_name in [source_aggregate, target_aggregate]:
-                if agg_name:
-                    # Match patterns like RTX-A6000-n3, H100-n3-spot, etc.
-                    match = re.match(r'^([A-Z0-9-]+)(?:-n3)', agg_name)
-                    if match:
-                        gpu_type = match.group(1)
-                        affected_gpu_types.add(gpu_type)
-                        print(f"🎯 Detected GPU type '{gpu_type}' from aggregate '{agg_name}'")
+            # For individual add/remove operations, also try smart cache updates
+            if operation in ['add', 'remove'] and len(results) > 0 and results[-1]['success']:
+                from modules.parallel_agents import update_host_aggregate_in_cache
+                
+                if operation == 'add':
+                    # For add operations, we need to know the old aggregate (not easily available)
+                    # For now, fall back to normal cache clearing for safety
+                    cache_update_success = False
+                elif operation == 'remove' and source_aggregate:
+                    # For remove operations, we're removing from source, but where is it going?
+                    # Fall back to normal cache clearing for safety
+                    cache_update_success = False
             
-            if affected_gpu_types:
-                print(f"🔄 Refreshing cache for affected GPU types: {list(affected_gpu_types)}")
+            # Fallback to full cache refresh only if smart updates failed or for non-full operations
+            if not cache_update_success:
+                print("🔄 Falling back to full cache refresh due to complex operation")
                 try:
                     from modules.parallel_agents import clear_parallel_cache, get_all_data_parallel
                     from modules.aggregate_operations import clear_host_aggregate_cache, clear_gpu_aggregates_cache
                     
-                    # Clear caches (this affects all data, but we'll selectively refresh)
                     cleared_parallel = clear_parallel_cache()
                     cleared_host = clear_host_aggregate_cache()
                     clear_gpu_aggregates_cache()
                     print(f"✅ Cache cleared: {cleared_parallel} parallel + {cleared_host} host entries")
                     
-                    # Force refresh data (this will update cache for all GPU types)
                     fresh_parallel_data = get_all_data_parallel()
-                    print(f"✅ Fresh data loaded - cache updated for affected GPU types: {list(affected_gpu_types)}")
+                    print(f"✅ Fresh data loaded after cache refresh")
                     
                 except Exception as e:
                     print(f"⚠️ Warning: Cache refresh failed: {e}")
-                    affected_gpu_types = set()  # Clear on failure
-            else:
-                print(f"✅ {operation} operation complete - no GPU types detected for refresh")
             
             return jsonify({
                 'success': True,
                 'results': results,
                 'message': f'Successfully completed {operation} operation: {host}',
-                'affected_gpu_types': list(affected_gpu_types),  # Tell frontend which GPU types were refreshed
-                'refresh_frontend': len(affected_gpu_types) > 0  # Refresh if we updated cache
+                'cache_intelligently_updated': cache_update_success,  # Tell frontend if we used smart updates
+                'cache_refreshed': not cache_update_success  # Tell frontend if we did full refresh
             })
             
         except Exception as e:
@@ -1058,6 +1065,10 @@ power_state:
                 else:
                     print(f"⚠️ No VM ID found in response - skipping firewall attachment for {hostname}")
                 
+                # Smart cache update: increment VM count for this host instead of clearing everything
+                from modules.parallel_agents import update_host_vm_count_in_cache
+                cache_updated = update_host_vm_count_in_cache(hostname, 1)  # VM launched, so count = 1
+                
                 return jsonify({
                     'success': True,
                     'message': f'Successfully launched VM {hostname} on Hyperstack',
@@ -1066,7 +1077,8 @@ power_state:
                     'flavor_name': flavor_name,
                     'response': result_data,
                     'storage_network_scheduled': False,  # Now handled by frontend commands
-                    'firewall_scheduled': firewall_scheduled
+                    'firewall_scheduled': firewall_scheduled,
+                    'cache_updated': cache_updated  # Indicate that cache was intelligently updated
                 })
             else:
                 error_msg = f'Failed to launch VM {hostname}: HTTP {response.status_code}'
