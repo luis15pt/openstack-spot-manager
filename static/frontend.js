@@ -254,6 +254,16 @@ function renderAggregateData(data) {
         window.columns.contract.update(data);
     }
     
+    // Update Summary column with comprehensive GPU usage overview
+    if (window.columns && window.columns.summary) {
+        console.log('🔄 Updating Summary column with comprehensive GPU usage data');
+        // Ensure outofstock data exists in the data object
+        if (!data.outofstock) {
+            data.outofstock = { hosts: [] };
+        }
+        window.columns.summary.update(data);
+    }
+    
     // Setup drag and drop
     setupDragAndDrop();
 }
