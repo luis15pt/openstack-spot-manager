@@ -139,10 +139,7 @@ class SummaryColumn extends BaseColumn {
     }
 
     /**
-     * Render comprehensive GPU usage summary
-     * Format: "Runpod 40/40 On-demand GPU Usage: 398/496 (80%), spot GPU Usage: 10/32 (31%)"
-     *         "Contracts GPU Usage: 24/32 (75%) Out of Stock 0"
-     *         "Unused: 0/0 (0%)"
+     * Render clean GPU usage summary without duplication
      */
     renderSummaryContent(breakdown) {
         const container = document.getElementById(this.hostsContainerId);
@@ -151,19 +148,8 @@ class SummaryColumn extends BaseColumn {
             return;
         }
 
-        // Generate comprehensive summary text in requested format
-        const line1 = `Runpod ${breakdown.runpod.ratio} On-demand GPU Usage: ${breakdown.ondemand.ratio} (${breakdown.ondemand.percentage}%), spot GPU Usage: ${breakdown.spot.ratio} (${breakdown.spot.percentage}%)`;
-        const line2 = `Contracts GPU Usage: ${breakdown.contracts.ratio} (${breakdown.contracts.percentage}%) Out of Stock ${breakdown.outofstock.count}`;
-        const line3 = `Unused: ${breakdown.unused}/${breakdown.totalCapacity} (${breakdown.totalCapacity > 0 ? Math.round((breakdown.unused / breakdown.totalCapacity) * 100) : 0}%)`;
-
+        // Clean layout with just the breakdown items - no duplication
         container.innerHTML = `
-            <div class="summary-text mb-3">
-                <div class="comprehensive-summary">
-                    <p class="summary-line mb-1"><strong>${line1}</strong></p>
-                    <p class="summary-line mb-1"><strong>${line2}</strong></p>
-                    <p class="summary-line mb-2"><strong>${line3}</strong></p>
-                </div>
-            </div>
             <div class="summary-breakdown">
                 <div class="summary-item">
                     <i class="fas fa-rocket" style="color: #6f42c1;"></i>
@@ -199,6 +185,12 @@ class SummaryColumn extends BaseColumn {
                     <span class="summary-label">Total Usage</span>
                     <span class="summary-usage">${breakdown.totalUsed}/${breakdown.totalCapacity}</span>
                     <span class="summary-percent badge bg-info">${breakdown.totalPercentage}%</span>
+                </div>
+                <div class="summary-item">
+                    <i class="fas fa-battery-quarter text-secondary"></i>
+                    <span class="summary-label">Unused</span>
+                    <span class="summary-usage">${breakdown.unused}/${breakdown.totalCapacity}</span>
+                    <span class="summary-percent badge bg-secondary">${breakdown.totalCapacity > 0 ? Math.round((breakdown.unused / breakdown.totalCapacity) * 100) : 0}%</span>
                 </div>
             </div>
         `;
