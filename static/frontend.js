@@ -871,21 +871,13 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
                 throw new Error('Spot aggregate not available');
             }
         } else if (targetType === 'runpod') {
-            // Use runpod aggregate from current data
-            console.log('🔍 DEBUG aggregateData:', window.Frontend.aggregateData);
-            console.log('🔍 DEBUG runpod data:', window.Frontend.aggregateData?.runpod);
-            console.log('🔍 DEBUG currentGpuType:', window.currentGpuType);
-            console.log('🔍 DEBUG runpod.name:', window.Frontend.aggregateData?.runpod?.name);
-            
-            if (window.Frontend.aggregateData && window.Frontend.aggregateData.runpod && window.Frontend.aggregateData.runpod.name) {
-                targetAggregate = window.Frontend.aggregateData.runpod.name;
-                console.log('🔄 Using aggregateData runpod name:', targetAggregate);
-            } else if (window.currentGpuType) {
-                // Fallback: construct runpod aggregate name from current GPU type (following A100-n3-runpod pattern)
+            // Always use the selected GPU type for RunPod migrations to ensure correct aggregate
+            if (window.currentGpuType) {
+                // Construct runpod aggregate name from selected GPU type
                 targetAggregate = `${window.currentGpuType}-n3-runpod`;
-                console.log('🔄 Using constructed runpod aggregate name:', targetAggregate);
+                console.log('🔄 Using selected GPU type for runpod aggregate:', targetAggregate);
             } else {
-                throw new Error('Runpod aggregate not available');
+                throw new Error('No GPU type selected for RunPod migration');
             }
         } else if (targetVariant) {
             // For variant drops, construct the aggregate name
