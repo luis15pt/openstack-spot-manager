@@ -148,49 +148,43 @@ class SummaryColumn extends BaseColumn {
             return;
         }
 
-        // Clean layout with just the breakdown items - no duplication
+        // Hardware-focused layout - just GPU/hardware counts, no percentages
         container.innerHTML = `
             <div class="summary-breakdown">
                 <div class="summary-item">
                     <i class="fas fa-rocket" style="color: #6f42c1;"></i>
                     <span class="summary-label">Runpod</span>
                     <span class="summary-usage">${breakdown.runpod.ratio}</span>
-                    <span class="summary-percent badge bg-purple">${breakdown.runpod.percentage}%</span>
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-server text-primary"></i>
                     <span class="summary-label">On-demand</span>
                     <span class="summary-usage">${breakdown.ondemand.ratio}</span>
-                    <span class="summary-percent badge bg-primary">${breakdown.ondemand.percentage}%</span>
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-flash text-warning"></i>
                     <span class="summary-label">Spot</span>
                     <span class="summary-usage">${breakdown.spot.ratio}</span>
-                    <span class="summary-percent badge bg-warning text-dark">${breakdown.spot.percentage}%</span>
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-file-contract text-success"></i>
                     <span class="summary-label">Contracts</span>
                     <span class="summary-usage">${breakdown.contracts.ratio}</span>
-                    <span class="summary-percent badge bg-success">${breakdown.contracts.percentage}%</span>
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-exclamation-triangle text-danger"></i>
                     <span class="summary-label">Out of Stock</span>
-                    <span class="summary-count badge bg-danger">${breakdown.outofstock.count} hosts</span>
+                    <span class="summary-count">${breakdown.outofstock.count} hosts</span>
                 </div>
                 <div class="summary-item">
-                    <i class="fas fa-chart-line text-info"></i>
-                    <span class="summary-label">Total Usage</span>
+                    <i class="fas fa-microchip text-info"></i>
+                    <span class="summary-label">Total GPUs</span>
                     <span class="summary-usage">${breakdown.totalUsed}/${breakdown.totalCapacity}</span>
-                    <span class="summary-percent badge bg-info">${breakdown.totalPercentage}%</span>
                 </div>
                 <div class="summary-item">
-                    <i class="fas fa-battery-quarter text-secondary"></i>
-                    <span class="summary-label">Unused</span>
-                    <span class="summary-usage">${breakdown.unused}/${breakdown.totalCapacity}</span>
-                    <span class="summary-percent badge bg-secondary">${breakdown.totalCapacity > 0 ? Math.round((breakdown.unused / breakdown.totalCapacity) * 100) : 0}%</span>
+                    <i class="fas fa-circle text-muted"></i>
+                    <span class="summary-label">Unused GPUs</span>
+                    <span class="summary-usage">${breakdown.unused}</span>
                 </div>
             </div>
         `;
