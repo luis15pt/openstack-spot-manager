@@ -29,8 +29,13 @@ class SummaryColumn extends BaseColumn {
         // Calculate allocation breakdown
         const breakdown = this.calculateAllocationBreakdown(allData);
         
-        // Update count (total GPU capacity)
-        this.updateCount(breakdown.totalCapacity);
+        // Update count (total host count across all providers)
+        const totalHosts = (allData.runpod?.hosts?.length || 0) + 
+                          (allData.ondemand?.hosts?.length || 0) + 
+                          (allData.spot?.hosts?.length || 0) + 
+                          (allData.contracts?.hosts?.length || 0) + 
+                          (allData.outofstock?.hosts?.length || 0);
+        this.updateCount(totalHosts);
         
         // Update allocation stats instead of GPU stats
         this.updateAllocationStats(breakdown);
@@ -148,28 +153,28 @@ class SummaryColumn extends BaseColumn {
             return;
         }
 
-        // Hardware-focused layout - just GPU/hardware counts, no percentages
+        // Capacity-focused layout - show total capacity numbers for tracking
         container.innerHTML = `
             <div class="summary-breakdown">
                 <div class="summary-item">
                     <i class="fas fa-rocket" style="color: #6f42c1;"></i>
                     <span class="summary-label">Runpod</span>
-                    <span class="summary-usage">${breakdown.runpod.ratio}</span>
+                    <span class="summary-usage">${breakdown.runpod.capacity}</span>
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-server text-primary"></i>
                     <span class="summary-label">On-demand</span>
-                    <span class="summary-usage">${breakdown.ondemand.ratio}</span>
+                    <span class="summary-usage">${breakdown.ondemand.capacity}</span>
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-flash text-warning"></i>
                     <span class="summary-label">Spot</span>
-                    <span class="summary-usage">${breakdown.spot.ratio}</span>
+                    <span class="summary-usage">${breakdown.spot.capacity}</span>
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-file-contract text-success"></i>
                     <span class="summary-label">Contracts</span>
-                    <span class="summary-usage">${breakdown.contracts.ratio}</span>
+                    <span class="summary-usage">${breakdown.contracts.capacity}</span>
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-exclamation-triangle text-danger"></i>
@@ -179,7 +184,7 @@ class SummaryColumn extends BaseColumn {
                 <div class="summary-item">
                     <i class="fas fa-microchip text-info"></i>
                     <span class="summary-label">Total GPUs</span>
-                    <span class="summary-usage">${breakdown.totalUsed}/${breakdown.totalCapacity}</span>
+                    <span class="summary-usage">${breakdown.totalCapacity}</span>
                 </div>
                 <div class="summary-item">
                     <i class="fas fa-circle text-muted"></i>
