@@ -105,16 +105,20 @@ function renderAggregateData(data) {
     if (spotGpuPercent) spotGpuPercent.textContent = '0%';
     if (spotGpuProgressBar) spotGpuProgressBar.style.width = '0%';
     
-    // Update column headers with aggregate names and counts
+    // Update column headers - keep On-Demand detailed, simplify RunPod/Spot
     document.getElementById('ondemandName').textContent = data.ondemand.name || 'N/A';
-    document.getElementById('runpodName').textContent = data.runpod.name || 'N/A';
-    document.getElementById('spotName').textContent = data.spot.name || 'N/A';
+    document.getElementById('runpodName').textContent = 'RunPod';
+    document.getElementById('spotName').textContent = 'Spot';
     
     // Show variant information if multiple variants exist
     if (data.ondemand.variants && data.ondemand.variants.length > 1) {
         const variantNames = data.ondemand.variants.map(v => v.variant).join(', ');
         document.getElementById('ondemandName').title = `Includes variants: ${variantNames}`;
     }
+    
+    // Add tooltips to show actual aggregate names for RunPod/Spot
+    document.getElementById('runpodName').title = data.runpod.name || 'RunPod aggregate';
+    document.getElementById('spotName').title = data.spot.name || 'Spot aggregate';
     
     document.getElementById('ondemandCount').textContent = data.ondemand.hosts ? data.ondemand.hosts.length : 0;
     document.getElementById('runpodCount').textContent = data.runpod.hosts ? data.runpod.hosts.length : 0;
