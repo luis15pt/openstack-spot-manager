@@ -736,16 +736,20 @@ def register_routes(app):
             # For partial operations (add/remove only), we may need cache updates too
             cache_update_success = True  # Assume success for full migrations
             
-            # For individual add/remove operations, just clear aggregate cache (smart updates already done for full migrations)
+            # For individual add/remove operations, clear parallel cache to ensure UI updates
             if operation in ['add', 'remove'] and len(results) > 0 and results[-1]['success']:
-                print(f"✅ Individual {operation} operation completed - clearing aggregate cache")
+                print(f"✅ Individual {operation} operation completed - clearing parallel cache for UI update")
                 try:
+                    from modules.parallel_agents import clear_parallel_cache
                     from modules.aggregate_operations import clear_host_aggregate_cache
+                    
+                    # Clear both caches to ensure UI reflects changes
                     cleared_host = clear_host_aggregate_cache()
-                    print(f"✅ Cleared aggregate membership cache: {cleared_host} entries")
-                    cache_update_success = True  # Prevent expensive full refresh
+                    cleared_parallel = clear_parallel_cache()
+                    print(f"✅ Cleared caches: {cleared_host} aggregate + {cleared_parallel} parallel entries")
+                    cache_update_success = True
                 except Exception as e:
-                    print(f"⚠️ Failed to clear aggregate cache: {e}")
+                    print(f"⚠️ Failed to clear caches: {e}")
                     cache_update_success = False
             
             # Fallback to full cache refresh only if smart updates failed or for non-full operations
