@@ -475,8 +475,15 @@ function handleHostClick(e) {
 function refreshData() {
     const selectedType = document.getElementById('gpuTypeSelect').value;
     if (selectedType) {
-        console.log(`🔄 Refreshing data for ${selectedType}`);
-        window.Logs.addToDebugLog('System', `Refreshing data for ${selectedType}`, 'info');
+        console.log(`🔄 Refreshing data for ${selectedType} - clearing frontend cache`);
+        window.Logs.addToDebugLog('System', `Force refreshing data for ${selectedType}`, 'info');
+        
+        // Clear frontend cache for this GPU type to force fresh data
+        if (window.gpuDataCache && window.gpuDataCache.has(selectedType)) {
+            window.gpuDataCache.delete(selectedType);
+            console.log(`🗑️ Cleared frontend cache for ${selectedType}`);
+        }
+        
         window.OpenStack.loadAggregateData(selectedType);
     }
 }
@@ -1522,7 +1529,13 @@ function refreshData() {
         return;
     }
 
-    console.log('🔄 Starting enhanced data refresh with progress tracking...');
+    console.log('🔄 Starting enhanced data refresh with progress tracking - clearing frontend cache...');
+    
+    // Clear frontend cache for this GPU type to force fresh data
+    if (window.gpuDataCache && window.gpuDataCache.has(selectedType)) {
+        window.gpuDataCache.delete(selectedType);
+        console.log(`🗑️ Cleared frontend cache for ${selectedType}`);
+    }
     
     // Show progress modal
     showProgressModal();
@@ -1750,6 +1763,12 @@ function refreshAggregateDataAfterOperations() {
     const selectedType = document.getElementById('gpuTypeSelect').value;
     if (selectedType && window.currentGpuType) {
         console.log(`🔄 Refreshing aggregate data after operations completion for GPU type: ${window.currentGpuType}`);
+        
+        // Clear frontend cache for this GPU type to force fresh data
+        if (window.gpuDataCache && window.gpuDataCache.has(window.currentGpuType)) {
+            window.gpuDataCache.delete(window.currentGpuType);
+            console.log(`🗑️ Cleared frontend cache for ${window.currentGpuType} after operations`);
+        }
         
         // Show brief refresh notification
         window.Frontend.showNotification(`Refreshing host data...`, 'info');
