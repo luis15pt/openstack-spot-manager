@@ -632,7 +632,17 @@ def organize_parallel_results(results):
     organized['outofstock'] = outofstock_data
     
     # INVENTORY VALIDATION: Ensure 100% device accountability
-    validate_inventory_accountability(organized, all_netbox_devices, netbox_inventory_stats)
+    is_valid, netbox_total, ui_total, column_counts = validate_inventory_accountability(organized, all_netbox_devices, netbox_inventory_stats)
+    
+    # Add inventory validation data to results for frontend display
+    organized['_inventory_validation'] = {
+        'is_valid': is_valid,
+        'netbox_total': netbox_total,
+        'ui_total': ui_total,
+        'discrepancy': abs(netbox_total - ui_total),
+        'column_counts': column_counts,
+        'netbox_status_breakdown': netbox_inventory_stats
+    }
     
     elapsed = time.time() - start_time
     print(f"🏁 Organized parallel results: {len(organized)-1} GPU types + out-of-stock ({total_outofstock} devices) in {elapsed:.2f}s")

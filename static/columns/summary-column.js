@@ -117,6 +117,11 @@ class SummaryColumn extends BaseColumn {
             Math.round((breakdown.totalUsed / breakdown.totalCapacity) * 100) : 0;
         breakdown.unused = breakdown.totalCapacity - breakdown.totalUsed;
 
+        // Add NetBox inventory validation data if available
+        if (allData._inventory_validation) {
+            breakdown.inventory = allData._inventory_validation;
+        }
+
         return breakdown;
     }
 
@@ -191,6 +196,44 @@ class SummaryColumn extends BaseColumn {
                     <span class="summary-label">Unused GPUs</span>
                     <span class="summary-usage">${breakdown.unused}</span>
                 </div>
+                ${this.renderNetBoxAccountability(breakdown)}
+            </div>
+        `;
+    }
+
+    /**
+     * Render NetBox accountability section
+     */
+    renderNetBoxAccountability(breakdown) {
+        if (!breakdown.inventory || !breakdown.inventory.netbox_total) {
+            return ''; // No inventory data available
+        }
+        
+        const { netbox_total, ui_total, discrepancy, is_valid } = breakdown.inventory;
+        const statusIcon = is_valid ? '✅' : '⚠️';
+        const statusClass = is_valid ? 'text-success' : 'text-warning';
+        
+        return `
+            <div class="summary-divider mt-3 mb-2">
+                <hr style="border-color: #dee2e6; margin: 8px 0;">
+                <small class="text-muted">NetBox Inventory Accountability</small>
+            </div>
+            <div class="summary-item">
+                <i class="fas fa-database text-secondary"></i>
+                <span class="summary-label">NetBox Total</span>
+                <span class="summary-usage">${netbox_total} devices</span>
+            </div>
+            <div class="summary-item">
+                <i class="fas fa-desktop text-info"></i>
+                <span class="summary-label">UI Total</span>
+                <span class="summary-usage">${ui_total} devices</span>
+            </div>
+            <div class="summary-item">
+                <i class="fas fa-balance-scale ${statusClass}"></i>
+                <span class="summary-label">Accountability</span>
+                <span class="summary-usage ${statusClass}">
+                    ${statusIcon} ${discrepancy === 0 ? 'Perfect' : `${discrepancy} missing`}
+                </span>
             </div>
         `;
     }
