@@ -743,10 +743,15 @@ def validate_inventory_accountability(organized_results, all_netbox_devices, net
     
     for gpu_type, data in organized_results.items():
         if gpu_type == 'outofstock':
-            count = data.get('device_count', 0)
+            count = data.get('device_count', 0) if isinstance(data, dict) else 0
             column_counts['out_of_stock'] = count
         else:
-            count = data.get('total_hosts', 0)
+            # Handle both dict and other data types defensively
+            if isinstance(data, dict):
+                count = data.get('total_hosts', 0)
+            else:
+                print(f"⚠️ Warning: {gpu_type} data is not dict: {type(data)}")
+                count = 0
             column_counts[gpu_type] = count
         ui_total += count
     
@@ -1004,7 +1009,8 @@ def update_host_aggregate_in_cache(hostname, old_aggregate, new_aggregate):
                     if host_detail['hostname'] == hostname and host_detail['aggregate'] == old_aggregate:
                         host_data_to_move = gpu_data['hosts'].pop(i)
                         host_data_to_move['aggregate'] = new_aggregate  # Update aggregate
-                        gpu_data['total_hosts'] -= 1
+                        if 'total_hosts' in gpu_data:
+                            gpu_data['total_hosts'] -= 1
                         print(f"📤 Removed {hostname} from {old_aggregate} in {gpu_type} cache")
                         break
         
@@ -1019,7 +1025,8 @@ def update_host_aggregate_in_cache(hostname, old_aggregate, new_aggregate):
                 for host_detail in gpu_data['hosts']:
                     if host_detail['aggregate'] == new_aggregate:
                         gpu_data['hosts'].append(host_data_to_move)
-                        gpu_data['total_hosts'] += 1
+                        if 'total_hosts' in gpu_data:
+                            gpu_data['total_hosts'] += 1
                         print(f"📥 Added {hostname} to {new_aggregate} in {gpu_type} cache")
                         return True
         

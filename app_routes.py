@@ -1705,7 +1705,7 @@ power_state:
             organized_data = get_all_data_parallel()
             
             refresh_time = time.time() - start_time
-            total_hosts = sum(data['total_hosts'] for data in organized_data.values())
+            total_hosts = sum(data.get('total_hosts', data.get('device_count', 0)) for data in organized_data.values())
             
             hosts_per_sec = round(total_hosts/refresh_time, 1) if refresh_time > 0 else 0
             print(f"✅ OPTIMIZED refresh completed: {len(organized_data)} GPU types, {total_hosts} hosts in {refresh_time:.2f}s ({hosts_per_sec} hosts/sec)")
@@ -1869,7 +1869,7 @@ power_state:
             total_time = time.time() - start_time
             
             # Count totals for summary
-            total_hosts = sum(data['total_hosts'] for data in organized_data.values())
+            total_hosts = sum(data.get('total_hosts', data.get('device_count', 0)) for data in organized_data.values())
             gpu_types = list(organized_data.keys())
             
             summary = {
@@ -1880,11 +1880,11 @@ power_state:
                 'total_hosts': total_hosts,
                 'data_preview': {
                     gpu_type: {
-                        'host_count': data['total_hosts'],
-                        'has_runpod': bool(data['config'].get('runpod')),
-                        'has_spot': bool(data['config'].get('spot')),
-                        'ondemand_variants': len(data['config'].get('ondemand_variants', [])),
-                        'contracts': len(data['config'].get('contracts', []))
+                        'host_count': data.get('total_hosts', data.get('device_count', 0)),
+                        'has_runpod': bool(data.get('config', {}).get('runpod')),
+                        'has_spot': bool(data.get('config', {}).get('spot')),
+                        'ondemand_variants': len(data.get('config', {}).get('ondemand_variants', [])),
+                        'contracts': len(data.get('config', {}).get('contracts', []))
                     } 
                     for gpu_type, data in organized_data.items()
                 }
