@@ -140,30 +140,87 @@ def netbox_agent():
                 print(f"❌ NetBox Agent: API error {response.status_code}")
                 break
         
-        # Process all devices into hostname-keyed dict
+        # Process all devices into hostname-keyed dict AND track non-active devices
         netbox_data = {}
+        non_active_devices = []
+        
+        # Define GPU-related tags and non-active statuses
+        gpu_tags = ['nvidia-h100-pcie', 'nvidia-a100-pcie', 'nvidia-a100-sxm', 'nvidia-h100-sxm', 'nvidia-rtx-4090']
+        
         for device in all_devices:
             hostname = device.get('name')
-            if hostname:
-                tenant_data = device.get('tenant', {})
-                tenant_name = tenant_data.get('name', 'Unknown') if tenant_data else 'Unknown'
-                owner_group = 'Nexgen Cloud' if tenant_name == 'Chris Starkey' else 'Investors'
+            if not hostname:
+                continue
                 
-                # Get NVLinks custom field
-                custom_fields = device.get('custom_fields', {})
-                nvlinks = custom_fields.get('NVLinks', False)
-                if nvlinks is None:
-                    nvlinks = False
-                
+            tenant_data = device.get('tenant', {})
+            tenant_name = tenant_data.get('name', 'Unknown') if tenant_data else 'Unknown'
+            owner_group = 'Nexgen Cloud' if tenant_name == 'Chris Starkey' else 'Investors'
+            
+            # Get custom fields
+            custom_fields = device.get('custom_fields', {})
+            nvlinks = custom_fields.get('NVLinks', False)
+            if nvlinks is None:
+                nvlinks = False
+            aggregate = custom_fields.get('Aggregates', 'unknown')
+            
+            # Get device status
+            status = device.get('status', {})
+            status_value = status.get('value', 'unknown') if status else 'unknown'
+            status_label = status.get('label', 'Unknown') if status else 'Unknown'
+            
+            # Check if device has GPU tags
+            device_tags = device.get('tags', [])
+            has_gpu_tag = any(tag.get('name', '').lower() in [t.lower() for t in gpu_tags] for tag in device_tags)
+            
+            # Add to regular netbox_data for active devices
+            if status_value == 'active':
                 netbox_data[hostname] = {
                     'tenant': tenant_name,
                     'owner_group': owner_group,
-                    'nvlinks': nvlinks
+                    'nvlinks': nvlinks,
+                    'aggregate': aggregate,
+                    'status': status_value
                 }
+            
+            # Track non-active GPU devices for out-of-stock calculation
+            if status_value != 'active' and has_gpu_tag:
+                # Extract additional device information
+                site = device.get('site', {}).get('name', 'Unknown') if device.get('site') else 'Unknown'
+                rack = device.get('rack', {}).get('name', 'Unknown') if device.get('rack') else 'Unknown'
+                
+                # Get GPU tags
+                gpu_type_tags = []
+                for tag in device_tags:
+                    tag_name = tag.get('name', '').lower()
+                    if 'nvidia' in tag_name or 'gpu' in tag_name:
+                        gpu_type_tags.append(tag.get('name'))
+                
+                non_active_devices.append({
+                    'name': hostname,
+                    'hostname': hostname,
+                    'status': status_value,
+                    'status_label': status_label,
+                    'aggregate': aggregate,
+                    'tenant': tenant_name,
+                    'owner_group': owner_group,
+                    'nvlinks': nvlinks,
+                    'site': site,
+                    'rack': rack,
+                    'gpu_tags': gpu_type_tags,
+                    'gpu_used': 0,
+                    'gpu_capacity': 8,  # Assume 8 GPUs per device
+                    'gpu_usage_ratio': '0/8',
+                    'vm_count': 0,
+                    'has_vms': False
+                })
         
         elapsed = time.time() - start_time
-        print(f"📡 NetBox Agent: Processed {len(netbox_data)} devices in {elapsed:.2f}s")
-        return netbox_data
+        print(f"📡 NetBox Agent: Processed {len(netbox_data)} active devices and {len(non_active_devices)} non-active GPU devices in {elapsed:.2f}s")
+        
+        return {
+            'active_devices': netbox_data,
+            'non_active_devices': non_active_devices
+        }
         
     except Exception as e:
         print(f"❌ NetBox Agent failed: {e}")
@@ -313,11 +370,15 @@ def gpu_info_agent():
 
 def organize_parallel_results(results):
     """
-    Organize the parallel agent results by GPU type
+    Organize the parallel agent results by GPU type and compute out-of-stock devices
     """
     start_time = time.time()
     
-    netbox_data = results.get('netbox', {})
+    # Extract NetBox data (now has active_devices and non_active_devices)
+    netbox_result = results.get('netbox', {})
+    netbox_data = netbox_result.get('active_devices', {}) if isinstance(netbox_result, dict) else {}
+    netbox_non_active = netbox_result.get('non_active_devices', []) if isinstance(netbox_result, dict) else []
+    
     aggregate_data = results.get('aggregates', {})
     vm_counts = results.get('vm_counts', {})
     gpu_info = results.get('gpu_info', {})
@@ -383,7 +444,64 @@ def organize_parallel_results(results):
             'total_hosts': len(host_details)
         }
     
+    # Compute out-of-stock devices (NetBox non-active devices not in any OpenStack aggregate)
+    outofstock_data = compute_outofstock_devices(netbox_non_active, host_to_aggregate)
+    
+    # Add out-of-stock data to the organized results
+    organized['outofstock'] = outofstock_data
+    
+    elapsed = time.time() - start_time
+    print(f"🏁 Organized parallel results: {len(organized)-1} GPU types + out-of-stock ({outofstock_data['device_count']} devices) in {elapsed:.2f}s")
+    
     return organized
+
+def compute_outofstock_devices(netbox_non_active, host_to_aggregate):
+    """
+    Compute out-of-stock devices: NetBox non-active devices that are NOT in any OpenStack aggregate
+    This ensures host uniqueness across all columns.
+    """
+    actual_outofstock = []
+    filtered_count = 0
+    
+    openstack_hosts = set(host_to_aggregate.keys())
+    print(f"🔍 Computing out-of-stock: {len(netbox_non_active)} NetBox non-active devices vs {len(openstack_hosts)} OpenStack hosts")
+    
+    for device in netbox_non_active:
+        device_hostname = device.get('hostname') or device.get('name')
+        if not device_hostname:
+            continue
+            
+        # CRITICAL: Ensure host uniqueness - exclude if in any OpenStack aggregate
+        if device_hostname in openstack_hosts:
+            filtered_count += 1
+            continue
+        
+        # This device is truly out of stock - in NetBox but not in OpenStack
+        actual_outofstock.append(device)
+    
+    print(f"✅ Out-of-stock computation: {len(actual_outofstock)} actual out-of-stock (filtered {filtered_count} already in OpenStack)")
+    
+    # Calculate GPU summary for out-of-stock devices
+    total_gpu_capacity = len(actual_outofstock) * 8  # Assume 8 GPUs per device
+    gpu_summary = {
+        'gpu_used': 0,  # Out of stock devices have 0 GPU usage
+        'gpu_capacity': total_gpu_capacity,
+        'gpu_usage_ratio': f'0/{total_gpu_capacity}'
+    }
+    
+    # Get status breakdown for monitoring
+    status_counts = {}
+    for device in actual_outofstock:
+        status = device.get('status', 'unknown')
+        status_counts[status] = status_counts.get(status, 0) + 1
+    
+    return {
+        'hosts': actual_outofstock,
+        'gpu_summary': gpu_summary,
+        'name': 'Out of Stock',
+        'device_count': len(actual_outofstock),
+        'status_breakdown': status_counts
+    }
 
 def classify_aggregates_by_gpu_type(aggregates_dict):
     """
