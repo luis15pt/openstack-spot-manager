@@ -152,6 +152,28 @@ def register_routes(app):
                 return jsonify({'error': 'Invalid GPU type'}), 400
             
             gpu_data = organized_data[gpu_type]
+            
+            # Special handling for outofstock which has different structure
+            if gpu_type == 'outofstock':
+                return jsonify({
+                    'gpu_type': 'outofstock',
+                    'outofstock': {
+                        'name': gpu_data.get('name', 'Out of Stock'),
+                        'hosts': gpu_data.get('hosts', []),
+                        'gpu_summary': gpu_data.get('gpu_summary', {
+                            'gpu_used': 0,
+                            'gpu_capacity': 0,
+                            'gpu_usage_ratio': '0/0'
+                        })
+                    },
+                    'performance_stats': {
+                        'total_time': 0.01,  # Already cached
+                        'total_hosts': len(gpu_data.get('hosts', [])),
+                        'hosts_per_second': 0,
+                        'method': 'parallel_agents_cached'
+                    }
+                })
+            
             config = gpu_data['config']
             all_hosts = gpu_data['hosts']
             

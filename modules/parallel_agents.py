@@ -170,7 +170,12 @@ def netbox_agent():
             
             # Check if device has GPU tags
             device_tags = device.get('tags', [])
-            has_gpu_tag = any(tag.get('name', '').lower() in [t.lower() for t in gpu_tags] for tag in device_tags)
+            device_tag_names = [tag.get('name', '') for tag in device_tags]
+            has_gpu_tag = any(tag_name.lower() in [t.lower() for t in gpu_tags] for tag_name in device_tag_names)
+            
+            # Debug logging for non-active devices
+            if status_value != 'active':
+                print(f"🔍 Non-active device found: {hostname}, status: {status_value}, tags: {device_tag_names}, has_gpu_tag: {has_gpu_tag}")
             
             # Add to regular netbox_data for active devices
             if status_value == 'active':
