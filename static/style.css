@@ -2568,3 +2568,152 @@ body {
     opacity: 0.6;
     cursor: not-allowed;
 }
+
+/* ===================================================================
+   OUT OF STOCK COLUMN ENHANCED STYLING
+   =================================================================== */
+
+/* Status breakdown badges */
+.out-of-stock-breakdown {
+    border-left: 3px solid #dc3545;
+    padding-left: 10px;
+    background-color: rgba(220, 53, 69, 0.05);
+    border-radius: 4px;
+    padding: 8px 10px;
+}
+
+.breakdown-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.status-badge.status-failed {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+.status-badge.status-disabled {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.3);
+}
+
+.status-badge.status-testing {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+    border: 1px solid rgba(23, 162, 184, 0.3);
+}
+
+.status-badge.status-unallocated {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+/* Out of stock host groups */
+.out-of-stock-group {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 8px;
+    background-color: #fdfdfd;
+}
+
+.out-of-stock-group .group-header {
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+/* Host cards with status-specific styling */
+.host-card {
+    padding: 8px 10px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+    background-color: #fff;
+    transition: all 0.2s ease;
+}
+
+.host-card:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.host-card.host-failed {
+    border-left: 4px solid #dc3545;
+    background-color: rgba(220, 53, 69, 0.02);
+}
+
+.host-card.host-offline {
+    border-left: 4px solid #ffc107;
+    background-color: rgba(255, 193, 7, 0.02);
+}
+
+.host-card.host-disabled {
+    border-left: 4px solid #6c757d;
+    background-color: rgba(108, 117, 125, 0.02);
+}
+
+.host-card.host-testing {
+    border-left: 4px solid #17a2b8;
+    background-color: rgba(23, 162, 184, 0.02);
+}
+
+.host-card.host-unallocated {
+    border-left: 4px solid #fd7e14;
+    background-color: rgba(253, 126, 20, 0.02);
+}
+
+.host-card.host-unknown {
+    border-left: 4px solid #6f42c1;
+    background-color: rgba(111, 66, 193, 0.02);
+}
+
+/* Host card content styling */
+.host-card .host-name {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 2px;
+}
+
+.host-card .host-details {
+    color: #6c757d;
+    font-size: 11px;
+}
+
+.host-card .host-status {
+    text-align: right;
+}
+
+.host-card .status-label {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #495057;
+}
+
+.host-card .gpu-info {
+    color: #6c757d;
+    margin-top: 2px;
+}
+
+/* Enhanced empty state */
+.out-of-stock-column .text-center {
+    padding: 20px;
+}
+
+.out-of-stock-column .text-center .fa-check-circle {
+    opacity: 0.7;
+}
