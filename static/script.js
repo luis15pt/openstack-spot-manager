@@ -1659,9 +1659,19 @@ function refreshDataWithProgress(selectedType) {
                 const parallelData = sampleData.parallel_data;
                 if (parallelData.netbox_cache && parallelData.netbox_cache.tenant_cache_size) {
                     deviceCount = ` (~${parallelData.netbox_cache.tenant_cache_size} devices)`;
+                    // Update HTML count hint
+                    const netboxHint = document.getElementById('netbox-count-hint');
+                    if (netboxHint) {
+                        netboxHint.textContent = `(~${parallelData.netbox_cache.tenant_cache_size} devices)`;
+                    }
                 }
                 if (parallelData.host_aggregate_cache && parallelData.host_aggregate_cache.host_aggregate_cache_size) {
                     aggregateCount = ` (~${parallelData.host_aggregate_cache.host_aggregate_cache_size} aggregates)`;
+                    // Update HTML count hint
+                    const aggregatesHint = document.getElementById('aggregates-count-hint');
+                    if (aggregatesHint) {
+                        aggregatesHint.textContent = `(~${parallelData.host_aggregate_cache.host_aggregate_cache_size} aggregates)`;
+                    }
                 }
                 // Estimate host count from cached data
                 let totalHosts = 0;
@@ -1676,6 +1686,15 @@ function refreshDataWithProgress(selectedType) {
                 });
                 if (totalHosts > 0) {
                     hostCount = ` (~${totalHosts} hosts)`;
+                    // Update HTML count hints for both VM and GPU steps
+                    const vmsHint = document.getElementById('vms-count-hint');
+                    if (vmsHint) {
+                        vmsHint.textContent = `(~${totalHosts} hosts)`;
+                    }
+                    const gpusHint = document.getElementById('gpus-count-hint');
+                    if (gpusHint) {
+                        gpusHint.textContent = `(~${totalHosts} hosts)`;
+                    }
                 }
             }
         } catch (e) {

@@ -228,7 +228,9 @@ Execute host migration between aggregates.
       "openstack aggregate remove host L40-n3 gpu-host-001",
       "openstack aggregate add host L40-n3-spot gpu-host-001"
     ],
-    "execution_time": "2.3s"
+    "execution_time": "2.3s",
+    "cache_intelligently_updated": true,
+    "cache_refreshed": false
   }
 }
 ```
@@ -300,16 +302,14 @@ Execute RunPod VM launch via Hyperstack API.
 **Response:**
 ```json
 {
-  "status": "success",
-  "data": {
-    "vm_id": "vm-789abc",
-    "hostname": "gpu-host-001",
-    "image_name": "RunPod Ubuntu 22.04",
-    "status": "BUILDING",
-    "flavor": "n3-L40-8",
-    "network_setup": true,
-    "firewall_configured": true
-  }
+  "success": true,
+  "message": "Successfully launched VM gpu-host-001 on Hyperstack",
+  "vm_name": "gpu-host-001",
+  "vm_id": "vm-789abc",
+  "flavor_name": "n3-RTX-A6000x8",
+  "storage_network_scheduled": false,
+  "firewall_scheduled": true,
+  "cache_updated": true
 }
 ```
 

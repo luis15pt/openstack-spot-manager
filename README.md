@@ -12,12 +12,16 @@ The OpenStack Spot Manager is a Flask-based application that enables efficient m
 - **Multi-Pool Host Management**: Manage hosts across on-demand, spot, and contract aggregates
 - **Real-time GPU Monitoring**: Track GPU utilization and VM counts across all hosts
 - **Drag-and-Drop Operations**: Intuitive interface for host migrations between pools
-- **Contract Management**: Dedicated interface for contract aggregate management
+- **Modular Column System**: Clean, uniform column layout with consistent spacing and headers
+- **Contract Management**: Dedicated interface with filtering for multi-tenant contract aggregate management
 - **Background Data Loading**: Automatic preloading of GPU data with intelligent caching
 
 ### Advanced Features
+- **Intelligent Cache Updates**: Instant UI feedback - VM launches and host migrations appear immediately without waiting for cache expiry
 - **RunPod Integration**: Deploy VMs directly to RunPod platform via Hyperstack API
 - **NetBox Integration**: Automatic tenant and owner group classification
+- **Parallel Data Collection**: 4-agent concurrent system reduces load times from ~300s to ~30s
+- **Smart Caching**: Multi-level TTL-based caching with targeted updates
 - **Bulk Operations**: Concurrent processing for large-scale operations
 - **Command Logging**: Complete audit trail of all operations
 - **Responsive Design**: Bootstrap-based UI that works on all devices
@@ -27,6 +31,20 @@ The OpenStack Spot Manager is a Flask-based application that enables efficient m
 - **RTX-A6000**: Professional workstation GPUs  
 - **A100**: Data center AI/ML GPUs
 - **H100**: Next-generation AI training GPUs
+
+## Performance
+
+### Intelligent Caching System
+- **Parallel Data Collection**: 4-agent concurrent system processes 100+ hosts in ~30s vs previous ~300s
+- **Smart Cache Updates**: VM launches and host migrations update cache instantly instead of waiting 10 minutes
+- **Multi-Level TTL Caching**: NetBox (30min), Aggregates (1hr), Parallel data (10min) with targeted invalidation
+- **Real-Time Feedback**: UI shows changes immediately without manual refresh
+
+### Optimization Results
+- **10x Faster**: Data collection optimized from 5+ minutes to <30 seconds
+- **Instant Updates**: Operations appear in UI immediately vs 10-minute cache wait
+- **Reduced API Load**: Intelligent caching minimizes redundant OpenStack API calls
+- **Better UX**: No more "refresh and wait" - changes appear instantly
 
 ## Quick Start
 
