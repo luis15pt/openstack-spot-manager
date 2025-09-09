@@ -58,13 +58,14 @@ def get_all_data_parallel():
         print("🚀 Starting parallel data collection from all agents...")
         
         # Run all agents in parallel
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             # Submit all agent tasks
             futures = {
                 'netbox': executor.submit(netbox_agent),
                 'aggregates': executor.submit(aggregate_agent), 
                 'vm_counts': executor.submit(vm_count_agent),
-                'gpu_info': executor.submit(gpu_info_agent)
+                'gpu_info': executor.submit(gpu_info_agent),
+                'compute_services': executor.submit(compute_service_agent)
             }
             
             # Collect results as they complete
@@ -140,12 +141,18 @@ def netbox_agent():
                 print(f"❌ NetBox Agent: API error {response.status_code}")
                 break
         
-        # Process all devices into hostname-keyed dict AND track non-active devices
-        netbox_data = {}
-        non_active_devices = []
+        # Process ALL devices for complete inventory tracking
+        all_netbox_devices = {}  # ALL devices regardless of status
+        active_devices = {}      # Only active devices (for existing compatibility)
+        non_active_gpu_devices = []  # Non-active GPU devices for out-of-stock
         
-        # Define GPU-related tags and non-active statuses
+        # Define GPU-related tags and device role patterns
         gpu_tags = ['nvidia-h100-pcie', 'nvidia-a100-pcie', 'nvidia-a100-sxm', 'nvidia-h100-sxm', 'nvidia-rtx-4090']
+        gpu_server_roles = ['gpu servers', 'gpu-servers']  # Additional GPU server identification
+        
+        # Track inventory by status for reconciliation
+        status_counts = {}
+        gpu_device_counts = {}
         
         for device in all_devices:
             hostname = device.get('name')
@@ -168,18 +175,57 @@ def netbox_agent():
             status_value = status.get('value', 'unknown') if status else 'unknown'
             status_label = status.get('label', 'Unknown') if status else 'Unknown'
             
-            # Check if device has GPU tags
+            # Track status counts for inventory reconciliation
+            status_counts[status_value] = status_counts.get(status_value, 0) + 1
+            
+            # Check if device has GPU tags or is a GPU server
             device_tags = device.get('tags', [])
             device_tag_names = [tag.get('name', '') for tag in device_tags]
             has_gpu_tag = any(tag_name.lower() in [t.lower() for t in gpu_tags] for tag_name in device_tag_names)
             
-            # Debug logging for non-active devices
-            if status_value != 'active':
-                print(f"🔍 Non-active device found: {hostname}, status: {status_value}, tags: {device_tag_names}, has_gpu_tag: {has_gpu_tag}")
+            # Also check device role for GPU servers
+            device_role = device.get('role', {})
+            role_name = device_role.get('name', '').lower() if device_role else ''
+            is_gpu_server = role_name in gpu_server_roles or has_gpu_tag
             
-            # Add to regular netbox_data for active devices
+            # Extract additional device information
+            site = device.get('site', {}).get('name', 'Unknown') if device.get('site') else 'Unknown'
+            rack = device.get('rack', {}).get('name', 'Unknown') if device.get('rack') else 'Unknown'
+            
+            # Create complete device record for ALL devices
+            device_record = {
+                'hostname': hostname,
+                'name': hostname,
+                'tenant': tenant_name,
+                'owner_group': owner_group,
+                'nvlinks': nvlinks,
+                'aggregate': aggregate,
+                'status': status_value,
+                'status_label': status_label,
+                'site': site,
+                'rack': rack,
+                'device_tags': device_tag_names,
+                'has_gpu_tag': has_gpu_tag,
+                'is_gpu_server': is_gpu_server,
+                'gpu_used': 0,
+                'gpu_capacity': 8,  # Default assumption
+                'gpu_usage_ratio': '0/8',
+                'vm_count': 0,
+                'has_vms': False
+            }
+            
+            # Add to complete inventory
+            all_netbox_devices[hostname] = device_record
+            
+            # Track GPU device counts by status
+            if is_gpu_server:
+                if status_value not in gpu_device_counts:
+                    gpu_device_counts[status_value] = []
+                gpu_device_counts[status_value].append(hostname)
+            
+            # Add to active devices (for existing compatibility)
             if status_value == 'active':
-                netbox_data[hostname] = {
+                active_devices[hostname] = {
                     'tenant': tenant_name,
                     'owner_group': owner_group,
                     'nvlinks': nvlinks,
@@ -187,44 +233,42 @@ def netbox_agent():
                     'status': status_value
                 }
             
-            # Track non-active GPU devices for out-of-stock calculation
-            if status_value != 'active' and has_gpu_tag:
-                # Extract additional device information
-                site = device.get('site', {}).get('name', 'Unknown') if device.get('site') else 'Unknown'
-                rack = device.get('rack', {}).get('name', 'Unknown') if device.get('rack') else 'Unknown'
-                
-                # Get GPU tags
-                gpu_type_tags = []
-                for tag in device_tags:
-                    tag_name = tag.get('name', '').lower()
-                    if 'nvidia' in tag_name or 'gpu' in tag_name:
-                        gpu_type_tags.append(tag.get('name'))
-                
-                non_active_devices.append({
-                    'name': hostname,
-                    'hostname': hostname,
-                    'status': status_value,
-                    'status_label': status_label,
-                    'aggregate': aggregate,
-                    'tenant': tenant_name,
-                    'owner_group': owner_group,
-                    'nvlinks': nvlinks,
-                    'site': site,
-                    'rack': rack,
-                    'gpu_tags': gpu_type_tags,
-                    'gpu_used': 0,
-                    'gpu_capacity': 8,  # Assume 8 GPUs per device
-                    'gpu_usage_ratio': '0/8',
-                    'vm_count': 0,
-                    'has_vms': False
-                })
+            # Track non-active GPU devices for out-of-stock calculation (using the record we already created)
+            if status_value != 'active' and is_gpu_server:
+                non_active_gpu_devices.append(device_record)
         
         elapsed = time.time() - start_time
-        print(f"📡 NetBox Agent: Processed {len(netbox_data)} active devices and {len(non_active_devices)} non-active GPU devices in {elapsed:.2f}s")
+        total_gpu_servers = len([d for d in all_netbox_devices.values() if d['is_gpu_server']])
+        active_gpu_servers = len([d for d in all_netbox_devices.values() if d['is_gpu_server'] and d['status'] == 'active'])
+        
+        print(f"📡 NetBox Agent: Complete inventory processed in {elapsed:.2f}s")
+        print(f"   📊 Total devices: {len(all_netbox_devices)} ({total_gpu_servers} GPU servers)")
+        print(f"   ✅ Active GPU servers: {active_gpu_servers}")
+        print(f"   ⚠️ Non-active GPU servers: {len(non_active_gpu_devices)}")
+        
+        # Print status breakdown for GPU devices
+        gpu_status_summary = {}
+        for device in all_netbox_devices.values():
+            if device['is_gpu_server']:
+                status = device['status']
+                gpu_status_summary[status] = gpu_status_summary.get(status, 0) + 1
+        
+        if gpu_status_summary:
+            status_breakdown = ', '.join([f"{status}: {count}" for status, count in gpu_status_summary.items()])
+            print(f"   📋 GPU server status breakdown: {status_breakdown}")
         
         return {
-            'active_devices': netbox_data,
-            'non_active_devices': non_active_devices
+            'active_devices': active_devices,      # For existing compatibility
+            'non_active_devices': non_active_gpu_devices,  # Non-active GPU devices
+            'all_devices': all_netbox_devices,     # Complete inventory
+            'inventory_stats': {
+                'total_devices': len(all_netbox_devices),
+                'total_gpu_servers': total_gpu_servers,
+                'active_gpu_servers': active_gpu_servers,
+                'non_active_gpu_servers': len(non_active_gpu_devices),
+                'status_breakdown': gpu_status_summary,
+                'device_counts_by_status': gpu_device_counts
+            }
         }
         
     except Exception as e:
@@ -373,20 +417,80 @@ def gpu_info_agent():
         print(f"❌ GPU Info Agent failed: {e}")
         return {}
 
+def compute_service_agent():
+    """Agent 5: Get compute service status for ALL hosts to identify disabled hosts"""
+    print("🔧 Compute Service Agent: Getting service status for all hosts...")
+    start_time = time.time()
+    
+    try:
+        conn = get_openstack_connection()
+        if not conn:
+            return {}
+        
+        # Get all compute services
+        services = list(conn.compute.services())
+        
+        # Filter for nova-compute services and track their status
+        compute_services = {}
+        disabled_hosts = set()
+        
+        for service in services:
+            if service.binary == 'nova-compute':
+                hostname = service.host
+                is_enabled = service.status == 'enabled'
+                is_up = service.state == 'up'
+                
+                compute_services[hostname] = {
+                    'enabled': is_enabled,
+                    'state': service.state,
+                    'status': service.status,
+                    'updated_at': service.updated_at,
+                    'disabled_reason': service.disabled_reason if hasattr(service, 'disabled_reason') else None
+                }
+                
+                # Track disabled hosts for easy lookup
+                if not is_enabled:
+                    disabled_hosts.add(hostname)
+        
+        elapsed = time.time() - start_time
+        enabled_count = len([h for h, s in compute_services.items() if s['enabled']])
+        disabled_count = len(disabled_hosts)
+        
+        print(f"🔧 Compute Service Agent: Processed {len(compute_services)} nova-compute services ({enabled_count} enabled, {disabled_count} disabled) in {elapsed:.2f}s")
+        
+        return {
+            'services': compute_services,
+            'disabled_hosts': disabled_hosts,
+            'enabled_count': enabled_count,
+            'disabled_count': disabled_count
+        }
+        
+    except Exception as e:
+        print(f"❌ Compute Service Agent failed: {e}")
+        return {
+            'services': {},
+            'disabled_hosts': set(),
+            'enabled_count': 0,
+            'disabled_count': 0
+        }
+
 def organize_parallel_results(results):
     """
     Organize the parallel agent results by GPU type and compute out-of-stock devices
     """
     start_time = time.time()
     
-    # Extract NetBox data (now has active_devices and non_active_devices)
+    # Extract NetBox data (enhanced with complete inventory)
     netbox_result = results.get('netbox', {})
     netbox_data = netbox_result.get('active_devices', {}) if isinstance(netbox_result, dict) else {}
     netbox_non_active = netbox_result.get('non_active_devices', []) if isinstance(netbox_result, dict) else []
+    all_netbox_devices = netbox_result.get('all_devices', {}) if isinstance(netbox_result, dict) else {}
+    netbox_inventory_stats = netbox_result.get('inventory_stats', {}) if isinstance(netbox_result, dict) else {}
     
     aggregate_data = results.get('aggregates', {})
     vm_counts = results.get('vm_counts', {})
     gpu_info = results.get('gpu_info', {})
+    compute_services = results.get('compute_services', {})
     
     host_to_aggregate = aggregate_data.get('host_to_aggregate', {})
     aggregate_to_hosts = aggregate_data.get('aggregate_to_hosts', {})
@@ -449,64 +553,187 @@ def organize_parallel_results(results):
             'total_hosts': len(host_details)
         }
     
-    # Compute out-of-stock devices (NetBox non-active devices not in any OpenStack aggregate)
-    outofstock_data = compute_outofstock_devices(netbox_non_active, host_to_aggregate)
-    
-    # Add out-of-stock data to the organized results
-    organized['outofstock'] = outofstock_data
-    
-    elapsed = time.time() - start_time
-    print(f"🏁 Organized parallel results: {len(organized)-1} GPU types + out-of-stock ({outofstock_data['device_count']} devices) in {elapsed:.2f}s")
-    
-    return organized
-
-def compute_outofstock_devices(netbox_non_active, host_to_aggregate):
-    """
-    Compute out-of-stock devices: NetBox non-active devices that are NOT in any OpenStack aggregate
-    This ensures host uniqueness across all columns.
-    """
-    actual_outofstock = []
-    filtered_count = 0
-    
-    openstack_hosts = set(host_to_aggregate.keys())
-    print(f"🔍 Computing out-of-stock: {len(netbox_non_active)} NetBox non-active devices vs {len(openstack_hosts)} OpenStack hosts")
-    
-    for device in netbox_non_active:
-        device_hostname = device.get('hostname') or device.get('name')
-        if not device_hostname:
-            continue
-            
-        # CRITICAL: Ensure host uniqueness - exclude if in any OpenStack aggregate
-        if device_hostname in openstack_hosts:
-            filtered_count += 1
-            continue
-        
-        # This device is truly out of stock - in NetBox but not in OpenStack
-        actual_outofstock.append(device)
-    
-    print(f"✅ Out-of-stock computation: {len(actual_outofstock)} actual out-of-stock (filtered {filtered_count} already in OpenStack)")
+    # Compute comprehensive out-of-stock devices with full inventory accounting
+    disabled_hosts = compute_services.get('disabled_hosts', set())
+    outofstock_devices, outofstock_categories, category_counts = compute_comprehensive_outofstock_devices(
+        all_netbox_devices, host_to_aggregate, aggregate_to_hosts, disabled_hosts
+    )
     
     # Calculate GPU summary for out-of-stock devices
-    total_gpu_capacity = len(actual_outofstock) * 8  # Assume 8 GPUs per device
+    total_outofstock = len(outofstock_devices)
+    total_gpu_capacity = total_outofstock * 8  # Assume 8 GPUs per device
     gpu_summary = {
         'gpu_used': 0,  # Out of stock devices have 0 GPU usage
         'gpu_capacity': total_gpu_capacity,
         'gpu_usage_ratio': f'0/{total_gpu_capacity}'
     }
     
-    # Get status breakdown for monitoring
-    status_counts = {}
-    for device in actual_outofstock:
-        status = device.get('status', 'unknown')
-        status_counts[status] = status_counts.get(status, 0) + 1
-    
-    return {
-        'hosts': actual_outofstock,
+    # Create comprehensive out-of-stock data structure
+    outofstock_data = {
+        'hosts': outofstock_devices,
         'gpu_summary': gpu_summary,
         'name': 'Out of Stock',
-        'device_count': len(actual_outofstock),
-        'status_breakdown': status_counts
+        'device_count': total_outofstock,
+        'categories': outofstock_categories,
+        'category_counts': category_counts,
+        'breakdown_summary': {
+            'netbox_non_active': category_counts.get('netbox_non_active', 0),
+            'not_in_openstack': category_counts.get('not_in_openstack', 0), 
+            'in_tempest': category_counts.get('in_tempest', 0),
+            'compute_disabled': category_counts.get('compute_disabled', 0)
+        }
     }
+    
+    # Add out-of-stock data to the organized results
+    organized['outofstock'] = outofstock_data
+    
+    # INVENTORY VALIDATION: Ensure 100% device accountability
+    validate_inventory_accountability(organized, all_netbox_devices, netbox_inventory_stats)
+    
+    elapsed = time.time() - start_time
+    print(f"🏁 Organized parallel results: {len(organized)-1} GPU types + out-of-stock ({total_outofstock} devices) in {elapsed:.2f}s")
+    
+    return organized
+
+def compute_comprehensive_outofstock_devices(all_netbox_devices, host_to_aggregate, aggregate_to_hosts, disabled_hosts):
+    """
+    Compute complete out-of-stock devices using comprehensive inventory accounting:
+    1. NetBox non-active devices (failed, offline, RMA, etc.)
+    2. NetBox active devices NOT in productive OpenStack aggregates
+    3. NetBox active devices in "tempest" aggregate (testing/staging)
+    4. NetBox active devices with disabled compute service
+    
+    This ensures 100% device accountability and host uniqueness across all columns.
+    """
+    print(f"🔍 Computing comprehensive out-of-stock inventory...")
+    
+    # Identify tempest and other non-productive aggregates
+    tempest_aggregates = set()
+    productive_aggregates = set()
+    
+    for agg_name, hosts in aggregate_to_hosts.items():
+        if 'tempest' in agg_name.lower():
+            tempest_aggregates.add(agg_name)
+        else:
+            # Consider all other aggregates as productive (runpod, spot, ondemand, contracts, etc.)
+            productive_aggregates.add(agg_name)
+    
+    tempest_hosts = set()
+    for agg_name in tempest_aggregates:
+        tempest_hosts.update(aggregate_to_hosts.get(agg_name, []))
+    
+    productive_openstack_hosts = set()
+    for agg_name in productive_aggregates:
+        productive_openstack_hosts.update(aggregate_to_hosts.get(agg_name, []))
+    
+    print(f"   📊 OpenStack aggregates: {len(productive_aggregates)} productive, {len(tempest_aggregates)} tempest")
+    print(f"   🖥️ Host distribution: {len(productive_openstack_hosts)} productive, {len(tempest_hosts)} tempest, {len(disabled_hosts)} disabled")
+    
+    # Categorize all NetBox GPU devices
+    outofstock_categories = {
+        'netbox_non_active': [],      # NetBox status != active
+        'not_in_openstack': [],       # Active in NetBox but not in any OpenStack aggregate  
+        'in_tempest': [],             # Active but in tempest aggregate (testing)
+        'compute_disabled': []        # Active but compute service disabled
+    }
+    
+    for hostname, device in all_netbox_devices.items():
+        if not device.get('is_gpu_server', False):
+            continue  # Skip non-GPU devices
+            
+        device_status = device.get('status', 'unknown')
+        
+        # Category 1: NetBox non-active devices (failed, offline, RMA, etc.)
+        if device_status != 'active':
+            device['outofstock_reason'] = f"NetBox Status: {device.get('status_label', device_status)}"
+            outofstock_categories['netbox_non_active'].append(device)
+            
+        # For active devices, check OpenStack status
+        elif device_status == 'active':
+            
+            # Category 2: Active but compute service disabled
+            if hostname in disabled_hosts:
+                device['outofstock_reason'] = "OpenStack compute service disabled"
+                outofstock_categories['compute_disabled'].append(device)
+                
+            # Category 3: Active but in tempest aggregate (testing/staging)
+            elif hostname in tempest_hosts:
+                device['outofstock_reason'] = f"Testing/staging (tempest aggregate)"
+                outofstock_categories['in_tempest'].append(device)
+                
+            # Category 4: Active but not in any OpenStack aggregate
+            elif hostname not in productive_openstack_hosts:
+                device['outofstock_reason'] = "Not allocated to any productive aggregate"
+                outofstock_categories['not_in_openstack'].append(device)
+            
+            # If we get here, the device is active and in a productive aggregate - should NOT be out of stock
+    
+    # Combine all out-of-stock devices
+    all_outofstock = []
+    for category, devices in outofstock_categories.items():
+        all_outofstock.extend(devices)
+    
+    # Log detailed breakdown
+    category_counts = {cat: len(devices) for cat, devices in outofstock_categories.items()}
+    total_outofstock = len(all_outofstock)
+    
+    print(f"✅ Out-of-stock computation complete: {total_outofstock} total devices")
+    for category, count in category_counts.items():
+        if count > 0:
+            print(f"   📋 {category.replace('_', ' ').title()}: {count} devices")
+    
+    return all_outofstock, outofstock_categories, category_counts
+
+def validate_inventory_accountability(organized_results, all_netbox_devices, netbox_inventory_stats):
+    """
+    Validate that NetBox total equals UI column totals for 100% device accountability
+    """
+    print(f"🔍 Validating inventory accountability...")
+    
+    # Count NetBox GPU servers
+    netbox_gpu_servers = [d for d in all_netbox_devices.values() if d.get('is_gpu_server', False)]
+    netbox_total = len(netbox_gpu_servers)
+    
+    # Count UI column totals
+    ui_total = 0
+    column_counts = {}
+    
+    for gpu_type, data in organized_results.items():
+        if gpu_type == 'outofstock':
+            count = data.get('device_count', 0)
+            column_counts['out_of_stock'] = count
+        else:
+            count = data.get('total_hosts', 0)
+            column_counts[gpu_type] = count
+        ui_total += count
+    
+    # Validation check
+    is_valid = (netbox_total == ui_total)
+    status_icon = "✅" if is_valid else "❌"
+    
+    print(f"{status_icon} Inventory Validation:")
+    print(f"   📦 NetBox GPU Servers: {netbox_total}")
+    print(f"   🖥️ UI Column Total: {ui_total}")
+    
+    if not is_valid:
+        discrepancy = abs(netbox_total - ui_total)
+        print(f"   ⚠️ DISCREPANCY: {discrepancy} devices unaccounted!")
+        
+        # Detailed breakdown for debugging
+        print(f"   📊 Column breakdown:")
+        for column, count in column_counts.items():
+            print(f"      - {column}: {count}")
+            
+        # NetBox status breakdown
+        netbox_status_breakdown = netbox_inventory_stats.get('status_breakdown', {})
+        if netbox_status_breakdown:
+            print(f"   📋 NetBox status breakdown:")
+            for status, count in netbox_status_breakdown.items():
+                print(f"      - {status}: {count}")
+    else:
+        print(f"   ✅ Perfect accountability: All {netbox_total} GPU servers accounted for")
+    
+    return is_valid, netbox_total, ui_total, column_counts
 
 def classify_aggregates_by_gpu_type(aggregates_dict):
     """
