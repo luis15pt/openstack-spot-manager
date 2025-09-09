@@ -146,9 +146,16 @@ def netbox_agent():
         active_devices = {}      # Only active devices (for existing compatibility)
         non_active_gpu_devices = []  # Non-active GPU devices for out-of-stock
         
-        # Define GPU-related tags and device role patterns
-        gpu_tags = ['nvidia-h100-pcie', 'nvidia-a100-pcie', 'nvidia-a100-sxm', 'nvidia-h100-sxm', 'nvidia-rtx-4090']
-        gpu_server_roles = ['gpu servers', 'gpu-servers']  # Additional GPU server identification
+        # Define GPU-related tags and device role patterns (case-insensitive matching)
+        gpu_tags = [
+            'nvidia-h100-pcie', 'nvidia h100 pcie',
+            'nvidia-a100-pcie', 'nvidia a100 pcie', 
+            'nvidia-a100-sxm', 'nvidia a100 sxm',
+            'nvidia-h100-sxm', 'nvidia h100 sxm',
+            'nvidia-rtx-4090', 'nvidia rtx 4090',
+            'nvidia-h200-sxm5', 'nvidia h200 sxm5'
+        ]
+        gpu_server_roles = ['gpu servers', 'gpu-servers', 'gpu server']  # Additional GPU server identification
         
         # Track inventory by status for reconciliation
         status_counts = {}
@@ -248,14 +255,50 @@ def netbox_agent():
         
         # Print status breakdown for GPU devices
         gpu_status_summary = {}
+        gpu_tag_analysis = {}
+        h100_devices_debug = []
+        
         for device in all_netbox_devices.values():
             if device['is_gpu_server']:
                 status = device['status']
                 gpu_status_summary[status] = gpu_status_summary.get(status, 0) + 1
+                
+                # Track GPU tags for debugging
+                for tag in device.get('device_tags', []):
+                    if tag.lower() not in gpu_tag_analysis:
+                        gpu_tag_analysis[tag.lower()] = 0
+                    gpu_tag_analysis[tag.lower()] += 1
+                
+                # Debug H100 devices specifically
+                device_tags_lower = [tag.lower() for tag in device.get('device_tags', [])]
+                if any('h100' in tag for tag in device_tags_lower):
+                    h100_devices_debug.append({
+                        'hostname': device['hostname'],
+                        'status': device['status'],
+                        'tags': device.get('device_tags', []),
+                        'aggregate': device.get('aggregate', 'unknown')
+                    })
         
         if gpu_status_summary:
             status_breakdown = ', '.join([f"{status}: {count}" for status, count in gpu_status_summary.items()])
             print(f"   📋 GPU server status breakdown: {status_breakdown}")
+        
+        # Debug output for H100 detection
+        print(f"   🔍 H100 devices found in NetBox: {len(h100_devices_debug)}")
+        if len(h100_devices_debug) != 100:
+            print(f"   ⚠️ Expected 100 H100 devices, found {len(h100_devices_debug)}")
+            # Show first few for debugging
+            for i, device in enumerate(h100_devices_debug[:5]):
+                print(f"      {i+1}. {device['hostname']}: {device['status']}, tags: {device['tags']}")
+            if len(h100_devices_debug) > 5:
+                print(f"      ... and {len(h100_devices_debug) - 5} more")
+        
+        # Show GPU tag analysis
+        h100_related_tags = {tag: count for tag, count in gpu_tag_analysis.items() if 'h100' in tag}
+        if h100_related_tags:
+            print(f"   🏷️ H100-related tags: {h100_related_tags}")
+        
+        print(f"   🏷️ All GPU tags found: {dict(list(gpu_tag_analysis.items())[:10])}")  # Show first 10 tags
         
         return {
             'active_devices': active_devices,      # For existing compatibility
@@ -444,8 +487,8 @@ def compute_service_agent():
                     'enabled': is_enabled,
                     'state': service.state,
                     'status': service.status,
-                    'updated_at': service.updated_at,
-                    'disabled_reason': service.disabled_reason if hasattr(service, 'disabled_reason') else None
+                    'updated_at': getattr(service, 'updated_at', None),
+                    'disabled_reason': getattr(service, 'disabled_reason', None)
                 }
                 
                 # Track disabled hosts for easy lookup
