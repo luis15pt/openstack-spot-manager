@@ -43,12 +43,14 @@ def register_routes(app):
         """Get available GPU types from parallel agents data - OPTIMIZED"""
         try:
             parallel_data = get_all_data_parallel()
-            gpu_types = list(parallel_data.keys())
+            # Filter out internal keys (starting with _) from GPU types
+            gpu_types = [key for key in parallel_data.keys() if not key.startswith('_')]
             
-            # Build aggregates info from parallel data
+            # Build aggregates info from parallel data (excluding internal keys)
             aggregates_info = {}
             for gpu_type, data in parallel_data.items():
-                aggregates_info[gpu_type] = data.get('config', {})
+                if not gpu_type.startswith('_'):
+                    aggregates_info[gpu_type] = data.get('config', {})
             
             return jsonify({
                 'gpu_types': gpu_types,
