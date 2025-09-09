@@ -152,6 +152,7 @@ def netbox_agent():
             'nvidia-a100-pcie', 'nvidia a100 pcie', 
             'nvidia-a100-sxm', 'nvidia a100 sxm',
             'nvidia-h100-sxm', 'nvidia h100 sxm',
+            'nvidia-h100-80gb-sxm5', 'nvidia h100 80gb sxm5',
             'nvidia-rtx-4090', 'nvidia rtx 4090',
             'nvidia-h200-sxm5', 'nvidia h200 sxm5'
         ]
