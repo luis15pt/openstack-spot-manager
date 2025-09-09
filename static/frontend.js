@@ -257,11 +257,32 @@ function renderAggregateData(data) {
     // Update Summary column with comprehensive GPU usage overview
     if (window.columns && window.columns.summary) {
         console.log('🔄 Updating Summary column with comprehensive GPU usage data');
-        // Ensure outofstock data exists in the data object
+        // Load real out-of-stock data instead of hardcoded fallback
         if (!data.outofstock) {
-            data.outofstock = { hosts: [] };
+            console.log('🔍 Loading out-of-stock data from NetBox...');
+            // Use the calculateOutOfStockHosts method which now fetches from API
+            window.OutOfStockColumn.calculateOutOfStockHosts(data).then(outofstockData => {
+                data.outofstock = outofstockData;
+                console.log(`✅ Out-of-stock data loaded: ${outofstockData.hosts?.length || 0} devices`);
+                
+                // Update Summary column with complete data including out-of-stock
+                window.columns.summary.update(data);
+                
+                // Also update the Out of Stock column directly if it exists
+                if (window.columns && window.columns.outofstock) {
+                    console.log('🔄 Updating Out of Stock column with real data');
+                    window.columns.outofstock.update(outofstockData);
+                }
+            }).catch(error => {
+                console.error('❌ Failed to load out-of-stock data:', error);
+                // Fallback to empty data on error
+                data.outofstock = { hosts: [], gpu_summary: { gpu_used: 0, gpu_capacity: 0, gpu_usage_ratio: '0/0' }, name: 'Out of Stock' };
+                window.columns.summary.update(data);
+            });
+        } else {
+            // Out-of-stock data already exists, update normally
+            window.columns.summary.update(data);
         }
-        window.columns.summary.update(data);
     }
     
     // Setup drag and drop

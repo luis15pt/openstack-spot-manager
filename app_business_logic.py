@@ -923,3 +923,137 @@ def get_netbox_cache_stats():
         'cache_timestamps': len(_tenant_cache_timestamps),
         'cache_ttl_seconds': TENANT_CACHE_TTL
     }
+
+# =============================================================================
+# OUT OF STOCK DATA FUNCTIONS
+# =============================================================================
+
+def get_outofstock_data():
+    """Get out of stock devices from NetBox that are not in any OpenStack aggregate
+    
+    Returns devices that are in NetBox with non-active status but NOT present 
+    in any OpenStack aggregate, ensuring host uniqueness across all columns.
+    """
+    try:
+        from modules.netbox_outofstock_operations import get_netbox_non_active_devices
+        from modules.parallel_agents import get_all_data_parallel
+        
+        print("🔍 Getting out-of-stock devices (NetBox non-active devices not in OpenStack)...")
+        
+        # Get all non-active devices from NetBox
+        netbox_devices = get_netbox_non_active_devices()
+        
+        if not netbox_devices:
+            print("ℹ️ No non-active devices found in NetBox")
+            return {
+                'hosts': [],
+                'gpu_summary': {
+                    'gpu_used': 0,
+                    'gpu_capacity': 0,
+                    'gpu_usage_ratio': '0/0'
+                },
+                'name': 'Out of Stock'
+            }
+        
+        # Get all current OpenStack hosts across all aggregates to ensure uniqueness
+        openstack_hosts = set()
+        try:
+            parallel_data = get_all_data_parallel()
+            for gpu_type, data in parallel_data.items():
+                for host_info in data.get('hosts', []):
+                    hostname = host_info.get('hostname')
+                    if hostname:
+                        openstack_hosts.add(hostname)
+            
+            print(f"📊 Found {len(openstack_hosts)} hosts currently in OpenStack aggregates")
+        except Exception as e:
+            print(f"⚠️ Could not get OpenStack hosts for uniqueness check: {e}")
+            # Continue with empty set - better to show devices than hide them
+        
+        # Filter out devices that are already in OpenStack aggregates
+        actual_outofstock = []
+        filtered_count = 0
+        
+        for device in netbox_devices:
+            device_hostname = device.get('hostname') or device.get('name')
+            if not device_hostname:
+                continue
+                
+            # CRITICAL: Ensure host uniqueness - exclude if in any OpenStack aggregate
+            if device_hostname in openstack_hosts:
+                print(f"🔄 Excluding {device_hostname} - already in OpenStack aggregate")
+                filtered_count += 1
+                continue
+            
+            # This device is truly out of stock - in NetBox but not in OpenStack
+            actual_outofstock.append(device)
+        
+        print(f"✅ Out-of-stock analysis complete:")
+        print(f"   - NetBox non-active devices: {len(netbox_devices)}")
+        print(f"   - Filtered out (in OpenStack): {filtered_count}")
+        print(f"   - Actual out-of-stock: {len(actual_outofstock)}")
+        
+        # Calculate GPU summary for out-of-stock devices
+        total_gpu_capacity = len(actual_outofstock) * 8  # Assume 8 GPUs per device
+        gpu_summary = {
+            'gpu_used': 0,  # Out of stock devices have 0 GPU usage
+            'gpu_capacity': total_gpu_capacity,
+            'gpu_usage_ratio': f'0/{total_gpu_capacity}'
+        }
+        
+        # Format devices to match other column structures
+        formatted_hosts = []
+        for device in actual_outofstock:
+            formatted_device = {
+                'name': device.get('hostname', device.get('name')),
+                'hostname': device.get('hostname', device.get('name')),
+                'status': device.get('status', 'unknown'),
+                'status_label': device.get('status_label', 'Unknown'),
+                'aggregate': device.get('aggregate', 'unknown'),
+                'tenant': device.get('tenant', 'Unknown'),
+                'owner_group': device.get('owner_group', 'Unknown'),
+                'nvlinks': device.get('nvlinks', False),
+                'gpu_used': device.get('gpu_used', 0),
+                'gpu_capacity': device.get('gpu_capacity', 8),
+                'gpu_usage_ratio': device.get('gpu_usage_ratio', '0/8'),
+                'site': device.get('site', 'Unknown'),
+                'rack': device.get('rack', 'Unknown'),
+                'vm_count': 0,  # Out of stock devices have no VMs
+                'has_vms': False
+            }
+            
+            # Add GPU tags if available
+            if device.get('gpu_tags'):
+                formatted_device['gpu_tags'] = device.get('gpu_tags')
+            
+            formatted_hosts.append(formatted_device)
+        
+        return {
+            'hosts': formatted_hosts,
+            'gpu_summary': gpu_summary,
+            'name': 'Out of Stock',
+            'device_count': len(formatted_hosts),
+            'status_breakdown': _get_status_breakdown(formatted_hosts)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting out-of-stock data: {e}")
+        # Return empty structure on error
+        return {
+            'hosts': [],
+            'gpu_summary': {
+                'gpu_used': 0,
+                'gpu_capacity': 0,
+                'gpu_usage_ratio': '0/0'
+            },
+            'name': 'Out of Stock',
+            'error': str(e)
+        }
+
+def _get_status_breakdown(devices):
+    """Get breakdown of devices by status for debugging/monitoring"""
+    status_counts = {}
+    for device in devices:
+        status = device.get('status', 'unknown')
+        status_counts[status] = status_counts.get(status, 0) + 1
+    return status_counts

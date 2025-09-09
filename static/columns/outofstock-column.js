@@ -58,27 +58,64 @@ class OutOfStockColumn extends BaseColumn {
     }
 
     /**
-     * Calculate out of stock hosts from all data
-     * This is a utility function that can be called by the main script
+     * Calculate out of stock hosts by fetching from NetBox API
+     * This fetches devices from NetBox that are not in active status and not in OpenStack
      */
-    static calculateOutOfStockHosts(allData) {
-        // For now, simple implementation - return empty array
-        // TODO: Implement actual NetBox vs OpenStack comparison
-        
-        const outOfStockHosts = [];
-        
-        // Calculate GPU summary for out of stock (unused capacity)
-        const gpu_summary = {
-            gpu_used: 0,
-            gpu_capacity: outOfStockHosts.length * 8, // Assume 8 GPUs per host
-            gpu_usage_ratio: `0/${outOfStockHosts.length * 8}`
-        };
+    static async calculateOutOfStockHosts(allData) {
+        try {
+            console.log('🔍 Fetching out-of-stock devices from NetBox...');
+            
+            const response = await fetch('/api/outofstock-data', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
 
-        return {
-            hosts: outOfStockHosts,
-            gpu_summary: gpu_summary,
-            name: 'Out of Stock'
-        };
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const outofstockData = await response.json();
+            
+            console.log(`✅ Out-of-stock data received: ${outofstockData.hosts?.length || 0} devices`);
+            
+            // Log status breakdown if available for debugging
+            if (outofstockData.status_breakdown) {
+                const statusList = Object.entries(outofstockData.status_breakdown)
+                    .map(([status, count]) => `${status}: ${count}`)
+                    .join(', ');
+                console.log(`📊 Status breakdown: ${statusList}`);
+            }
+
+            return {
+                hosts: outofstockData.hosts || [],
+                gpu_summary: outofstockData.gpu_summary || {
+                    gpu_used: 0,
+                    gpu_capacity: 0,
+                    gpu_usage_ratio: '0/0'
+                },
+                name: outofstockData.name || 'Out of Stock',
+                device_count: outofstockData.device_count || 0,
+                status_breakdown: outofstockData.status_breakdown || {},
+                error: outofstockData.error || null
+            };
+
+        } catch (error) {
+            console.error('❌ Error fetching out-of-stock data:', error);
+            
+            // Return empty structure on error
+            return {
+                hosts: [],
+                gpu_summary: {
+                    gpu_used: 0,
+                    gpu_capacity: 0,
+                    gpu_usage_ratio: '0/0'
+                },
+                name: 'Out of Stock',
+                error: error.message
+            };
+        }
     }
 }
 
