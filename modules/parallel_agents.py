@@ -712,7 +712,11 @@ def organize_by_netbox_devices(results):
     
     for agg_name, hosts in aggregate_to_hosts.items():
         if 'tempest' in agg_name.lower():
-            tempest_hosts.update(hosts)
+            # Ensure hosts is iterable before updating
+            if isinstance(hosts, (list, set, tuple)):
+                tempest_hosts.update(hosts)
+            else:
+                print(f"⚠️ organize_by_netbox_devices: {agg_name} hosts is {type(hosts)}, expected iterable")
     
     print(f"🔍 Processing {len(all_netbox_devices)} NetBox devices with NetBox-first approach...")
     
@@ -722,6 +726,11 @@ def organize_by_netbox_devices(results):
     
     # Process each NetBox GPU device individually
     for hostname, device in all_netbox_devices.items():
+        # Ensure device is a dictionary before processing
+        if not isinstance(device, dict):
+            print(f"⚠️ organize_by_netbox_devices: device {hostname} is {type(device)}, expected dict")
+            continue
+            
         if not device.get('is_gpu_server', False):
             continue  # Skip non-GPU devices
             
@@ -770,19 +779,37 @@ def organize_by_netbox_devices(results):
     # Add out-of-stock column
     organized['outofstock'] = create_outofstock_column(out_of_stock_devices)
     
-    # Add inventory validation
+    # Add inventory validation with defensive programming
     total_devices_processed = 0
     for key, col in organized.items():
         if key.startswith('_'):  # Skip internal keys
             continue
-        elif key == 'outofstock':
-            total_devices_processed += len(col.get('hosts', []))
+        
+        # Ensure col is a dictionary before calling .get()
+        if not isinstance(col, dict):
+            print(f"⚠️ organize_by_netbox_devices: {key} column data is {type(col)}, expected dict")
+            continue
+            
+        if key == 'outofstock':
+            hosts = col.get('hosts', [])
+            if isinstance(hosts, list):
+                total_devices_processed += len(hosts)
+            else:
+                print(f"⚠️ organize_by_netbox_devices: {key} hosts is {type(hosts)}, expected list")
         else:
-            total_devices_processed += len(col.get('hosts', []))
+            hosts = col.get('hosts', [])
+            if isinstance(hosts, list):
+                total_devices_processed += len(hosts)
+            else:
+                print(f"⚠️ organize_by_netbox_devices: {key} hosts is {type(hosts)}, expected list")
     
     # Count NetBox GPU servers with proper filtering (same as processing logic)
     netbox_gpu_count = 0
     for hostname, device in all_netbox_devices.items():
+        # Ensure device is a dictionary before processing (defensive programming)
+        if not isinstance(device, dict):
+            continue
+            
         if not device.get('is_gpu_server', False):
             continue
         status = device.get('status', '').lower()
