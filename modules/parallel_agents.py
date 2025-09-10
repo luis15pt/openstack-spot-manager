@@ -998,6 +998,7 @@ def finalize_gpu_column(column_data):
     try:
         total_used = sum(host.get('gpu_used', 0) for host in all_hosts)
         total_capacity = sum(host.get('gpu_capacity', 8) for host in all_hosts)
+        print(f"🔍 DEBUG: GPU summary calculation - hosts: {len(all_hosts)}, total_used: {total_used}, total_capacity: {total_capacity}")
     except Exception as e:
         print(f"❌ Error calculating GPU summaries: {e}")
     
