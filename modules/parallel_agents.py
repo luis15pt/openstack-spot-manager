@@ -809,6 +809,9 @@ def organize_by_netbox_devices(results):
         organized[gpu_type] = finalize_gpu_column(column_data)
     
     # Add out-of-stock column
+    print(f"🔍 DEBUG: Creating out-of-stock column with {len(out_of_stock_devices)} devices")
+    if out_of_stock_devices:
+        print(f"🔍 DEBUG: First 3 out-of-stock devices: {[d.get('hostname', 'unknown') for d in out_of_stock_devices[:3]]}")
     organized['outofstock'] = create_outofstock_column(out_of_stock_devices)
     
     # Add inventory validation with defensive programming
