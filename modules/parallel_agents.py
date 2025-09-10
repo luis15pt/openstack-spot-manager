@@ -864,11 +864,23 @@ def enrich_device_with_openstack_data(device, vm_counts, gpu_info, host_to_aggre
     
     # Add VM information
     if hostname in vm_counts:
-        enriched.update(vm_counts[hostname])
+        vm_data = vm_counts[hostname]
+        if isinstance(vm_data, dict):
+            enriched.update(vm_data)
+        elif isinstance(vm_data, int):
+            enriched['vm_count'] = vm_data
+        else:
+            print(f"⚠️ enrich_device_with_openstack_data: vm_counts[{hostname}] is {type(vm_data)}, expected dict or int")
     
     # Add GPU information  
     if hostname in gpu_info:
-        enriched.update(gpu_info[hostname])
+        gpu_data = gpu_info[hostname]
+        if isinstance(gpu_data, dict):
+            enriched.update(gpu_data)
+        elif isinstance(gpu_data, int):
+            enriched['gpu_count'] = gpu_data
+        else:
+            print(f"⚠️ enrich_device_with_openstack_data: gpu_info[{hostname}] is {type(gpu_data)}, expected dict or int")
         
     # Add aggregate information
     enriched['openstack_aggregate'] = host_to_aggregate.get(hostname)
