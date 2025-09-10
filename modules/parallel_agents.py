@@ -81,7 +81,25 @@ def get_all_data_parallel():
         print(f"🏁 All parallel agents completed in {total_time:.2f}s")
         
         # Organize the results using NetBox-first approach
-        organized_data = organize_by_netbox_devices(results)
+        try:
+            organized_data = organize_by_netbox_devices(results)
+        except Exception as e:
+            print(f"❌ CRITICAL ERROR in organize_by_netbox_devices: {e}")
+            import traceback
+            print(f"❌ Full traceback: {traceback.format_exc()}")
+            # Return minimal fallback data to prevent total failure
+            organized_data = {
+                'outofstock': {
+                    'hosts': [],
+                    'device_count': 0,
+                    'name': 'Out of Stock',
+                    'gpu_summary': {
+                        'gpu_used': 0,
+                        'gpu_capacity': 0,
+                        'gpu_usage_ratio': '0/0'
+                    }
+                }
+            }
         
         # Cache the results
         _parallel_cache[cache_key] = organized_data
