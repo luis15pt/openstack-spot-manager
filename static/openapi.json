@@ -1,0 +1,443 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "OpenStack Spot Manager API",
+    "description": "API for managing OpenStack GPU resources, NetBox inventory, and cloud deployments",
+    "version": "1.0.0",
+    "contact": {
+      "name": "OpenStack Spot Manager",
+      "url": "https://github.com/luis15pt/openstack-spot-manager"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "API Base Path"
+    }
+  ],
+  "paths": {
+    "/gpu-types": {
+      "get": {
+        "summary": "Get available GPU types",
+        "description": "Returns list of all available GPU types with aggregates info",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "gpu_types": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": ["H100", "A100", "RTX-A6000", "L40", "outofstock"]
+                    },
+                    "aggregates": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object"
+                      }
+                    },
+                    "parallel_data": {
+                      "type": "object",
+                      "description": "Cached parallel agent data"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aggregates/{gpu_type}": {
+      "get": {
+        "summary": "Get GPU type details",
+        "description": "Returns detailed information for a specific GPU type including hosts, contracts, and usage statistics",
+        "parameters": [
+          {
+            "name": "gpu_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "H100"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/GPUTypeResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/OutOfStockResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid GPU type"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/outofstock-data": {
+      "get": {
+        "summary": "Get out of stock devices",
+        "description": "Returns NetBox devices that are not in active OpenStack aggregates",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutOfStockData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/parallel-test": {
+      "get": {
+        "summary": "Test parallel agents system",
+        "description": "Tests the parallel data collection system and returns performance metrics",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "total_hosts": {
+                      "type": "integer"
+                    },
+                    "gpu_types": {
+                      "type": "integer"
+                    },
+                    "execution_time": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cache-status": {
+      "get": {
+        "summary": "Get cache status",
+        "description": "Returns current cache status and statistics",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cache_size": {
+                      "type": "integer"
+                    },
+                    "cache_entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/clear-cache": {
+      "post": {
+        "summary": "Clear cache",
+        "description": "Clears all cached data",
+        "responses": {
+          "200": {
+            "description": "Cache cleared successfully"
+          }
+        }
+      }
+    },
+    "/deploy": {
+      "post": {
+        "summary": "Deploy instance",
+        "description": "Deploy a new cloud instance",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hostname": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string",
+                    "enum": ["hyperstack", "runpod"]
+                  },
+                  "gpu_type": {
+                    "type": "string"
+                  }
+                },
+                "required": ["hostname", "provider"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deployment successful"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "500": {
+            "description": "Deployment failed"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GPUTypeResponse": {
+        "type": "object",
+        "properties": {
+          "gpu_type": {
+            "type": "string",
+            "example": "H100"
+          },
+          "ondemand": {
+            "$ref": "#/components/schemas/ColumnData"
+          },
+          "runpod": {
+            "$ref": "#/components/schemas/ColumnData"
+          },
+          "spot": {
+            "$ref": "#/components/schemas/ColumnData"
+          },
+          "contracts": {
+            "$ref": "#/components/schemas/ContractData"
+          },
+          "gpu_overview": {
+            "$ref": "#/components/schemas/GPUOverview"
+          },
+          "performance_stats": {
+            "$ref": "#/components/schemas/PerformanceStats"
+          }
+        }
+      },
+      "OutOfStockResponse": {
+        "type": "object",
+        "properties": {
+          "gpu_type": {
+            "type": "string",
+            "example": "outofstock"
+          },
+          "outofstock": {
+            "$ref": "#/components/schemas/OutOfStockData"
+          },
+          "performance_stats": {
+            "$ref": "#/components/schemas/PerformanceStats"
+          }
+        }
+      },
+      "ColumnData": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "H100-n3"
+          },
+          "hosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostData"
+            }
+          },
+          "gpu_summary": {
+            "$ref": "#/components/schemas/GPUSummary"
+          }
+        }
+      },
+      "ContractData": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Contracts (4 contracts)"
+          },
+          "hosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostData"
+            }
+          },
+          "gpu_summary": {
+            "$ref": "#/components/schemas/GPUSummary"
+          },
+          "contracts_list": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "aggregate": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "HostData": {
+        "type": "object",
+        "properties": {
+          "hostname": {
+            "type": "string",
+            "example": "CA1-ESC812-167"
+          },
+          "name": {
+            "type": "string"
+          },
+          "vm_count": {
+            "type": "integer"
+          },
+          "has_vms": {
+            "type": "boolean"
+          },
+          "tenant": {
+            "type": "string",
+            "example": "Chris Starkey"
+          },
+          "owner_group": {
+            "type": "string",
+            "example": "Nexgen Cloud"
+          },
+          "nvlinks": {
+            "type": "boolean"
+          },
+          "gpu_used": {
+            "type": "integer"
+          },
+          "gpu_capacity": {
+            "type": "integer"
+          },
+          "gpu_usage_ratio": {
+            "type": "string",
+            "example": "0/8"
+          },
+          "aggregate": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "outofstock_reason": {
+            "type": "string",
+            "description": "Only present for out-of-stock devices"
+          }
+        }
+      },
+      "GPUSummary": {
+        "type": "object",
+        "properties": {
+          "gpu_used": {
+            "type": "integer"
+          },
+          "gpu_capacity": {
+            "type": "integer"
+          },
+          "gpu_usage_ratio": {
+            "type": "string",
+            "example": "0/64"
+          }
+        }
+      },
+      "GPUOverview": {
+        "type": "object",
+        "properties": {
+          "total_gpu_used": {
+            "type": "integer"
+          },
+          "total_gpu_capacity": {
+            "type": "integer"
+          },
+          "total_gpu_usage_ratio": {
+            "type": "string"
+          }
+        }
+      },
+      "PerformanceStats": {
+        "type": "object",
+        "properties": {
+          "total_time": {
+            "type": "number"
+          },
+          "total_hosts": {
+            "type": "integer"
+          },
+          "hosts_per_second": {
+            "type": "number"
+          },
+          "method": {
+            "type": "string",
+            "example": "parallel_agents_cached"
+          }
+        }
+      },
+      "OutOfStockData": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Out of Stock"
+          },
+          "hosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostData"
+            }
+          },
+          "gpu_summary": {
+            "$ref": "#/components/schemas/GPUSummary"
+          },
+          "device_count": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

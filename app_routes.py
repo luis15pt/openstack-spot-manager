@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from flask import render_template, jsonify, request
+from flask import render_template, jsonify, request, send_from_directory
 import json
 import requests
 import time
@@ -37,6 +37,16 @@ def register_routes(app):
     @app.route('/dashboard')
     def dashboard():
         return render_template('index.html')
+    
+    @app.route('/docs')
+    def api_docs():
+        """Swagger UI for API documentation"""
+        return render_template('swagger.html')
+    
+    @app.route('/api/openapi.json')
+    def openapi_spec():
+        """OpenAPI specification"""
+        return send_from_directory('static', 'openapi.json')
 
     @app.route('/api/gpu-types')
     def get_gpu_types():
