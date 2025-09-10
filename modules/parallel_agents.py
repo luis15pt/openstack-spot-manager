@@ -194,9 +194,23 @@ def netbox_agent():
             # Other GPU types
             'nvidia l40': 'L40',
             'nvidia rtx a6000': 'RTX-A6000', 
+            
+            # H200 variants
             'nvidia h200 sxm5': 'H200-SXM5',
+            'nvidia h200 141gb sxm5': 'H200-SXM5',
+            
+            # GH200 variants
+            'nvidia gh200 480gb': 'GH200',
+            
+            # RTX variants
             'nvidia rtx 4090': 'RTX-4090',
-            'rtx a4000': 'RTX-A4000'
+            'nvidia rtx 5090': 'RTX-5090',
+            'nvidia rtx a6000 ada': 'RTX-A6000-ADA',
+            'nvidia rtx 6000 pro se': 'RTX-6000-PRO-SE',
+            'rtx a4000': 'RTX-A4000',
+            
+            # A40 variants
+            'nvidia a40': 'A40'
         }
         
         def classify_gpu_type_from_tags(tag_names):
