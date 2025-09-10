@@ -258,7 +258,12 @@ function renderAggregateData(data) {
     if (window.columns && window.columns.summary) {
         console.log('🔄 Updating Summary column with comprehensive GPU usage data');
         // Out-of-stock data should now be included in the parallel agents results
-        if (!data.outofstock) {
+        // Handle special case where outofstock API returns nested structure
+        if (data.gpu_type === 'outofstock' && data.outofstock) {
+            console.log(`✅ Using outofstock API response: ${data.outofstock.hosts?.length || 0} devices`);
+            // Restructure for compatibility with existing frontend code
+            data.outofstock = data.outofstock;
+        } else if (!data.outofstock) {
             console.log('⚠️ No out-of-stock data found in cached results, using empty fallback');
             data.outofstock = { hosts: [], gpu_summary: { gpu_used: 0, gpu_capacity: 0, gpu_usage_ratio: '0/0' }, name: 'Out of Stock' };
         } else {
