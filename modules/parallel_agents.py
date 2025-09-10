@@ -725,6 +725,16 @@ def organize_by_netbox_devices(results):
         if not device.get('is_gpu_server', False):
             continue  # Skip non-GPU devices
             
+        # Skip devices with excluded statuses
+        status = device.get('status', '').lower()
+        if status in ['inventory', 'offline', 'staging']:
+            continue  # Ignore these statuses as requested
+            
+        # Skip unpopulated chassis and empty tags
+        device_tags = device.get('device_tags', [])
+        if 'UNPOPULATED CHASSIS' in [tag.upper() for tag in device_tags] or not device_tags:
+            continue  # Skip unpopulated or untagged devices
+            
         gpu_type = device.get('gpu_type')
         if not gpu_type or gpu_type == 'Unknown':
             print(f"⚠️ Unknown GPU type for {hostname}: tags={device.get('device_tags', [])}")
@@ -761,14 +771,37 @@ def organize_by_netbox_devices(results):
     organized['outofstock'] = create_outofstock_column(out_of_stock_devices)
     
     # Add inventory validation
-    total_devices_processed = sum(len(col.get('hosts', [])) for col in organized.values() if col.get('hosts'))
-    is_valid = len([d for d in all_netbox_devices.values() if d.get('is_gpu_server')]) == total_devices_processed
+    total_devices_processed = 0
+    for key, col in organized.items():
+        if key.startswith('_'):  # Skip internal keys
+            continue
+        elif key == 'outofstock':
+            total_devices_processed += len(col.get('hosts', []))
+        else:
+            total_devices_processed += len(col.get('hosts', []))
+    
+    # Count NetBox GPU servers with proper filtering (same as processing logic)
+    netbox_gpu_count = 0
+    for hostname, device in all_netbox_devices.items():
+        if not device.get('is_gpu_server', False):
+            continue
+        status = device.get('status', '').lower()
+        if status in ['inventory', 'offline', 'staging']:
+            continue
+        device_tags = device.get('device_tags', [])
+        if 'UNPOPULATED CHASSIS' in [tag.upper() for tag in device_tags] or not device_tags:
+            continue
+        if not device.get('gpu_type') or device.get('gpu_type') == 'Unknown':
+            continue
+        netbox_gpu_count += 1
+    
+    is_valid = netbox_gpu_count == total_devices_processed
     
     organized['_inventory_validation'] = {
         'is_valid': is_valid,
-        'netbox_total': len([d for d in all_netbox_devices.values() if d.get('is_gpu_server')]),
+        'netbox_total': netbox_gpu_count,  # Use filtered count
         'ui_total': total_devices_processed,
-        'discrepancy': abs(len([d for d in all_netbox_devices.values() if d.get('is_gpu_server')]) - total_devices_processed),
+        'discrepancy': abs(netbox_gpu_count - total_devices_processed),
         'netbox_status_breakdown': netbox_inventory_stats
     }
     
