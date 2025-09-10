@@ -897,7 +897,9 @@ def enrich_device_with_openstack_data(device, vm_counts, gpu_info, host_to_aggre
             print(f"⚠️ enrich_device_with_openstack_data: gpu_info[{hostname}] is {type(gpu_data)}, expected dict or int")
         
     # Add aggregate information
-    enriched['openstack_aggregate'] = host_to_aggregate.get(hostname)
+    aggregate_name = host_to_aggregate.get(hostname)
+    enriched['openstack_aggregate'] = aggregate_name
+    enriched['aggregate'] = aggregate_name  # Ensure both field names are available
     
     return enriched
 
@@ -957,6 +959,8 @@ def initialize_gpu_type_structure(gpu_type):
 def add_device_to_gpu_column(column_data, device, pool_type):
     """Add device to the appropriate pool within a GPU column"""
     if pool_type in column_data:
+        # Set assignment field for config extraction
+        device['_assignment'] = pool_type
         column_data[pool_type]['hosts'].append(device)
 
 def finalize_gpu_column(column_data):
@@ -994,13 +998,45 @@ def finalize_gpu_column(column_data):
     except Exception as e:
         print(f"❌ Error calculating GPU summaries: {e}")
     
-    # Create config safely
+    # Create config with actual aggregate names from devices
     config = {}
     try:
-        config['runpod'] = len(column_data.get('runpod', {}).get('hosts', [])) > 0
-        config['spot'] = len(column_data.get('spot', {}).get('hosts', [])) > 0
-        config['ondemand_variants'] = [{'aggregate': 'ondemand', 'variant': 'ondemand'}] if len(column_data.get('ondemand', {}).get('hosts', [])) > 0 else []
-        config['contracts'] = [{'aggregate': 'contract', 'name': 'contract'}] if len(column_data.get('contract', {}).get('hosts', [])) > 0 else []
+        # Extract actual aggregate names from hosts
+        runpod_aggregates = set()
+        spot_aggregates = set()
+        ondemand_aggregates = set()
+        contract_aggregates = set()
+        
+        # Scan all hosts to find their actual aggregate assignments
+        for host in all_hosts:
+            aggregate = host.get('aggregate')
+            if aggregate:
+                # Determine type based on assignment logic
+                if host.get('_assignment') == 'runpod':
+                    runpod_aggregates.add(aggregate)
+                elif host.get('_assignment') == 'spot':
+                    spot_aggregates.add(aggregate)
+                elif host.get('_assignment') == 'contract':
+                    contract_aggregates.add(aggregate)
+                elif host.get('_assignment') == 'ondemand':
+                    ondemand_aggregates.add(aggregate)
+        
+        # Set config with actual aggregate names (API expects single string for runpod/spot)
+        config['runpod'] = list(runpod_aggregates)[0] if runpod_aggregates else False
+        config['spot'] = list(spot_aggregates)[0] if spot_aggregates else False
+        
+        # Create ondemand variants array with proper structure
+        config['ondemand_variants'] = [
+            {'aggregate': agg, 'variant': agg} 
+            for agg in ondemand_aggregates
+        ]
+        
+        # Create contracts array with proper structure  
+        config['contracts'] = [
+            {'aggregate': agg, 'name': agg}
+            for agg in contract_aggregates
+        ]
+        
     except Exception as e:
         print(f"❌ Error creating config in finalize_gpu_column: {e}")
         config = {'runpod': False, 'spot': False, 'ondemand_variants': [], 'contracts': []}
