@@ -80,8 +80,8 @@ def get_all_data_parallel():
         total_time = time.time() - start_time
         print(f"🏁 All parallel agents completed in {total_time:.2f}s")
         
-        # Organize the results
-        organized_data = organize_parallel_results(results)
+        # Organize the results using NetBox-first approach
+        organized_data = organize_by_netbox_devices(results)
         
         # Cache the results
         _parallel_cache[cache_key] = organized_data
@@ -158,6 +158,37 @@ def netbox_agent():
         ]
         gpu_server_roles = ['gpu servers', 'gpu-servers', 'gpu server']  # Additional GPU server identification
         
+        # GPU type classification mapping based on NetBox tags
+        gpu_type_mapping = {
+            # H100 variants
+            'nvidia h100 pcie': 'H100',
+            'nvidia h100 80gb pcie': 'H100',
+            'nvidia h100 80gb sxm5': 'H100-SXM5',
+            'nvidia h100 sxm': 'H100-SXM5',
+            'nvidia h100 sxm5': 'H100-SXM5',
+            
+            # A100 variants  
+            'nvidia a100 pcie': 'A100',
+            'nvidia a100 80gb pcie': 'A100',
+            'nvidia a100 sxm': 'A100',
+            'nvidia a100 sxm4': 'A100',
+            
+            # Other GPU types
+            'nvidia l40': 'L40',
+            'nvidia rtx a6000': 'RTX-A6000', 
+            'nvidia h200 sxm5': 'H200-SXM5',
+            'nvidia rtx 4090': 'RTX-4090',
+            'rtx a4000': 'RTX-A4000'
+        }
+        
+        def classify_gpu_type_from_tags(tag_names):
+            """Classify GPU type based on NetBox tags"""
+            for tag in tag_names:
+                gpu_type = gpu_type_mapping.get(tag.lower())
+                if gpu_type:
+                    return gpu_type
+            return 'Unknown'  # GPU server but unknown type
+        
         # Track inventory by status for reconciliation
         status_counts = {}
         gpu_device_counts = {}
@@ -196,6 +227,11 @@ def netbox_agent():
             role_name = device_role.get('name', '').lower() if device_role else ''
             is_gpu_server = role_name in gpu_server_roles or has_gpu_tag
             
+            # Classify GPU type from NetBox tags (for GPU servers)
+            gpu_type = None
+            if is_gpu_server:
+                gpu_type = classify_gpu_type_from_tags(device_tag_names)
+            
             # Extract additional device information
             site = device.get('site', {}).get('name', 'Unknown') if device.get('site') else 'Unknown'
             rack = device.get('rack', {}).get('name', 'Unknown') if device.get('rack') else 'Unknown'
@@ -215,6 +251,7 @@ def netbox_agent():
                 'device_tags': device_tag_names,
                 'has_gpu_tag': has_gpu_tag,
                 'is_gpu_server': is_gpu_server,
+                'gpu_type': gpu_type,  # GPU type from NetBox tags
                 'gpu_used': 0,
                 'gpu_capacity': 8,  # Default assumption
                 'gpu_usage_ratio': '0/8',
@@ -648,6 +685,214 @@ def organize_parallel_results(results):
     print(f"🏁 Organized parallel results: {len(organized)-1} GPU types + out-of-stock ({total_outofstock} devices) in {elapsed:.2f}s")
     
     return organized
+
+def organize_by_netbox_devices(results):
+    """
+    NEW NetBox-first organization: Start with all NetBox GPU devices, then assign to columns
+    This ensures 100% accountability and eliminates double-counting
+    """
+    start_time = time.time()
+    
+    # Extract all parallel results
+    netbox_result = results.get('netbox', {})
+    all_netbox_devices = netbox_result.get('all_devices', {})
+    netbox_inventory_stats = netbox_result.get('inventory_stats', {})
+    
+    aggregate_data = results.get('aggregates', {})
+    vm_counts = results.get('vm_counts', {})
+    gpu_info = results.get('gpu_info', {})
+    compute_services = results.get('compute_services', {})
+    
+    host_to_aggregate = aggregate_data.get('host_to_aggregate', {})
+    aggregate_to_hosts = aggregate_data.get('aggregate_to_hosts', {})
+    
+    # Identify tempest and disabled hosts
+    tempest_hosts = set()
+    disabled_hosts = set(compute_services.get('disabled_hosts', []))
+    
+    for agg_name, hosts in aggregate_to_hosts.items():
+        if 'tempest' in agg_name.lower():
+            tempest_hosts.update(hosts)
+    
+    print(f"🔍 Processing {len(all_netbox_devices)} NetBox devices with NetBox-first approach...")
+    
+    # Initialize columns structure
+    gpu_columns = {}
+    out_of_stock_devices = []
+    
+    # Process each NetBox GPU device individually
+    for hostname, device in all_netbox_devices.items():
+        if not device.get('is_gpu_server', False):
+            continue  # Skip non-GPU devices
+            
+        gpu_type = device.get('gpu_type')
+        if not gpu_type or gpu_type == 'Unknown':
+            print(f"⚠️ Unknown GPU type for {hostname}: tags={device.get('device_tags', [])}")
+            continue
+            
+        # Enrich device with OpenStack data
+        enriched_device = enrich_device_with_openstack_data(
+            device, vm_counts, gpu_info, host_to_aggregate
+        )
+        
+        # Apply column assignment priority logic
+        assigned_column = assign_device_to_column(
+            enriched_device, tempest_hosts, disabled_hosts, host_to_aggregate
+        )
+        
+        if assigned_column == 'outofstock':
+            out_of_stock_devices.append(enriched_device)
+        else:
+            # Initialize GPU type column if needed
+            if gpu_type not in gpu_columns:
+                gpu_columns[gpu_type] = initialize_gpu_type_structure(gpu_type)
+            
+            # Add device to appropriate pool within the GPU type
+            add_device_to_gpu_column(gpu_columns[gpu_type], enriched_device, assigned_column)
+    
+    # Build final organized structure
+    organized = {}
+    
+    # Add GPU type columns
+    for gpu_type, column_data in gpu_columns.items():
+        organized[gpu_type] = finalize_gpu_column(column_data)
+    
+    # Add out-of-stock column
+    organized['outofstock'] = create_outofstock_column(out_of_stock_devices)
+    
+    # Add inventory validation
+    total_devices_processed = sum(len(col.get('hosts', [])) for col in organized.values() if col.get('hosts'))
+    is_valid = len([d for d in all_netbox_devices.values() if d.get('is_gpu_server')]) == total_devices_processed
+    
+    organized['_inventory_validation'] = {
+        'is_valid': is_valid,
+        'netbox_total': len([d for d in all_netbox_devices.values() if d.get('is_gpu_server')]),
+        'ui_total': total_devices_processed,
+        'discrepancy': abs(len([d for d in all_netbox_devices.values() if d.get('is_gpu_server')]) - total_devices_processed),
+        'netbox_status_breakdown': netbox_inventory_stats
+    }
+    
+    elapsed = time.time() - start_time
+    gpu_types_count = len([k for k in organized.keys() if not k.startswith('_')])
+    print(f"🏁 NetBox-first organization: {gpu_types_count} GPU types, {total_devices_processed} devices in {elapsed:.2f}s")
+    print(f"{'✅' if is_valid else '❌'} Inventory: NetBox={organized['_inventory_validation']['netbox_total']}, UI={organized['_inventory_validation']['ui_total']}")
+    
+    return organized
+
+def enrich_device_with_openstack_data(device, vm_counts, gpu_info, host_to_aggregate):
+    """Enrich NetBox device with OpenStack VM and GPU data"""
+    hostname = device['hostname']
+    enriched = device.copy()
+    
+    # Add VM information
+    if hostname in vm_counts:
+        enriched.update(vm_counts[hostname])
+    
+    # Add GPU information  
+    if hostname in gpu_info:
+        enriched.update(gpu_info[hostname])
+        
+    # Add aggregate information
+    enriched['openstack_aggregate'] = host_to_aggregate.get(hostname)
+    
+    return enriched
+
+def assign_device_to_column(device, tempest_hosts, disabled_hosts, host_to_aggregate):
+    """
+    Apply column assignment priority logic
+    Returns: 'outofstock', 'runpod', 'spot', 'ondemand', or 'contract'
+    """
+    hostname = device['hostname']
+    status = device.get('status')
+    aggregate = host_to_aggregate.get(hostname)
+    
+    # Priority 1: Non-active status → Out of Stock
+    if status != 'active':
+        device['outofstock_reason'] = f"NetBox Status: {device.get('status_label', status)}"
+        return 'outofstock'
+    
+    # Priority 2: Not in any OpenStack aggregate → Out of Stock
+    if not aggregate:
+        device['outofstock_reason'] = "Not allocated to any OpenStack aggregate"
+        return 'outofstock'
+    
+    # Priority 3: In tempest aggregate → Out of Stock
+    if hostname in tempest_hosts:
+        device['outofstock_reason'] = "Testing/staging (tempest aggregate)"
+        return 'outofstock'
+    
+    # Priority 4: Compute service disabled → Out of Stock
+    if hostname in disabled_hosts:
+        device['outofstock_reason'] = "OpenStack compute service disabled"
+        return 'outofstock'
+    
+    # Priority 5-8: Assign to appropriate pool based on aggregate naming
+    if aggregate:
+        if 'runpod' in aggregate.lower():
+            return 'runpod'
+        elif 'spot' in aggregate.lower():
+            return 'spot'
+        elif 'contract' in aggregate.lower():
+            return 'contract'
+        else:
+            return 'ondemand'  # Default for regular aggregates
+    
+    # Fallback: shouldn't reach here
+    device['outofstock_reason'] = "Unknown aggregate assignment"
+    return 'outofstock'
+
+def initialize_gpu_type_structure(gpu_type):
+    """Initialize the structure for a GPU type column"""
+    return {
+        'runpod': {'hosts': [], 'config': {}},
+        'spot': {'hosts': [], 'config': {}}, 
+        'ondemand': {'hosts': [], 'config': {}},
+        'contract': {'hosts': [], 'config': {}}
+    }
+
+def add_device_to_gpu_column(column_data, device, pool_type):
+    """Add device to the appropriate pool within a GPU column"""
+    if pool_type in column_data:
+        column_data[pool_type]['hosts'].append(device)
+
+def finalize_gpu_column(column_data):
+    """Convert GPU column data to final format matching existing structure"""
+    all_hosts = []
+    for pool_type, pool_data in column_data.items():
+        all_hosts.extend(pool_data['hosts'])
+    
+    # Calculate GPU summaries
+    total_used = sum(host.get('gpu_used', 0) for host in all_hosts)
+    total_capacity = sum(host.get('gpu_capacity', 8) for host in all_hosts)
+    
+    return {
+        'hosts': all_hosts,
+        'total_hosts': len(all_hosts),
+        'config': {
+            'runpod': len(column_data['runpod']['hosts']) > 0,
+            'spot': len(column_data['spot']['hosts']) > 0,
+            'ondemand_variants': [{'aggregate': 'ondemand', 'variant': 'ondemand'}] if len(column_data['ondemand']['hosts']) > 0 else [],
+            'contracts': [{'aggregate': 'contract', 'name': 'contract'}] if len(column_data['contract']['hosts']) > 0 else []
+        },
+        'gpu_summary': {
+            'gpu_used': total_used,
+            'gpu_capacity': total_capacity,
+            'gpu_usage_ratio': f"{total_used}/{total_capacity}"
+        }
+    }
+
+def create_outofstock_column(devices):
+    """Create the out-of-stock column structure"""
+    return {
+        'hosts': devices,
+        'device_count': len(devices),
+        'name': 'Out of Stock',
+        'gpu_summary': {
+            'gpu_used': 0,
+            'gpu_capacity': sum(d.get('gpu_capacity', 8) for d in devices),
+            'gpu_usage_ratio': f"0/{sum(d.get('gpu_capacity', 8) for d in devices)}"
+        }
+    }
 
 def compute_comprehensive_outofstock_devices(all_netbox_devices, host_to_aggregate, aggregate_to_hosts, disabled_hosts):
     """
