@@ -226,7 +226,12 @@ def register_routes(app):
                         print(f"⚠️ Host {hostname} not found in parallel data for {aggregate_type}")
                         continue
                     
-                    tenant_info = host_info['tenant_info']
+                    # Handle tenant_info from both old and new data structures
+                    tenant_info = host_info.get('tenant_info', {
+                        'tenant': host_info.get('tenant', 'Unknown'),
+                        'owner_group': host_info.get('owner_group', 'Investors'), 
+                        'nvlinks': host_info.get('nvlinks', False)
+                    })
                     
                     # OPTIMIZATION: Skip expensive data based on flags
                     vm_count = host_info['vm_count'] if include_vms else 0
