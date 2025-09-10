@@ -157,11 +157,17 @@ def register_routes(app):
             
             # Special handling for outofstock which has different structure
             if gpu_type == 'outofstock':
+                hosts_data = gpu_data.get('hosts', [])
+                print(f"🔍 DEBUG: Outofstock API called, gpu_data keys: {list(gpu_data.keys()) if gpu_data else 'None'}")
+                print(f"🔍 DEBUG: Outofstock hosts count: {len(hosts_data)}")
+                if hosts_data:
+                    print(f"🔍 DEBUG: First 3 outofstock hostnames: {[h.get('hostname', 'unknown') for h in hosts_data[:3]]}")
+                
                 return jsonify({
                     'gpu_type': 'outofstock',
                     'outofstock': {
                         'name': gpu_data.get('name', 'Out of Stock'),
-                        'hosts': gpu_data.get('hosts', []),
+                        'hosts': hosts_data,
                         'gpu_summary': gpu_data.get('gpu_summary', {
                             'gpu_used': 0,
                             'gpu_capacity': 0,
@@ -170,7 +176,7 @@ def register_routes(app):
                     },
                     'performance_stats': {
                         'total_time': 0.01,  # Already cached
-                        'total_hosts': len(gpu_data.get('hosts', [])),
+                        'total_hosts': len(hosts_data),
                         'hosts_per_second': 0,
                         'method': 'parallel_agents_cached'
                     }
