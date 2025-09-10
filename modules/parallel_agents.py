@@ -891,22 +891,53 @@ def add_device_to_gpu_column(column_data, device, pool_type):
 def finalize_gpu_column(column_data):
     """Convert GPU column data to final format matching existing structure"""
     all_hosts = []
-    for pool_type, pool_data in column_data.items():
-        all_hosts.extend(pool_data['hosts'])
+    
+    # Ensure column_data is a dict
+    if not isinstance(column_data, dict):
+        print(f"⚠️ finalize_gpu_column: column_data is {type(column_data)}, expected dict")
+        return {
+            'hosts': [],
+            'total_hosts': 0,
+            'config': {},
+            'gpu_summary': {
+                'gpu_used': 0,
+                'gpu_capacity': 0,
+                'gpu_usage_ratio': '0/0'
+            }
+        }
+    
+    try:
+        for pool_type, pool_data in column_data.items():
+            if isinstance(pool_data, dict) and 'hosts' in pool_data:
+                all_hosts.extend(pool_data['hosts'])
+    except Exception as e:
+        print(f"❌ Error processing pool data: {e}")
     
     # Calculate GPU summaries
-    total_used = sum(host.get('gpu_used', 0) for host in all_hosts)
-    total_capacity = sum(host.get('gpu_capacity', 8) for host in all_hosts)
+    total_used = 0
+    total_capacity = 0
     
+    try:
+        total_used = sum(host.get('gpu_used', 0) for host in all_hosts)
+        total_capacity = sum(host.get('gpu_capacity', 8) for host in all_hosts)
+    except Exception as e:
+        print(f"❌ Error calculating GPU summaries: {e}")
+    
+    # Create config safely
+    config = {}
+    try:
+        config['runpod'] = len(column_data.get('runpod', {}).get('hosts', [])) > 0
+        config['spot'] = len(column_data.get('spot', {}).get('hosts', [])) > 0
+        config['ondemand_variants'] = [{'aggregate': 'ondemand', 'variant': 'ondemand'}] if len(column_data.get('ondemand', {}).get('hosts', [])) > 0 else []
+        config['contracts'] = [{'aggregate': 'contract', 'name': 'contract'}] if len(column_data.get('contract', {}).get('hosts', [])) > 0 else []
+    except Exception as e:
+        print(f"❌ Error creating config in finalize_gpu_column: {e}")
+        config = {'runpod': False, 'spot': False, 'ondemand_variants': [], 'contracts': []}
+
     return {
         'hosts': all_hosts,
         'total_hosts': len(all_hosts),
-        'config': {
-            'runpod': len(column_data['runpod']['hosts']) > 0,
-            'spot': len(column_data['spot']['hosts']) > 0,
-            'ondemand_variants': [{'aggregate': 'ondemand', 'variant': 'ondemand'}] if len(column_data['ondemand']['hosts']) > 0 else [],
-            'contracts': [{'aggregate': 'contract', 'name': 'contract'}] if len(column_data['contract']['hosts']) > 0 else []
-        },
+        'config': config,
         'gpu_summary': {
             'gpu_used': total_used,
             'gpu_capacity': total_capacity,
@@ -916,14 +947,26 @@ def finalize_gpu_column(column_data):
 
 def create_outofstock_column(devices):
     """Create the out-of-stock column structure"""
+    # Ensure devices is a list
+    if not isinstance(devices, list):
+        print(f"⚠️ create_outofstock_column: devices is {type(devices)}, expected list")
+        devices = []
+    
+    total_capacity = 0
+    try:
+        total_capacity = sum(d.get('gpu_capacity', 8) for d in devices)
+    except Exception as e:
+        print(f"❌ Error calculating GPU capacity in out-of-stock: {e}")
+        total_capacity = 0
+    
     return {
         'hosts': devices,
         'device_count': len(devices),
         'name': 'Out of Stock',
         'gpu_summary': {
             'gpu_used': 0,
-            'gpu_capacity': sum(d.get('gpu_capacity', 8) for d in devices),
-            'gpu_usage_ratio': f"0/{sum(d.get('gpu_capacity', 8) for d in devices)}"
+            'gpu_capacity': total_capacity,
+            'gpu_usage_ratio': f"0/{total_capacity}"
         }
     }
 
