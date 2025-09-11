@@ -132,7 +132,6 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🏗️ SCRIPT.JS: Initializing column instances');
     try {
         window.columns = {
-            summary: new SummaryColumn(),
             runpod: new RunpodColumn(),
             spot: new SpotColumn(),
             ondemand: new OndemandColumn(),
@@ -144,7 +143,6 @@ document.addEventListener('DOMContentLoaded', function() {
         window.contractColumn = window.columns.contract;
         console.log('✅ SCRIPT.JS: Column instances created successfully');
         console.log('📋 SCRIPT.JS: Column instances:', Object.keys(window.columns));
-        console.log('🔍 SCRIPT.JS: Summary column:', window.columns.summary);
         console.log('🔍 SCRIPT.JS: Contract column:', window.columns.contract);
         console.log('🔍 SCRIPT.JS: Out of Stock column:', window.columns.outofstock);
         

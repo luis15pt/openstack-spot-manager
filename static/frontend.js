@@ -150,20 +150,7 @@ function renderAggregateData(data) {
     if (data.gpu_overview) {
         document.getElementById('totalGpuUsage').textContent = data.gpu_overview.gpu_usage_ratio + ' GPUs';
         document.getElementById('gpuUsagePercentage').textContent = data.gpu_overview.gpu_usage_percentage + '%';
-        document.getElementById('gpuProgressBar').style.width = data.gpu_overview.gpu_usage_percentage + '%';
-        document.getElementById('gpuProgressText').textContent = data.gpu_overview.gpu_usage_percentage + '%';
-        
-        // Update progress bar color based on usage
-        const progressBar = document.getElementById('gpuProgressBar');
-        const percentage = data.gpu_overview.gpu_usage_percentage;
-        progressBar.className = 'progress-bar';
-        if (percentage < 50) {
-            progressBar.classList.add('bg-success');
-        } else if (percentage < 80) {
-            progressBar.classList.add('bg-warning');
-        } else {
-            progressBar.classList.add('bg-danger');
-        }
+        // Legacy progress bar elements removed in new design
     }
     
     // Calculate and update overall host statistics
@@ -182,8 +169,6 @@ function renderAggregateData(data) {
         }
     });
     
-    document.getElementById('availableHostsCount').textContent = totalAvailableHosts;
-    document.getElementById('inUseHostsCount').textContent = totalInUseHosts;
     
     // Calculate and update total GPU usage across ALL columns (runpod, spot, ondemand variants, contracts)
     let totalGpuUsed = 0;
@@ -224,21 +209,13 @@ function renderAggregateData(data) {
     const totalGpuPercentage = totalGpuCapacity > 0 ? Math.round((totalGpuUsed / totalGpuCapacity) * 100) : 0;
     document.getElementById('totalGpuUsage').textContent = `${totalGpuUsed}/${totalGpuCapacity} GPUs`;
     document.getElementById('gpuUsagePercentage').textContent = `${totalGpuPercentage}%`;
-    document.getElementById('gpuProgressBar').style.width = `${totalGpuPercentage}%`;
-    document.getElementById('gpuProgressText').textContent = `${totalGpuPercentage}%`;
-    
-    // Update progress bar color
-    const progressBar = document.getElementById('gpuProgressBar');
-    progressBar.className = 'progress-bar';
-    if (totalGpuPercentage < 50) {
-        progressBar.classList.add('bg-success');
-    } else if (totalGpuPercentage < 80) {
-        progressBar.classList.add('bg-warning');
-    } else {
-        progressBar.classList.add('bg-danger');
-    }
     
     console.log(`📊 Total GPU Usage: ${totalGpuUsed}/${totalGpuCapacity} (${totalGpuPercentage}%) - RunPod: ${data.runpod?.gpu_summary?.gpu_used || 0}, Spot: ${data.spot?.gpu_summary?.gpu_used || 0}, OnDemand: ${data.ondemand?.gpu_summary?.gpu_used || 0}, Contracts: ${contractGpuData?.used || 0}, OutOfStock: ${data.outofstock?.gpu_summary?.gpu_capacity || 0} capacity`);
+    
+    // Update NetBox vs Columns comparison (handled by banner.js)
+    if (window.updateNetBoxInventoryComparison) {
+        window.updateNetBoxInventoryComparison(data);
+    }
     
     // Store data for other functions
     aggregateData = data;
@@ -1419,9 +1396,9 @@ function renderOnDemandVariantColumns(ondemandData) {
     }
     
     // Calculate ondemand variant column width using flex percentages
-    // Summary (10%) + Runpod (10%) + Spot (10%) + Contract (20%) + Out of Stock (10%) = 60% used, 40% remaining for ondemand variants
+    // Runpod (15%) + Spot (15%) + Contract (20%) + Out of Stock (15%) = 65% used, 35% remaining for ondemand variants
     const totalVariants = ondemandData.variants ? ondemandData.variants.length : 1;
-    const ondemandAvailablePercentage = 40; // 100% - 10% (summary) - 10% (runpod) - 10% (spot) - 20% (contract) - 10% (out of stock)
+    const ondemandAvailablePercentage = 35; // 100% - 15% (runpod) - 15% (spot) - 20% (contract) - 15% (out of stock)
     const variantPercentage = ondemandAvailablePercentage / totalVariants;
     
     console.log('🔍 Column calculation:', {
@@ -1431,7 +1408,7 @@ function renderOnDemandVariantColumns(ondemandData) {
     });
     
     // Don't change RunPod, Spot, or Contract column widths - they're fixed in HTML with flex
-    // Summary: 10%, RunPod: 10%, Spot: 10%, Contract: 20%, Out of Stock: 10%, OnDemand variants: 40% total
+    // RunPod: 15%, Spot: 15%, Contract: 20%, Out of Stock: 15%, OnDemand variants: 35% total
     
     // Check if variants include NVLink differentiation (only split columns for NVLink variants)
     const hasNVLinkVariants = ondemandData.variants && ondemandData.variants.length > 1 && 
@@ -2244,6 +2221,7 @@ window.Frontend = {
     createHostCard,
     createHostCardCompact
 };
+
 
 // Make tooltip functions globally available
 window.showHostTooltip = showHostTooltip;

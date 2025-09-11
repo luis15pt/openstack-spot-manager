@@ -120,40 +120,49 @@
                     <div class="tab-content" id="mainTabContent">
                         <!-- Hosts Tab -->
                         <div class="tab-pane fade show active" id="hosts" role="tabpanel">
-                            <!-- Overall Summary Banner -->
+                            <!-- System Overview Banner -->
                             <div class="row mt-3">
                                 <div class="col-12">
-                                    <div class="card bg-light">
+                                    <div class="card border-0 shadow-sm">
                                         <div class="card-body py-3">
-                                            <div class="row text-center">
-                                                <div class="col-md-3">
-                                                    <h6 class="mb-1">
-                                                        <i class="fas fa-microchip text-info"></i> 
-                                                        Total GPU Usage
-                                                    </h6>
-                                                    <div class="gpu-overview-stats">
-                                                        <span class="badge bg-secondary fs-6" id="totalGpuUsage">Not loaded</span>
-                                                        <span class="badge bg-secondary fs-6 ms-2" id="gpuUsagePercentage">-</span>
+                                            <div class="row align-items-center">
+                                                <div class="col-md-4">
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="me-3">
+                                                            <i class="fas fa-microchip text-primary fa-2x"></i>
+                                                        </div>
+                                                        <div>
+                                                            <h5 class="mb-1 text-primary">Total GPU Usage</h5>
+                                                            <div class="gpu-overview-stats">
+                                                                <span class="badge bg-primary fs-6" id="totalGpuUsage">Not loaded</span>
+                                                                <span class="badge bg-primary fs-6 ms-2" id="gpuUsagePercentage">-</span>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div class="col-md-3">
-                                                    <h6 class="mb-1">
-                                                        <i class="fas fa-server text-success"></i> 
-                                                        Available Hosts
-                                                    </h6>
-                                                    <span class="badge bg-secondary fs-6" id="availableHostsCount">-</span>
+                                                <div class="col-md-4">
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="me-3">
+                                                            <i class="fas fa-database text-info fa-2x"></i>
+                                                        </div>
+                                                        <div>
+                                                            <h6 class="mb-1 text-info">NetBox Inventory</h6>
+                                                            <span class="badge bg-info fs-6" id="netboxInventoryCount">-</span>
+                                                            <small class="text-muted d-block">Physical hosts</small>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div class="col-md-3">
-                                                    <h6 class="mb-1">
-                                                        <i class="fas fa-exclamation-triangle text-warning"></i> 
-                                                        Hosts in Use
-                                                    </h6>
-                                                    <span class="badge bg-secondary fs-6" id="inUseHostsCount">-</span>
-                                                </div>
-                                                <div class="col-md-3">
-                                                    <div class="progress mt-2" style="height: 20px;">
-                                                        <div class="progress-bar" role="progressbar" style="width: 0%" id="gpuProgressBar">
-                                                            <span id="gpuProgressText">0%</span>
+                                                <div class="col-md-4">
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="me-3">
+                                                            <i class="fas fa-columns text-success fa-2x"></i>
+                                                        </div>
+                                                        <div>
+                                                            <h6 class="mb-1 text-success">Columns Total</h6>
+                                                            <span class="badge bg-success fs-6" id="columnsInventoryCount">-</span>
+                                                            <small class="d-block" id="inventoryStatus">
+                                                                <i class="fas fa-sync-alt fa-spin text-muted"></i> Calculating...
+                                                            </small>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -164,37 +173,9 @@
                             </div>
                             
                             <div class="row mt-3 hosts-row d-none" id="hostsRow">
-                                <!-- Summary Column (v0.2) -->
-                                <div class="col-md-2" style="flex: 0 0 10%;">
-                                    <div class="aggregate-column" id="summaryColumn">
-                                        <div class="card">
-                                            <div class="card-header bg-info text-white">
-                                                <h4 class="mb-0 d-flex justify-content-between align-items-center">
-                                                    <span>
-                                                        <i class="fas fa-chart-bar"></i> 
-                                                        <span id="summaryName">Summary</span>
-                                                        <span class="badge bg-light text-dark ms-2" id="summaryTotalCount">0</span>
-                                                    </span>
-                                                    <button class="btn btn-sm btn-outline-light" id="refreshSummaryBtn" title="Refresh Summary">
-                                                        <i class="fas fa-sync"></i>
-                                                    </button>
-                                                </h4>
-                                                <div class="mt-2">
-                                                    <small class="text-light">Allocated: <span id="summaryAllocation">0/0</span> (<span id="summaryAllocationPercent">0%</span>)</small>
-                                                    <div class="progress mt-1" style="height: 6px;">
-                                                        <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="summaryAllocationProgressBar"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="card-body" id="summaryContent">
-                                                <!-- Summary content will be dynamically inserted here -->
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
                                 
                                 <!-- Runpod Column -->
-                                <div class="col-md-2" style="flex: 0 0 10%;">
+                                <div class="col-md-2" style="flex: 0 0 15%;">
                                     <div class="aggregate-column" id="runpodColumn">
                                         <div class="card">
                                             <div class="card-header bg-purple text-white">
@@ -248,7 +229,7 @@
                                 </div>
                                 
                                 <!-- Spot Column -->
-                                <div class="col-md-2" style="flex: 0 0 10%;">
+                                <div class="col-md-2" style="flex: 0 0 15%;">
                                     <div class="aggregate-column" id="spotColumn">
                                         <div class="card">
                                             <div class="card-header bg-warning text-dark">
@@ -333,7 +314,7 @@
                                 </div>
                                 
                                 <!-- Out of Stock Column (v0.2) -->
-                                <div class="col-md-2" style="flex: 0 0 10%;">
+                                <div class="col-md-2" style="flex: 0 0 15%;">
                                     <div class="aggregate-column" id="outofstockColumn">
                                         <div class="card">
                                             <div class="card-header bg-danger text-white">
@@ -1154,11 +1135,11 @@
     <script src="{{ url_for('static', filename='hyperstack.js') }}"></script>
     <script src="{{ url_for('static', filename='openstack.js') }}"></script>
     <script src="{{ url_for('static', filename='system-info.js') }}"></script>
+    <script src="{{ url_for('static', filename='banner.js') }}"></script>
     <script src="{{ url_for('static', filename='frontend.js') }}"></script>
     
     <!-- Column Architecture (v0.2) -->
     <script src="{{ url_for('static', filename='columns/column-base.js') }}"></script>
-    <script src="{{ url_for('static', filename='columns/summary-column.js') }}"></script>
     <script src="{{ url_for('static', filename='columns/runpod-column.js') }}"></script>
     <script src="{{ url_for('static', filename='columns/spot-column.js') }}"></script>
     <script src="{{ url_for('static', filename='columns/ondemand-column.js') }}"></script>

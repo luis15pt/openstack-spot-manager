@@ -2841,7 +2841,7 @@ body {
     font-size: 0.8rem;
     min-width: 280px;
     max-width: 320px;
-    z-index: 1000;
+    z-index: 9999;
     box-shadow: 0 8px 20px rgba(0,0,0,0.3);
     pointer-events: none;
     opacity: 0;
