@@ -1393,12 +1393,16 @@ function renderOnDemandVariantColumns(ondemandData) {
     const totalVariants = ondemandData.variants ? ondemandData.variants.length : 1;
     // Total columns: RunPod + Spot + Contract + OutOfStock + OnDemand variants
     const totalColumns = 4 + totalVariants; // 4 fixed columns + variable OnDemand columns
-    const columnPercentage = Math.floor(100 / totalColumns * 10) / 10; // Round down to 1 decimal place for clean percentages
+    // Use 98% total width to account for margins/padding and prevent overflow
+    const availableWidth = 98;
+    const columnPercentage = Math.floor(availableWidth / totalColumns * 10) / 10; // Round down to prevent overflow
     
     console.log('🔍 Column calculation:', {
         totalVariants,
         totalColumns,
-        columnPercentage: `${columnPercentage}% (equal width for all columns)`
+        availableWidth: `${availableWidth}%`,
+        columnPercentage: `${columnPercentage}% each`,
+        totalUsed: `${(columnPercentage * totalColumns).toFixed(1)}%`
     });
     
     // Update fixed column widths to match the calculated percentage
