@@ -2143,9 +2143,9 @@ async function loadContractDataForColumn(contractAggregate) {
                 
                 let hostsHtml = '';
                 selectedContract.hosts.forEach(host => {
-                    // Use the same createHostCard function as other columns for consistency
-                    if (typeof window.Frontend?.createHostCard === 'function') {
-                        hostsHtml += window.Frontend.createHostCard(host, 'contract', selectedContract.aggregate);
+                    // Use the same createHostCardCompact function as other columns for consistency
+                    if (typeof window.Frontend?.createHostCardCompact === 'function') {
+                        hostsHtml += window.Frontend.createHostCardCompact(host, 'contract', selectedContract.aggregate);
                     } else {
                         // Fallback with proper machine-card styling matching other columns
                         const hasVms = host.has_vms;

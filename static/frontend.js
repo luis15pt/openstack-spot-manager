@@ -517,7 +517,7 @@ function renderOnDemandVariants(container, hosts, variants) {
             
             // Nexgen Cloud devices sub-group
             if (nexgenHosts.length > 0) {
-                const nexgenCards = nexgenHosts.map(host => createHostCard(host, 'ondemand', variant.aggregate)).join('');
+                const nexgenCards = nexgenHosts.map(host => createHostCardCompact(host, 'ondemand', variant.aggregate)).join('');
                 const nexgenSubGroupId = `available-nexgen-${variant.aggregate}`;
                 
                 availableSubGroups += `
@@ -528,7 +528,9 @@ function renderOnDemandVariants(container, hosts, variants) {
                             <i class="fas fa-chevron-right toggle-icon" id="${nexgenSubGroupId}-icon"></i>
                         </div>
                         <div class="host-subgroup-content collapsed" id="${nexgenSubGroupId}">
-                            ${nexgenCards}
+                            <div class="host-cards-compact">
+                                ${nexgenCards}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -536,7 +538,7 @@ function renderOnDemandVariants(container, hosts, variants) {
             
             // Investors devices sub-group
             if (investorHosts.length > 0) {
-                const investorCards = investorHosts.map(host => createHostCard(host, 'ondemand', variant.aggregate)).join('');
+                const investorCards = investorHosts.map(host => createHostCardCompact(host, 'ondemand', variant.aggregate)).join('');
                 const investorSubGroupId = `available-investor-${variant.aggregate}`;
                 
                 availableSubGroups += `
@@ -547,7 +549,9 @@ function renderOnDemandVariants(container, hosts, variants) {
                             <i class="fas fa-chevron-right toggle-icon" id="${investorSubGroupId}-icon"></i>
                         </div>
                         <div class="host-subgroup-content collapsed" id="${investorSubGroupId}">
-                            ${investorCards}
+                            <div class="host-cards-compact">
+                                ${investorCards}
+                            </div>
                         </div>
                     </div>
                 `;
