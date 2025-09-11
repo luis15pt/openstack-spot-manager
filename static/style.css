@@ -2717,3 +2717,212 @@ body {
 .out-of-stock-column .text-center .fa-check-circle {
     opacity: 0.7;
 }
+
+/* ===== COMPACT PROFESSIONAL CARDS ===== */
+.machine-card-compact {
+    background: white;
+    border: 1px solid #e8e9ea;
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: move;
+    transition: all 0.2s ease;
+    position: relative;
+    user-select: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    min-height: 60px;
+    max-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 3px;
+    width: calc(50% - 6px); /* Two cards per row */
+    font-size: 0.85rem;
+}
+
+.machine-card-compact:hover {
+    box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+    transform: translateY(-1px);
+    border-color: #0d6efd;
+    z-index: 10;
+}
+
+.machine-card-compact.has-vms {
+    border-left: 3px solid #dc3545;
+}
+
+.machine-card-compact.available {
+    border-left: 3px solid #28a745;
+}
+
+/* Compact card layout */
+.machine-card-compact-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 8px;
+}
+
+.machine-info-compact {
+    flex: 1;
+    min-width: 0; /* Allow text truncation */
+}
+
+.machine-name-compact {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #2c3e50;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.machine-stats-compact {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+}
+
+.gpu-badge-compact {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-weight: 600;
+    font-size: 0.7rem;
+}
+
+.gpu-badge-compact.active {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.gpu-badge-compact.zero {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.owner-badge-compact {
+    font-size: 0.65rem;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.owner-badge-compact.nexgen {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.owner-badge-compact.investors {
+    background: #fff8e1;
+    color: #f57f17;
+}
+
+/* Compact card container - allow multiple per row */
+.host-cards-compact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+/* ===== HOVER TOOLTIP ===== */
+.host-tooltip {
+    position: absolute;
+    background: #2c3e50;
+    color: white;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    min-width: 280px;
+    max-width: 320px;
+    z-index: 1000;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.2s ease;
+}
+
+.host-tooltip.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.host-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 20px;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid #2c3e50;
+}
+
+.tooltip-header {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #34495e;
+}
+
+.tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    line-height: 1.3;
+}
+
+.tooltip-label {
+    color: #bdc3c7;
+    font-size: 0.75rem;
+}
+
+.tooltip-value {
+    font-weight: 500;
+    text-align: right;
+}
+
+.tooltip-status {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.tooltip-status.in-use {
+    background: #dc3545;
+    color: white;
+}
+
+.tooltip-status.available {
+    background: #28a745;
+    color: white;
+}
+
+.tooltip-status.nvlinks {
+    background: #17a2b8;
+    color: white;
+}
+
+/* Responsive adjustments for compact cards */
+@media (max-width: 1400px) {
+    .machine-card-compact {
+        width: calc(100% - 6px); /* Single card per row on smaller screens */
+    }
+}
+
+@media (min-width: 1600px) {
+    .machine-card-compact {
+        width: calc(33.333% - 6px); /* Three cards per row on larger screens */
+    }
+}

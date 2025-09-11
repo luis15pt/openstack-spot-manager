@@ -342,7 +342,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
         
         // Nexgen Cloud devices sub-group
         if (nexgenHosts.length > 0) {
-            const nexgenCards = nexgenHosts.map(host => createHostCard(host, type, aggregateName)).join('');
+            const nexgenCards = nexgenHosts.map(host => createHostCardCompact(host, type, aggregateName)).join('');
             const nexgenSubGroupId = `available-nexgen-${type}`;
             
             availableSubGroups += `
@@ -353,7 +353,9 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                         <i class="fas fa-chevron-right toggle-icon" id="${nexgenSubGroupId}-icon"></i>
                     </div>
                     <div class="host-subgroup-content collapsed" id="${nexgenSubGroupId}">
-                        ${nexgenCards}
+                        <div class="host-cards-compact">
+                            ${nexgenCards}
+                        </div>
                     </div>
                 </div>
             `;
@@ -361,7 +363,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
         
         // Investor devices sub-group
         if (investorHosts.length > 0) {
-            const investorCards = investorHosts.map(host => createHostCard(host, type, aggregateName)).join('');
+            const investorCards = investorHosts.map(host => createHostCardCompact(host, type, aggregateName)).join('');
             const investorSubGroupId = `available-investors-${type}`;
             
             availableSubGroups += `
@@ -372,7 +374,9 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                         <i class="fas fa-chevron-right toggle-icon" id="${investorSubGroupId}-icon"></i>
                     </div>
                     <div class="host-subgroup-content collapsed" id="${investorSubGroupId}">
-                        ${investorCards}
+                        <div class="host-cards-compact">
+                            ${investorCards}
+                        </div>
                     </div>
                 </div>
             `;
@@ -410,7 +414,7 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
         Object.keys(hostsByGpuUsage).sort((a, b) => b - a).forEach(gpuUsage => {
             const hostsInGroup = hostsByGpuUsage[gpuUsage];
             const subGroupId = `inuse-${type}-${gpuUsage}gpus`;
-            const cards = hostsInGroup.map(host => createHostCard(host, type, aggregateName)).join('');
+            const cards = hostsInGroup.map(host => createHostCardCompact(host, type, aggregateName)).join('');
             
             inUseSubGroups += `
                 <div class="host-subgroup gpu-group">
@@ -420,7 +424,9 @@ function renderHosts(containerId, hosts, type, aggregateName = null, variants = 
                         <i class="fas fa-chevron-right toggle-icon" id="${subGroupId}-icon"></i>
                     </div>
                     <div class="host-subgroup-content collapsed" id="${subGroupId}">
-                        ${cards}
+                        <div class="host-cards-compact">
+                            ${cards}
+                        </div>
                     </div>
                 </div>
             `;
@@ -566,7 +572,7 @@ function renderOnDemandVariants(container, hosts, variants) {
         
         // In-use hosts section
         if (inUseHosts.length > 0) {
-            const inUseCards = inUseHosts.map(host => createHostCard(host, 'ondemand', variant.aggregate)).join('');
+            const inUseCards = inUseHosts.map(host => createHostCardCompact(host, 'ondemand', variant.aggregate)).join('');
             const inUseId = `inuse-${variant.aggregate}`;
             
             sectionsHtml += `
@@ -578,7 +584,9 @@ function renderOnDemandVariants(container, hosts, variants) {
                         <i class="fas fa-chevron-right toggle-icon" id="${inUseId}-icon"></i>
                     </div>
                     <div class="host-group-content collapsed" id="${inUseId}">
-                        ${inUseCards}
+                        <div class="host-cards-compact">
+                            ${inUseCards}
+                        </div>
                     </div>
                 </div>
             `;
@@ -1974,6 +1982,138 @@ function renderHostList(hosts, type) {
     }).join('');
 }
 
+// COMPACT PROFESSIONAL HOST CARD
+function createHostCardCompact(host, type, aggregateName = null) {
+    const hasVms = host.has_vms;
+    const gpuUsed = host.gpu_used || 0;
+    const gpuCapacity = host.gpu_capacity || 8;
+    const gpuRatio = host.gpu_usage_ratio || `${gpuUsed}/${gpuCapacity}`;
+    const ownerGroup = host.owner_group || 'Investors';
+    const tenant = host.tenant || 'Unknown';
+    
+    // Determine card status class
+    const statusClass = hasVms ? 'has-vms' : 'available';
+    
+    // GPU badge styling
+    const gpuBadgeClass = gpuUsed > 0 ? 'gpu-badge-compact active' : 'gpu-badge-compact zero';
+    
+    // Owner badge styling
+    const ownerBadgeClass = ownerGroup === 'Nexgen Cloud' ? 'owner-badge-compact nexgen' : 'owner-badge-compact investors';
+    
+    // Create unique ID for tooltip
+    const cardId = `host-${host.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    
+    return `
+        <div class="machine-card-compact ${statusClass}" 
+             id="${cardId}"
+             draggable="true" 
+             data-host="${host.name}" 
+             data-type="${type}"
+             data-aggregate="${host.variant || aggregateName || ''}"
+             data-has-vms="${hasVms}"
+             data-owner-group="${ownerGroup}"
+             data-nvlinks="${host.nvlinks}"
+             onmouseenter="showHostTooltip(event, this)"
+             onmouseleave="hideHostTooltip()">
+            <div class="machine-card-compact-content">
+                <div class="machine-info-compact">
+                    <div class="machine-name-compact">${host.name}</div>
+                    <div class="machine-stats-compact">
+                        <span class="${gpuBadgeClass}">${gpuRatio}</span>
+                        <span class="${ownerBadgeClass}">${ownerGroup === 'Nexgen Cloud' ? 'NGC' : tenant}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// TOOLTIP FUNCTIONALITY
+let currentTooltip = null;
+
+function showHostTooltip(event, element) {
+    // Remove existing tooltip
+    hideHostTooltip();
+    
+    const hostName = element.dataset.host;
+    const hasVms = element.dataset.hasVms === 'true';
+    const ownerGroup = element.dataset.ownerGroup;
+    const nvlinks = element.dataset.nvlinks;
+    const gpuText = element.querySelector('.gpu-badge-compact').textContent;
+    
+    // Get additional data from the element or parse from display
+    const vmCount = hasVms ? 'Yes' : 'No';
+    const status = hasVms ? 'In Use' : 'Available';
+    
+    // Create tooltip content
+    const tooltipContent = `
+        <div class="tooltip-header">${hostName}</div>
+        <div class="tooltip-row">
+            <span class="tooltip-label">Status:</span>
+            <span class="tooltip-value">
+                <span class="tooltip-status ${hasVms ? 'in-use' : 'available'}">${status}</span>
+            </span>
+        </div>
+        <div class="tooltip-row">
+            <span class="tooltip-label">GPU Usage:</span>
+            <span class="tooltip-value">${gpuText}</span>
+        </div>
+        <div class="tooltip-row">
+            <span class="tooltip-label">Has VMs:</span>
+            <span class="tooltip-value">${vmCount}</span>
+        </div>
+        <div class="tooltip-row">
+            <span class="tooltip-label">Owner:</span>
+            <span class="tooltip-value">${ownerGroup}</span>
+        </div>
+        <div class="tooltip-row">
+            <span class="tooltip-label">NVLinks:</span>
+            <span class="tooltip-value">
+                <span class="tooltip-status ${nvlinks === 'true' ? 'nvlinks' : ''}">${nvlinks === 'true' ? 'Yes' : nvlinks === 'false' ? 'No' : 'Unknown'}</span>
+            </span>
+        </div>
+    `;
+    
+    // Create tooltip element
+    currentTooltip = document.createElement('div');
+    currentTooltip.className = 'host-tooltip';
+    currentTooltip.innerHTML = tooltipContent;
+    document.body.appendChild(currentTooltip);
+    
+    // Position tooltip
+    const rect = element.getBoundingClientRect();
+    const tooltipRect = currentTooltip.getBoundingClientRect();
+    
+    let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+    let top = rect.top - tooltipRect.height - 10;
+    
+    // Adjust if tooltip would go off screen
+    if (left < 10) left = 10;
+    if (left + tooltipRect.width > window.innerWidth - 10) {
+        left = window.innerWidth - tooltipRect.width - 10;
+    }
+    if (top < 10) {
+        top = rect.bottom + 10;
+    }
+    
+    currentTooltip.style.left = left + 'px';
+    currentTooltip.style.top = top + 'px';
+    
+    // Show tooltip with animation
+    setTimeout(() => {
+        if (currentTooltip) {
+            currentTooltip.classList.add('show');
+        }
+    }, 10);
+}
+
+function hideHostTooltip() {
+    if (currentTooltip) {
+        currentTooltip.remove();
+        currentTooltip = null;
+    }
+}
+
 // Export for modular access - only the minimum needed
 window.Frontend = {
     // State
@@ -2005,8 +2145,13 @@ window.Frontend = {
     updatePendingOperationsDisplay,
     updateCardPendingIndicators,
     refreshAffectedColumns,
-    createHostCard
+    createHostCard,
+    createHostCardCompact
 };
+
+// Make tooltip functions globally available
+window.showHostTooltip = showHostTooltip;
+window.hideHostTooltip = hideHostTooltip;
 
 // Debug: Log when Frontend module is exported
 console.log('📄 FRONTEND.JS: Module loaded, Frontend object exported');
