@@ -370,6 +370,14 @@ def register_routes(app):
             contract_gpu_summary = calculate_gpu_summary(contract_data)
             outofstock_gpu_summary = calculate_gpu_summary(outofstock_hosts)
             
+            # Debug GPU summaries to understand frontend issue
+            print(f"🔍 DEBUG API: {gpu_type} GPU summaries:")
+            print(f"  OnDemand: {ondemand_gpu_summary}")  
+            print(f"  RunPod: {runpod_gpu_summary}")
+            print(f"  Spot: {spot_gpu_summary}")
+            print(f"  Contracts: {contract_gpu_summary}")
+            print(f"  OutOfStock: {outofstock_gpu_summary}")
+            
             # Overall GPU summary (On-Demand + RunPod + Spot + Contracts)
             total_gpu_used = ondemand_gpu_summary['gpu_used'] + runpod_gpu_summary['gpu_used'] + spot_gpu_summary['gpu_used'] + contract_gpu_summary['gpu_used']
             total_gpu_capacity = ondemand_gpu_summary['gpu_capacity'] + runpod_gpu_summary['gpu_capacity'] + spot_gpu_summary['gpu_capacity'] + contract_gpu_summary['gpu_capacity']
