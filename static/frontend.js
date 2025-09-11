@@ -2014,6 +2014,12 @@ function createHostCardCompact(host, type, aggregateName = null) {
              data-owner-group="${ownerGroup}"
              data-nvlinks="${host.nvlinks}"
              data-outofstock-reason="${host.outofstock_reason || ''}"
+             data-site="${host.site || ''}"
+             data-rack="${host.rack || ''}"
+             data-tenant="${host.tenant || ''}"
+             data-gpu-type="${host.gpu_type || ''}"
+             data-openstack-aggregate="${host.openstack_aggregate || ''}"
+             data-vm-count="${host.vm_count || 0}"
              onmouseenter="showHostTooltip(event, this)"
              onmouseleave="hideHostTooltip()">
             <div class="machine-card-compact-content">
@@ -2041,13 +2047,19 @@ function showHostTooltip(event, element) {
     const ownerGroup = element.dataset.ownerGroup;
     const nvlinks = element.dataset.nvlinks;
     const outofstockReason = element.dataset.outofstockReason;
+    const site = element.dataset.site;
+    const rack = element.dataset.rack;
+    const tenant = element.dataset.tenant;
+    const gpuType = element.dataset.gpuType;
+    const openstackAggregate = element.dataset.openstackAggregate;
+    const vmCount = element.dataset.vmCount;
     const gpuText = element.querySelector('.gpu-badge-compact').textContent;
     
     // Get additional data from the element or parse from display
-    const vmCount = hasVms ? 'Yes' : 'No';
+    const hasVmsText = hasVms ? 'Yes' : 'No';
     const status = hasVms ? 'In Use' : 'Available';
     
-    // Create tooltip content with conditional out-of-stock reason
+    // Create comprehensive tooltip content
     let tooltipRows = `
         <div class="tooltip-row">
             <span class="tooltip-label">Status:</span>
@@ -2067,19 +2079,67 @@ function showHostTooltip(event, element) {
         </div>`;
     }
     
+    // Location information
+    if (site || rack) {
+        tooltipRows += `
+        <div class="tooltip-row">
+            <span class="tooltip-label">Location:</span>
+            <span class="tooltip-value">${site || 'Unknown'}${rack ? ` | ${rack}` : ''}</span>
+        </div>`;
+    }
+    
+    // GPU information
+    if (gpuType) {
+        tooltipRows += `
+        <div class="tooltip-row">
+            <span class="tooltip-label">GPU Type:</span>
+            <span class="tooltip-value">${gpuType}</span>
+        </div>`;
+    }
+    
     tooltipRows += `
         <div class="tooltip-row">
             <span class="tooltip-label">GPU Usage:</span>
             <span class="tooltip-value">${gpuText}</span>
-        </div>
+        </div>`;
+    
+    // VM information
+    tooltipRows += `
         <div class="tooltip-row">
-            <span class="tooltip-label">Has VMs:</span>
-            <span class="tooltip-value">${vmCount}</span>
-        </div>
+            <span class="tooltip-label">VMs:</span>
+            <span class="tooltip-value">${vmCount || 0} (${hasVmsText})</span>
+        </div>`;
+    
+    // Ownership information
+    if (tenant && tenant !== ownerGroup) {
+        tooltipRows += `
         <div class="tooltip-row">
             <span class="tooltip-label">Owner:</span>
             <span class="tooltip-value">${ownerGroup}</span>
         </div>
+        <div class="tooltip-row">
+            <span class="tooltip-label">Tenant:</span>
+            <span class="tooltip-value">${tenant}</span>
+        </div>`;
+    } else {
+        tooltipRows += `
+        <div class="tooltip-row">
+            <span class="tooltip-label">Owner:</span>
+            <span class="tooltip-value">${ownerGroup}</span>
+        </div>`;
+    }
+    
+    // OpenStack aggregate
+    if (openstackAggregate) {
+        tooltipRows += `
+        <div class="tooltip-row">
+            <span class="tooltip-label">OpenStack Aggregate:</span>
+            <span class="tooltip-value">${openstackAggregate}</span>
+        </div>`;
+    }
+    
+    // Hardware capabilities
+    tooltipRows += `
         <div class="tooltip-row">
             <span class="tooltip-label">NVLinks:</span>
             <span class="tooltip-value">
