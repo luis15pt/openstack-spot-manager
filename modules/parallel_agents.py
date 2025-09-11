@@ -804,9 +804,9 @@ def organize_by_netbox_devices(results):
     # Build final organized structure
     organized = {}
     
-    # Add GPU type columns
+    # Add GPU type columns with individual pool summaries
     for gpu_type, column_data in gpu_columns.items():
-        organized[gpu_type] = finalize_gpu_column(column_data)
+        organized[gpu_type] = finalize_gpu_column_with_pools(column_data)
     
     # Debug: Show out-of-stock devices per GPU type
     for gpu_type, column_data in gpu_columns.items():
@@ -969,6 +969,52 @@ def add_device_to_gpu_column(column_data, device, pool_type):
         # Set assignment field for config extraction
         device['_assignment'] = pool_type
         column_data[pool_type]['hosts'].append(device)
+
+def finalize_gpu_column_with_pools(column_data):
+    """Convert GPU column data to API format with individual pool summaries"""
+    if not isinstance(column_data, dict):
+        print(f"⚠️ finalize_gpu_column_with_pools: column_data is {type(column_data)}, expected dict")
+        return {}
+    
+    result = {}
+    
+    # Process each pool (runpod, spot, ondemand, contract, outofstock)
+    for pool_type, pool_data in column_data.items():
+        if not isinstance(pool_data, dict) or 'hosts' not in pool_data:
+            continue
+            
+        hosts = pool_data['hosts']
+        
+        # Calculate GPU summary for this pool
+        total_used = sum(host.get('gpu_used', 0) for host in hosts)
+        total_capacity = sum(host.get('gpu_capacity', 8) for host in hosts)
+        
+        print(f"🔍 DEBUG POOL {pool_type}: {len(hosts)} hosts, {total_used}/{total_capacity} GPUs")
+        
+        # Create pool result with API-compatible structure
+        result[pool_type] = {
+            'hosts': hosts,
+            'gpu_summary': {
+                'gpu_used': total_used,
+                'gpu_capacity': total_capacity,
+                'gpu_usage_ratio': f"{total_used}/{total_capacity}"
+            }
+        }
+        
+        # Add pool-specific naming
+        if pool_type == 'ondemand':
+            result[pool_type]['name'] = 'On-Demand'
+        elif pool_type == 'runpod':
+            result[pool_type]['name'] = 'RunPod'
+        elif pool_type == 'spot':
+            result[pool_type]['name'] = 'Spot'
+        elif pool_type == 'contract':
+            result[pool_type]['name'] = 'Contracts'
+        elif pool_type == 'outofstock':
+            result[pool_type]['name'] = 'Out of Stock'
+            result[pool_type]['device_count'] = len(hosts)
+    
+    return result
 
 def finalize_gpu_column(column_data):
     """Convert GPU column data to final format matching existing structure"""
