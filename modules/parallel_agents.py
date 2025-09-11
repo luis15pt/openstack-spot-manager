@@ -901,6 +901,7 @@ def enrich_device_with_openstack_data(device, vm_counts, gpu_info, host_to_aggre
         else:
             print(f"⚠️ enrich_device_with_openstack_data: gpu_info[{hostname}] is {type(gpu_data)}, expected dict or int")
     else:
+        pass
         
     # Add aggregate information
     aggregate_name = host_to_aggregate.get(hostname)
