@@ -2013,6 +2013,7 @@ function createHostCardCompact(host, type, aggregateName = null) {
              data-has-vms="${hasVms}"
              data-owner-group="${ownerGroup}"
              data-nvlinks="${host.nvlinks}"
+             data-outofstock-reason="${host.outofstock_reason || ''}"
              onmouseenter="showHostTooltip(event, this)"
              onmouseleave="hideHostTooltip()">
             <div class="machine-card-compact-content">
@@ -2039,21 +2040,34 @@ function showHostTooltip(event, element) {
     const hasVms = element.dataset.hasVms === 'true';
     const ownerGroup = element.dataset.ownerGroup;
     const nvlinks = element.dataset.nvlinks;
+    const outofstockReason = element.dataset.outofstockReason;
     const gpuText = element.querySelector('.gpu-badge-compact').textContent;
     
     // Get additional data from the element or parse from display
     const vmCount = hasVms ? 'Yes' : 'No';
     const status = hasVms ? 'In Use' : 'Available';
     
-    // Create tooltip content
-    const tooltipContent = `
-        <div class="tooltip-header">${hostName}</div>
+    // Create tooltip content with conditional out-of-stock reason
+    let tooltipRows = `
         <div class="tooltip-row">
             <span class="tooltip-label">Status:</span>
             <span class="tooltip-value">
                 <span class="tooltip-status ${hasVms ? 'in-use' : 'available'}">${status}</span>
             </span>
-        </div>
+        </div>`;
+    
+    // Add out-of-stock reason if this is an out-of-stock device
+    if (outofstockReason && outofstockReason.trim() !== '') {
+        tooltipRows += `
+        <div class="tooltip-row">
+            <span class="tooltip-label">Out-of-Stock Reason:</span>
+            <span class="tooltip-value">
+                <span class="tooltip-status out-of-stock">${outofstockReason}</span>
+            </span>
+        </div>`;
+    }
+    
+    tooltipRows += `
         <div class="tooltip-row">
             <span class="tooltip-label">GPU Usage:</span>
             <span class="tooltip-value">${gpuText}</span>
@@ -2071,7 +2085,11 @@ function showHostTooltip(event, element) {
             <span class="tooltip-value">
                 <span class="tooltip-status ${nvlinks === 'true' ? 'nvlinks' : ''}">${nvlinks === 'true' ? 'Yes' : nvlinks === 'false' ? 'No' : 'Unknown'}</span>
             </span>
-        </div>
+        </div>`;
+    
+    const tooltipContent = `
+        <div class="tooltip-header">${hostName}</div>
+        ${tooltipRows}
     `;
     
     // Create tooltip element

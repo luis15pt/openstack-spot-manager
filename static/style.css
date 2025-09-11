@@ -2921,6 +2921,12 @@ body {
     color: white;
 }
 
+.tooltip-status.out-of-stock {
+    background: #ffc107;
+    color: #000;
+    font-weight: 600;
+}
+
 /* Responsive adjustments for compact cards */
 @media (max-width: 1400px) {
     .machine-card-compact {
