@@ -2080,20 +2080,34 @@ function showHostTooltip(event, element) {
     currentTooltip.innerHTML = tooltipContent;
     document.body.appendChild(currentTooltip);
     
-    // Position tooltip
+    // Position tooltip - always above the element
     const rect = element.getBoundingClientRect();
     const tooltipRect = currentTooltip.getBoundingClientRect();
     
+    // Always position above the element
     let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
-    let top = rect.top - tooltipRect.height - 10;
+    let top = rect.top - tooltipRect.height - 15; // More spacing from element
     
-    // Adjust if tooltip would go off screen
+    // Adjust horizontal position if tooltip would go off screen
     if (left < 10) left = 10;
     if (left + tooltipRect.width > window.innerWidth - 10) {
         left = window.innerWidth - tooltipRect.width - 10;
     }
+    
+    // If tooltip would go above the viewport, position it below but prefer above
     if (top < 10) {
-        top = rect.bottom + 10;
+        // Only move below if there's more space below than above
+        const spaceAbove = rect.top;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        
+        if (spaceBelow > spaceAbove && spaceBelow > tooltipRect.height + 20) {
+            top = rect.bottom + 15;
+            // Update arrow position for bottom placement
+            currentTooltip.classList.add('tooltip-below');
+        } else {
+            // Keep above but adjust to viewport edge
+            top = 10;
+        }
     }
     
     currentTooltip.style.left = left + 'px';
