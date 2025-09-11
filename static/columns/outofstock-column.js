@@ -93,7 +93,7 @@ class OutOfStockColumn extends BaseColumn {
     }
 
     /**
-     * Render hosts grouped by owner with outofstock_reason
+     * Render hosts grouped by owner with outofstock_reason using standard compact cards
      */
     renderOwnerGroup(ownerGroup, hosts) {
         // Group by outofstock_reason
@@ -109,8 +109,8 @@ class OutOfStockColumn extends BaseColumn {
         const reasonGroupsHtml = Object.entries(reasonGroups).map(([reason, reasonHosts]) => `
             <div class="reason-group mb-2">
                 <div class="small text-muted mb-1">${reason} (${reasonHosts.length})</div>
-                <div class="hosts-list">
-                    ${reasonHosts.map(host => this.renderOutOfStockHost(host)).join('')}
+                <div class="host-cards-compact">
+                    ${reasonHosts.map(host => window.Frontend.createHostCardCompact(host, 'outofstock', 'Out of Stock')).join('')}
                 </div>
             </div>
         `).join('');
@@ -166,102 +166,7 @@ class OutOfStockColumn extends BaseColumn {
         }
     }
 
-    /**
-     * Render out-of-stock hosts with status-specific styling
-     */
-    renderOutOfStockHosts(hosts) {
-        const container = document.getElementById(this.hostsContainerId);
-        if (!container) return;
-        
-        // Clear existing content
-        container.innerHTML = '';
-        
-        // Group hosts by reason for better organization
-        const hostsByReason = {};
-        hosts.forEach(host => {
-            const reason = host.outofstock_reason || 'Unknown';
-            if (!hostsByReason[reason]) {
-                hostsByReason[reason] = [];
-            }
-            hostsByReason[reason].push(host);
-        });
-        
-        // Render each group
-        Object.entries(hostsByReason).forEach(([reason, reasonHosts]) => {
-            const groupHtml = `
-                <div class="out-of-stock-group mb-3">
-                    <div class="group-header">
-                        <small class="text-muted">${reason} (${reasonHosts.length})</small>
-                    </div>
-                    <div class="host-list">
-                        ${reasonHosts.map(host => this.renderOutOfStockHost(host)).join('')}
-                    </div>
-                </div>
-            `;
-            container.insertAdjacentHTML('beforeend', groupHtml);
-        });
-    }
 
-    /**
-     * Render individual out-of-stock host with appropriate styling
-     */
-    renderOutOfStockHost(host) {
-        const statusClass = this.getStatusClass(host);
-        const statusIcon = this.getStatusIcon(host);
-        
-        return `
-            <div class="host-card ${statusClass} mb-2" data-hostname="${host.hostname}">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div class="host-info">
-                        <div class="host-name">
-                            ${statusIcon} ${host.hostname}
-                        </div>
-                        <div class="host-details small text-muted">
-                            ${host.site} | ${host.rack} | ${host.tenant}
-                        </div>
-                    </div>
-                    <div class="host-status">
-                        <span class="status-label">${host.status_label || host.status}</span>
-                        <div class="gpu-info small">
-                            ${host.gpu_capacity} GPUs
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    /**
-     * Get CSS class for host status
-     */
-    getStatusClass(host) {
-        const status = host.status?.toLowerCase();
-        const reason = host.outofstock_reason?.toLowerCase() || '';
-        
-        if (status === 'failed' || reason.includes('failed')) return 'host-failed';
-        if (status === 'offline' || reason.includes('offline')) return 'host-offline';
-        if (reason.includes('disabled')) return 'host-disabled';
-        if (reason.includes('tempest') || reason.includes('testing')) return 'host-testing';
-        if (reason.includes('not allocated')) return 'host-unallocated';
-        
-        return 'host-unknown';
-    }
-
-    /**
-     * Get status icon for host
-     */
-    getStatusIcon(host) {
-        const status = host.status?.toLowerCase();
-        const reason = host.outofstock_reason?.toLowerCase() || '';
-        
-        if (status === 'failed' || reason.includes('failed')) return '<i class="fas fa-times-circle text-danger"></i>';
-        if (status === 'offline' || reason.includes('offline')) return '<i class="fas fa-power-off text-warning"></i>';
-        if (reason.includes('disabled')) return '<i class="fas fa-ban text-secondary"></i>';
-        if (reason.includes('tempest') || reason.includes('testing')) return '<i class="fas fa-flask text-info"></i>';
-        if (reason.includes('not allocated')) return '<i class="fas fa-question-circle text-muted"></i>';
-        
-        return '<i class="fas fa-exclamation-triangle text-warning"></i>';
-    }
 
     /**
      * Render empty state when no out of stock hosts
