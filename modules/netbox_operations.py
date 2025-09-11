@@ -87,7 +87,7 @@ def get_netbox_tenants_bulk(hostnames):
                     'owner_group': owner_group,
                     'nvlinks': nvlinks,
                     'netbox_device_id': device.get('id'),
-                    'netbox_url': f"{NETBOX_URL}/dcim/devices/{device.get('id')}/" if device.get('id') else None
+                    'netbox_url': device.get('display_url') or device.get('url')
                 }
                 
                 device_map[device_name] = result
