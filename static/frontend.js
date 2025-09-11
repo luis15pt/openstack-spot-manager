@@ -214,6 +214,12 @@ function renderAggregateData(data) {
         totalGpuCapacity += contractGpuData.capacity || 0;
     }
     
+    // Add Out-of-Stock GPUs (capacity only, usage should be 0)
+    if (data.outofstock && data.outofstock.gpu_summary) {
+        totalGpuUsed += data.outofstock.gpu_summary.gpu_used || 0;
+        totalGpuCapacity += data.outofstock.gpu_summary.gpu_capacity || 0;
+    }
+    
     // Update total GPU display
     const totalGpuPercentage = totalGpuCapacity > 0 ? Math.round((totalGpuUsed / totalGpuCapacity) * 100) : 0;
     document.getElementById('totalGpuUsage').textContent = `${totalGpuUsed}/${totalGpuCapacity} GPUs`;
@@ -232,7 +238,7 @@ function renderAggregateData(data) {
         progressBar.classList.add('bg-danger');
     }
     
-    console.log(`📊 Total GPU Usage: ${totalGpuUsed}/${totalGpuCapacity} (${totalGpuPercentage}%) - RunPod: ${data.runpod?.gpu_summary?.gpu_used || 0}, Spot: ${data.spot?.gpu_summary?.gpu_used || 0}, OnDemand: ${data.ondemand?.gpu_summary?.gpu_used || 0}, Contracts: ${contractGpuData?.used || 0}`);
+    console.log(`📊 Total GPU Usage: ${totalGpuUsed}/${totalGpuCapacity} (${totalGpuPercentage}%) - RunPod: ${data.runpod?.gpu_summary?.gpu_used || 0}, Spot: ${data.spot?.gpu_summary?.gpu_used || 0}, OnDemand: ${data.ondemand?.gpu_summary?.gpu_used || 0}, Contracts: ${contractGpuData?.used || 0}, OutOfStock: ${data.outofstock?.gpu_summary?.gpu_capacity || 0} capacity`);
     
     // Store data for other functions
     aggregateData = data;
