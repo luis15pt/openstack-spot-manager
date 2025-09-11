@@ -977,6 +977,7 @@ def finalize_gpu_column_with_pools(column_data):
         return {}
     
     result = {}
+    all_hosts = []
     
     # Process each pool (runpod, spot, ondemand, contract, outofstock)
     for pool_type, pool_data in column_data.items():
@@ -984,6 +985,7 @@ def finalize_gpu_column_with_pools(column_data):
             continue
             
         hosts = pool_data['hosts']
+        all_hosts.extend(hosts)  # Collect for config generation
         
         # Calculate GPU summary for this pool
         total_used = sum(host.get('gpu_used', 0) for host in hosts)
@@ -1014,7 +1016,58 @@ def finalize_gpu_column_with_pools(column_data):
             result[pool_type]['name'] = 'Out of Stock'
             result[pool_type]['device_count'] = len(hosts)
     
+    # Generate config from all hosts (API expects this)
+    config = generate_config_from_hosts(all_hosts)
+    result['config'] = config
+    result['total_hosts'] = len(all_hosts)
+    
     return result
+
+def generate_config_from_hosts(all_hosts):
+    """Generate config structure from hosts for API compatibility"""
+    try:
+        # Extract actual aggregate names from hosts
+        runpod_aggregates = set()
+        spot_aggregates = set()
+        ondemand_aggregates = set()
+        contract_aggregates = set()
+        
+        # Scan all hosts to find their actual aggregate assignments
+        for host in all_hosts:
+            aggregate = host.get('aggregate')
+            if aggregate:
+                # Determine type based on assignment logic
+                if host.get('_assignment') == 'runpod':
+                    runpod_aggregates.add(aggregate)
+                elif host.get('_assignment') == 'spot':
+                    spot_aggregates.add(aggregate)
+                elif host.get('_assignment') == 'contract':
+                    contract_aggregates.add(aggregate)
+                elif host.get('_assignment') == 'ondemand':
+                    ondemand_aggregates.add(aggregate)
+        
+        # Set config with actual aggregate names (API expects single string for runpod/spot)
+        config = {}
+        config['runpod'] = list(runpod_aggregates)[0] if runpod_aggregates else False
+        config['spot'] = list(spot_aggregates)[0] if spot_aggregates else False
+        
+        # Create ondemand variants array with proper structure
+        config['ondemand_variants'] = [
+            {'aggregate': agg, 'variant': agg} 
+            for agg in ondemand_aggregates
+        ]
+        
+        # Create contracts array with proper structure  
+        config['contracts'] = [
+            {'aggregate': agg, 'name': agg}
+            for agg in contract_aggregates
+        ]
+        
+        return config
+        
+    except Exception as e:
+        print(f"❌ Error creating config: {e}")
+        return {'runpod': False, 'spot': False, 'ondemand_variants': [], 'contracts': []}
 
 def finalize_gpu_column(column_data):
     """Convert GPU column data to final format matching existing structure"""
