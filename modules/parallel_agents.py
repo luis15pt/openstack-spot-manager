@@ -754,7 +754,6 @@ def organize_by_netbox_devices(results):
     
     # Initialize columns structure
     gpu_columns = {}
-    out_of_stock_devices = []
     
     # Process each NetBox GPU device individually
     for hostname, device in all_netbox_devices.items():
@@ -791,13 +790,14 @@ def organize_by_netbox_devices(results):
             enriched_device, tempest_hosts, disabled_hosts, host_to_aggregate
         )
         
+        # Initialize GPU type column if needed (for both active and out-of-stock)
+        if gpu_type not in gpu_columns:
+            gpu_columns[gpu_type] = initialize_gpu_type_structure(gpu_type)
+        
         if assigned_column == 'outofstock':
-            out_of_stock_devices.append(enriched_device)
+            # Add to out-of-stock within this GPU type
+            gpu_columns[gpu_type]['outofstock']['hosts'].append(enriched_device)
         else:
-            # Initialize GPU type column if needed
-            if gpu_type not in gpu_columns:
-                gpu_columns[gpu_type] = initialize_gpu_type_structure(gpu_type)
-            
             # Add device to appropriate pool within the GPU type
             add_device_to_gpu_column(gpu_columns[gpu_type], enriched_device, assigned_column)
     
@@ -808,11 +808,11 @@ def organize_by_netbox_devices(results):
     for gpu_type, column_data in gpu_columns.items():
         organized[gpu_type] = finalize_gpu_column(column_data)
     
-    # Add out-of-stock column
-    print(f"🔍 DEBUG: Creating out-of-stock column with {len(out_of_stock_devices)} devices")
-    if out_of_stock_devices:
-        print(f"🔍 DEBUG: First 3 out-of-stock devices: {[d.get('hostname', 'unknown') for d in out_of_stock_devices[:3]]}")
-    organized['outofstock'] = create_outofstock_column(out_of_stock_devices)
+    # Debug: Show out-of-stock devices per GPU type
+    for gpu_type, column_data in gpu_columns.items():
+        outofstock_count = len(column_data.get('outofstock', {}).get('hosts', []))
+        if outofstock_count > 0:
+            print(f"🔍 DEBUG: {gpu_type} has {outofstock_count} out-of-stock devices")
     
     # Add inventory validation with defensive programming
     total_devices_processed = 0
@@ -956,7 +956,8 @@ def initialize_gpu_type_structure(gpu_type):
         'runpod': {'hosts': [], 'config': {}},
         'spot': {'hosts': [], 'config': {}}, 
         'ondemand': {'hosts': [], 'config': {}},
-        'contract': {'hosts': [], 'config': {}}
+        'contract': {'hosts': [], 'config': {}},
+        'outofstock': {'hosts': [], 'config': {}}
     }
 
 def add_device_to_gpu_column(column_data, device, pool_type):

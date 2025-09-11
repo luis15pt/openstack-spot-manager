@@ -197,6 +197,11 @@ def register_routes(app):
             config = gpu_data['config']
             all_hosts = gpu_data['hosts']
             
+            # Check if new outofstock structure exists
+            outofstock_hosts = []
+            if 'outofstock' in gpu_data:
+                outofstock_hosts = gpu_data['outofstock'].get('hosts', [])
+                print(f"🔍 DEBUG: Found {len(outofstock_hosts)} outofstock hosts in parallel data")
             
             # Organize hosts by aggregate type from parallel data
             ondemand_hosts = []
@@ -363,6 +368,7 @@ def register_routes(app):
             runpod_gpu_summary = calculate_gpu_summary(runpod_data)
             spot_gpu_summary = calculate_gpu_summary(spot_data)
             contract_gpu_summary = calculate_gpu_summary(contract_data)
+            outofstock_gpu_summary = calculate_gpu_summary(outofstock_hosts)
             
             # Overall GPU summary (On-Demand + RunPod + Spot + Contracts)
             total_gpu_used = ondemand_gpu_summary['gpu_used'] + runpod_gpu_summary['gpu_used'] + spot_gpu_summary['gpu_used'] + contract_gpu_summary['gpu_used']
@@ -412,6 +418,11 @@ def register_routes(app):
                     'hosts': contract_data,
                     'gpu_summary': contract_gpu_summary,
                     'contracts_list': config.get('contracts', [])
+                },
+                'outofstock': {
+                    'name': 'Out of Stock',
+                    'hosts': outofstock_hosts,
+                    'gpu_summary': outofstock_gpu_summary
                 },
                 'gpu_overview': {
                     'total_gpu_used': total_gpu_used,
