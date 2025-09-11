@@ -1389,18 +1389,26 @@ function renderOnDemandVariantColumns(ondemandData) {
         });
     }
     
-    // Calculate ondemand variant column width using flex percentages
-    // Each OnDemand variant should get the same 20% width as all other columns for consistency
+    // Calculate column width based on total number of columns to ensure everything fits
     const totalVariants = ondemandData.variants ? ondemandData.variants.length : 1;
-    const variantPercentage = 20; // Each variant gets 20% width to match other columns (RunPod, Spot, Contract, OutOfStock)
+    // Total columns: RunPod + Spot + Contract + OutOfStock + OnDemand variants
+    const totalColumns = 4 + totalVariants; // 4 fixed columns + variable OnDemand columns
+    const columnPercentage = Math.floor(100 / totalColumns * 10) / 10; // Round down to 1 decimal place for clean percentages
     
     console.log('🔍 Column calculation:', {
         totalVariants,
-        variantPercentage: `${variantPercentage}% (uniform width)`
+        totalColumns,
+        columnPercentage: `${columnPercentage}% (equal width for all columns)`
     });
     
-    // Don't change RunPod, Spot, or Contract column widths - they're fixed in HTML with flex
-    // RunPod: 20%, Spot: 20%, Contract: 20%, Out of Stock: 20%, OnDemand variants: 20% EACH
+    // Update fixed column widths to match the calculated percentage
+    const fixedColumns = ['runpodColumn', 'spotColumn', 'contractColumn', 'outofstockColumn'];
+    fixedColumns.forEach(columnId => {
+        const column = document.getElementById(columnId);
+        if (column && column.parentElement) {
+            column.parentElement.style.flex = `0 0 ${columnPercentage}%`;
+        }
+    });
     
     // Check if variants include NVLink differentiation (only split columns for NVLink variants)
     const hasNVLinkVariants = ondemandData.variants && ondemandData.variants.length > 1 && 
@@ -1437,7 +1445,7 @@ function renderOnDemandVariantColumns(ondemandData) {
             }
             
             const columnHtml = `
-                <div class="col-md-6" style="flex: 0 0 ${variantPercentage}%;">
+                <div class="col-md-6" style="flex: 0 0 ${columnPercentage}%;">
                     <div class="aggregate-column" id="${variantId}Column">
                         <div class="card">
                             <div class="card-header bg-primary text-white">
