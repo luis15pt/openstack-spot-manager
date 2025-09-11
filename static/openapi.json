@@ -95,24 +95,6 @@
         }
       }
     },
-    "/outofstock-data": {
-      "get": {
-        "summary": "Get out of stock devices",
-        "description": "Returns NetBox devices that are not in active OpenStack aggregates",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OutOfStockData"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/parallel-test": {
       "get": {
         "summary": "Test parallel agents system",

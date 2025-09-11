@@ -452,31 +452,6 @@ def register_routes(app):
             'count': len(vms)
         })
 
-    @app.route('/api/outofstock-data')
-    def get_outofstock_data_api():
-        """Get out of stock devices from NetBox that are not in OpenStack aggregates"""
-        try:
-            print("🔍 API request for out-of-stock data...")
-            
-            # Use the business logic function
-            outofstock_data = get_outofstock_data()
-            
-            print(f"✅ Out-of-stock API response: {len(outofstock_data.get('hosts', []))} devices")
-            
-            return jsonify(outofstock_data)
-            
-        except Exception as e:
-            print(f"❌ Error in out-of-stock API: {e}")
-            return jsonify({
-                'error': str(e),
-                'hosts': [],
-                'gpu_summary': {
-                    'gpu_used': 0,
-                    'gpu_capacity': 0,
-                    'gpu_usage_ratio': '0/0'
-                },
-                'name': 'Out of Stock'
-            }), 500
 
     @app.route('/api/preview-migration', methods=['POST'])
     def preview_migration():
