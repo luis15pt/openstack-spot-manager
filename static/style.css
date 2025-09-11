@@ -2976,6 +2976,3 @@ body {
     transform: scale(1.1);
 }
 
-.machine-card-compact {
-    position: relative; /* Ensure positioning context for absolute NetBox icon */
-}

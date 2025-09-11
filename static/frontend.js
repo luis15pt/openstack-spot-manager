@@ -2003,6 +2003,7 @@ function createHostCardCompact(host, type, aggregateName = null) {
              data-vm-count="${host.vm_count || 0}"
              onmouseenter="showHostTooltip(event, this)"
              onmouseleave="hideHostTooltip()">
+            ${host.netbox_url ? `<a href="${host.netbox_url}" target="_blank" class="netbox-link" title="View in NetBox" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a>` : ''}
             <div class="machine-card-compact-content">
                 <div class="machine-info-compact">
                     <div class="machine-name-compact">${host.name}</div>
@@ -2011,7 +2012,6 @@ function createHostCardCompact(host, type, aggregateName = null) {
                         <span class="${ownerBadgeClass}">${ownerGroup === 'Nexgen Cloud' ? 'NGC' : tenant}</span>
                     </div>
                 </div>
-                ${host.netbox_url ? `<a href="${host.netbox_url}" target="_blank" class="netbox-link" title="View in NetBox" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a>` : ''}
             </div>
         </div>
     `;
