@@ -101,6 +101,13 @@ def get_netbox_tenants_bulk(hostnames):
                 print(f"  - ID: {device_id}")
                 print(f"  - display_url: {display_url}")
                 print(f"  - url: {api_url}")
+                print(f"  - All available keys: {sorted(device.keys())}")
+                
+                # Check if ID/URL fields exist with different names
+                id_fields = [k for k in device.keys() if 'id' in k.lower()]
+                url_fields = [k for k in device.keys() if 'url' in k.lower()]
+                print(f"  - ID-related fields: {id_fields}")
+                print(f"  - URL-related fields: {url_fields}")
                 
                 result = {
                     'tenant': tenant_name,
