@@ -33,17 +33,97 @@ class OutOfStockColumn extends BaseColumn {
         // Update GPU statistics (for out of stock, this represents unused capacity)
         this.updateGpuStats(data.gpu_summary);
         
-        // Use standard host rendering like other columns for consistency
+        // Use proper Available/In Use grouping like other columns
         if (data.hosts && data.hosts.length > 0) {
-            // Display comprehensive status breakdown if available
-            this.renderStatusBreakdown(data.breakdown_summary);
-            
-            // Use standard host rendering for consistent styling
-            this.renderHosts(data.hosts, data.name);
+            this.renderOutOfStockWithGrouping(data.hosts);
         } else {
             // Show empty state
             this.renderEmptyState();
         }
+    }
+
+    /**
+     * Render out-of-stock hosts with Available/In Use grouping by owner organization
+     */
+    renderOutOfStockWithGrouping(hosts) {
+        const container = document.getElementById(this.hostsContainerId);
+        if (!container) return;
+
+        // Clear existing content
+        container.innerHTML = '';
+
+        // Group hosts by GPU usage (Available vs In Use) then by owner
+        const availableHosts = hosts.filter(host => (host.gpu_used || 0) === 0);
+        const inUseHosts = hosts.filter(host => (host.gpu_used || 0) > 0);
+
+        // Render Available section
+        if (availableHosts.length > 0) {
+            this.renderOwnerGroupSection(container, 'Available', availableHosts);
+        }
+
+        // Render In Use section  
+        if (inUseHosts.length > 0) {
+            this.renderOwnerGroupSection(container, 'In Use', inUseHosts);
+        }
+    }
+
+    /**
+     * Render a section (Available/In Use) grouped by owner organization
+     */
+    renderOwnerGroupSection(container, sectionTitle, hosts) {
+        // Group by owner organization
+        const nexgenHosts = hosts.filter(host => host.owner_group === 'Nexgen Cloud');
+        const investorHosts = hosts.filter(host => host.owner_group === 'Investors');
+
+        // Section header
+        const sectionHtml = `
+            <div class="host-section mb-3">
+                <h6 class="text-muted mb-2">
+                    <i class="fas fa-${sectionTitle === 'Available' ? 'circle' : 'play-circle'} me-1"></i>
+                    ${sectionTitle} (${hosts.length})
+                </h6>
+                <div class="owner-groups">
+                    ${nexgenHosts.length > 0 ? this.renderOwnerGroup('Nexgen Cloud', nexgenHosts) : ''}
+                    ${investorHosts.length > 0 ? this.renderOwnerGroup('Investors', investorHosts) : ''}
+                </div>
+            </div>
+        `;
+        
+        container.insertAdjacentHTML('beforeend', sectionHtml);
+    }
+
+    /**
+     * Render hosts grouped by owner with outofstock_reason
+     */
+    renderOwnerGroup(ownerGroup, hosts) {
+        // Group by outofstock_reason
+        const reasonGroups = {};
+        hosts.forEach(host => {
+            const reason = host.outofstock_reason || 'Unknown reason';
+            if (!reasonGroups[reason]) {
+                reasonGroups[reason] = [];
+            }
+            reasonGroups[reason].push(host);
+        });
+
+        const reasonGroupsHtml = Object.entries(reasonGroups).map(([reason, reasonHosts]) => `
+            <div class="reason-group mb-2">
+                <div class="small text-muted mb-1">${reason} (${reasonHosts.length})</div>
+                <div class="hosts-list">
+                    ${reasonHosts.map(host => this.renderOutOfStockHost(host)).join('')}
+                </div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="owner-group mb-3">
+                <div class="fw-bold mb-2">
+                    <i class="fas fa-building me-1"></i>
+                    ${ownerGroup} (${hosts.length})
+                </div>
+                ${reasonGroupsHtml}
+            </div>
+        `;
     }
 
     /**
