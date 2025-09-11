@@ -1021,6 +1021,9 @@ def finalize_gpu_column_with_pools(column_data):
     result['config'] = config
     result['total_hosts'] = len(all_hosts)
     
+    # API backward compatibility: provide flat hosts list
+    result['hosts'] = all_hosts
+    
     return result
 
 def generate_config_from_hosts(all_hosts):
