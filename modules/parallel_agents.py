@@ -896,13 +896,11 @@ def enrich_device_with_openstack_data(device, vm_counts, gpu_info, host_to_aggre
         gpu_data = gpu_info[hostname]
         if isinstance(gpu_data, dict):
             enriched.update(gpu_data)
-            print(f"🔍 DEBUG GPU: {hostname} got GPU data: used={gpu_data.get('gpu_used', 'N/A')}, capacity={gpu_data.get('gpu_capacity', 'N/A')}")
         elif isinstance(gpu_data, int):
             enriched['gpu_count'] = gpu_data
         else:
             print(f"⚠️ enrich_device_with_openstack_data: gpu_info[{hostname}] is {type(gpu_data)}, expected dict or int")
     else:
-        print(f"🔍 DEBUG GPU: {hostname} NOT found in gpu_info (has {len(gpu_info)} hosts)")
         
     # Add aggregate information
     aggregate_name = host_to_aggregate.get(hostname)
@@ -1461,8 +1459,6 @@ def get_host_gpu_info_direct(hostname):
             elif hasattr(server, 'flavor_name'):
                 flavor_name = server.flavor_name
             
-            # Debug print to see what we're getting
-            print(f"🔍 DEBUG GPU: {hostname} VM {getattr(server, 'name', 'unknown')}: flavor_name='{flavor_name}'")
             
             if flavor_name and flavor_name != 'N/A':
                 # Extract GPU count from flavor name like 'n3-H100x1', 'n3-H100x2', 'n3-RTX-A6000x8'
@@ -1471,7 +1467,6 @@ def get_host_gpu_info_direct(hostname):
                 if match:
                     gpu_count = int(match.group(1))
                     total_gpu_used += gpu_count
-                    print(f"🎮 DEBUG GPU: {hostname} VM {getattr(server, 'name', 'unknown')}: {flavor_name} = {gpu_count} GPUs")
                 else:
                     print(f"⚠️ DEBUG GPU: {hostname} VM {getattr(server, 'name', 'unknown')}: Could not parse GPU count from '{flavor_name}'")
         
@@ -1482,8 +1477,6 @@ def get_host_gpu_info_direct(hostname):
         if len(servers) == 0:
             total_gpu_used = 0
         
-        # Debug output to track GPU calculation
-        print(f"📊 DEBUG GPU FINAL: {hostname} = {total_gpu_used}/{host_gpu_capacity} GPUs (from {len(servers)} VMs)")
         
         return {
             'gpu_used': total_gpu_used,
