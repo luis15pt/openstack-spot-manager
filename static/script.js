@@ -2185,7 +2185,7 @@ async function loadContractDataForColumn(contractAggregate) {
                     }
                 });
                 
-                contractHostsList.innerHTML = hostsHtml;
+                contractHostsList.innerHTML = `<div class="host-cards-compact">${hostsHtml}</div>`;
                 
                 // Update contract name and counts
                 const contractNameEl = document.getElementById('contractName');

@@ -2723,7 +2723,7 @@ body {
     background: white;
     border: 1px solid #e8e9ea;
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 10px 12px;
     cursor: move;
     transition: all 0.2s ease;
     position: relative;
@@ -2735,7 +2735,7 @@ body {
     align-items: center;
     justify-content: space-between;
     margin: 3px;
-    width: calc(50% - 6px); /* Two cards per row */
+    width: calc(60% - 6px); /* Wider cards with more breathing room */
     font-size: 0.85rem;
 }
 
@@ -2936,6 +2936,6 @@ body {
 
 @media (min-width: 1600px) {
     .machine-card-compact {
-        width: calc(33.333% - 6px); /* Three cards per row on larger screens */
+        width: calc(45% - 6px); /* Wider cards on larger screens */
     }
 }
