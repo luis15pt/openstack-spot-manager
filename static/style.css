@@ -2976,3 +2976,15 @@ body {
     transform: scale(1.1);
 }
 
+/* NetBox logo styling */
+.netbox-logo {
+    width: 12px;
+    height: 12px;
+    display: block;
+    transition: all 0.2s ease;
+}
+
+.netbox-link:hover .netbox-logo {
+    transform: scale(1.1);
+}
+
