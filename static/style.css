@@ -2956,3 +2956,26 @@ body {
         width: calc(100% - 6px) !important;
     }
 }
+
+/* NetBox link icon */
+.netbox-link {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    color: #6c757d;
+    font-size: 0.75rem;
+    text-decoration: none;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.netbox-link:hover {
+    color: #0d6efd;
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.machine-card-compact {
+    position: relative; /* Ensure positioning context for absolute NetBox icon */
+}

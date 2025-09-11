@@ -253,7 +253,9 @@ def register_routes(app):
                     tenant_info = host_info.get('tenant_info', {
                         'tenant': host_info.get('tenant', 'Unknown'),
                         'owner_group': host_info.get('owner_group', 'Investors'), 
-                        'nvlinks': host_info.get('nvlinks', False)
+                        'nvlinks': host_info.get('nvlinks', False),
+                        'netbox_device_id': host_info.get('netbox_device_id'),
+                        'netbox_url': host_info.get('netbox_url')
                     })
                     
                     # OPTIMIZATION: Skip expensive data based on flags
@@ -277,6 +279,8 @@ def register_routes(app):
                             'tenant': tenant_info['tenant'],
                             'owner_group': tenant_info['owner_group'],
                             'nvlinks': tenant_info['nvlinks'],
+                            'netbox_device_id': tenant_info['netbox_device_id'],
+                            'netbox_url': tenant_info['netbox_url'],
                             'gpu_used': gpu_info['gpu_used'],
                             'gpu_capacity': gpu_info['gpu_capacity'],
                             'gpu_usage_ratio': gpu_info['gpu_usage_ratio']
@@ -298,6 +302,8 @@ def register_routes(app):
                             'tenant': tenant_info['tenant'],
                             'owner_group': tenant_info['owner_group'],
                             'nvlinks': tenant_info['nvlinks'],
+                            'netbox_device_id': tenant_info['netbox_device_id'],
+                            'netbox_url': tenant_info['netbox_url'],
                             'gpu_used': gpu_info['gpu_used'],
                             'gpu_capacity': gpu_info['gpu_capacity'],
                             'gpu_usage_ratio': gpu_info['gpu_usage_ratio']

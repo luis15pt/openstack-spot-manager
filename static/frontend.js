@@ -2003,6 +2003,7 @@ function createHostCardCompact(host, type, aggregateName = null) {
                         <span class="${ownerBadgeClass}">${ownerGroup === 'Nexgen Cloud' ? 'NGC' : tenant}</span>
                     </div>
                 </div>
+                ${host.netbox_url ? `<a href="${host.netbox_url}" target="_blank" class="netbox-link" title="View in NetBox" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a>` : ''}
             </div>
         </div>
     `;

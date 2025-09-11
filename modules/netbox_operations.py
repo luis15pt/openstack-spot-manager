@@ -17,7 +17,7 @@ def get_netbox_tenants_bulk(hostnames):
     # Return default if NetBox is not configured
     if not NETBOX_URL or not NETBOX_API_KEY:
         print("⚠️ NetBox not configured - using default tenant")
-        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False}
+        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False, 'netbox_device_id': None, 'netbox_url': None}
         return {hostname: default_result for hostname in hostnames}
     
     # Check cache first and separate cached vs uncached hostnames
@@ -85,7 +85,9 @@ def get_netbox_tenants_bulk(hostnames):
                 result = {
                     'tenant': tenant_name,
                     'owner_group': owner_group,
-                    'nvlinks': nvlinks
+                    'nvlinks': nvlinks,
+                    'netbox_device_id': device.get('id'),
+                    'netbox_url': f"{NETBOX_URL}/dcim/devices/{device.get('id')}/" if device.get('id') else None
                 }
                 
                 device_map[device_name] = result
@@ -98,7 +100,7 @@ def get_netbox_tenants_bulk(hostnames):
                 print(f"✅ NetBox lookup for {hostname}: {device_map[hostname]['tenant']} -> {device_map[hostname]['owner_group']}")
             else:
                 # Device not found in NetBox, use default
-                default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False}
+                default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False, 'netbox_device_id': None, 'netbox_url': None}
                 bulk_results[hostname] = default_result
                 _tenant_cache[hostname] = default_result
                 print(f"⚠️ Device {hostname} not found in NetBox")
@@ -108,7 +110,7 @@ def get_netbox_tenants_bulk(hostnames):
     except Exception as e:
         print(f"❌ NetBox bulk lookup failed: {e}")
         # Fall back to default for all uncached hostnames
-        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False}
+        default_result = {'tenant': 'Unknown', 'owner_group': 'Investors', 'nvlinks': False, 'netbox_device_id': None, 'netbox_url': None}
         for hostname in uncached_hostnames:
             bulk_results[hostname] = default_result
             _tenant_cache[hostname] = default_result
