@@ -237,29 +237,23 @@ function renderAggregateData(data) {
         window.columns.contract.update(data);
     }
     
-    // Update Summary column with comprehensive GPU usage overview (including cached out-of-stock data)
-    if (window.columns && window.columns.summary) {
-        console.log('🔄 Updating Summary column with comprehensive GPU usage data');
-        // Out-of-stock data should now be included in the parallel agents results
-        // Handle special case where outofstock API returns nested structure
-        if (data.gpu_type === 'outofstock' && data.outofstock) {
-            console.log(`✅ Using outofstock API response: ${data.outofstock.hosts?.length || 0} devices`);
-            // Restructure for compatibility with existing frontend code
-            data.outofstock = data.outofstock;
-        } else if (!data.outofstock) {
-            console.log('⚠️ No out-of-stock data found in cached results, using empty fallback');
-            data.outofstock = { hosts: [], gpu_summary: { gpu_used: 0, gpu_capacity: 0, gpu_usage_ratio: '0/0' }, name: 'Out of Stock' };
-        } else {
-            console.log(`✅ Using cached out-of-stock data: ${data.outofstock.hosts?.length || 0} devices`);
-        }
-        
-        window.columns.summary.update(data);
-        
-        // Also update the Out of Stock column directly if it exists
-        if (window.columns && window.columns.outofstock && data.outofstock) {
-            console.log('🔄 Updating Out of Stock column with cached data');
-            window.columns.outofstock.update(data.outofstock);
-        }
+    // Update Out of Stock column directly (Summary column removed)
+    // Handle special case where outofstock API returns nested structure
+    if (data.gpu_type === 'outofstock' && data.outofstock) {
+        console.log(`✅ Using outofstock API response: ${data.outofstock.hosts?.length || 0} devices`);
+        // Restructure for compatibility with existing frontend code
+        data.outofstock = data.outofstock;
+    } else if (!data.outofstock) {
+        console.log('⚠️ No out-of-stock data found in cached results, using empty fallback');
+        data.outofstock = { hosts: [], gpu_summary: { gpu_used: 0, gpu_capacity: 0, gpu_usage_ratio: '0/0' }, name: 'Out of Stock' };
+    } else {
+        console.log(`✅ Using cached out-of-stock data: ${data.outofstock.hosts?.length || 0} devices`);
+    }
+    
+    // Update the Out of Stock column if it exists
+    if (window.columns && window.columns.outofstock && data.outofstock) {
+        console.log('🔄 Updating Out of Stock column with cached data');
+        window.columns.outofstock.update(data.outofstock);
     }
     
     // Setup drag and drop

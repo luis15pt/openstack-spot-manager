@@ -150,7 +150,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Test if column elements exist
         console.log('🔍 SCRIPT.JS: Testing column element availability:');
-        console.log('  - summaryContent:', document.getElementById('summaryContent'));
         console.log('  - outofstockHosts:', document.getElementById('outofstockHosts'));
         console.log('  - outofstockCount:', document.getElementById('outofstockCount'));
         
