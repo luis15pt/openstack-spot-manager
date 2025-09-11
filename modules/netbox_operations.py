@@ -121,3 +121,4 @@ def get_netbox_tenants_bulk(hostnames):
 def get_netbox_tenant(hostname):
     """Get tenant information from NetBox for a single hostname (wrapper for backward compatibility)"""
     return get_netbox_tenants_bulk([hostname])[hostname]
+

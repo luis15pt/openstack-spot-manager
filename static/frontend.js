@@ -13,14 +13,6 @@ let isExecutionInProgress = false;
 function renderAggregateData(data) {
     console.log('🔥 renderAggregateData called for GPU type:', data.gpu_type);
     
-    // Debug: Log sample of host data to check NetBox fields
-    if (data.runpod_hosts && data.runpod_hosts.length > 0) {
-        console.log('🔗 Sample RunPod host data:', data.runpod_hosts[0]);
-    }
-    if (data.spot_hosts && data.spot_hosts.length > 0) {
-        console.log('🔗 Sample Spot host data:', data.spot_hosts[0]);
-    }
-    
     // FIRST: Clean up any existing variant columns from previous GPU type selections
     // This prevents duplicate columns when switching between GPU types or refreshing
     console.log('🧹 Starting aggressive column cleanup...');
