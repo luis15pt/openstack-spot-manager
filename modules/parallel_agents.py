@@ -1346,15 +1346,30 @@ def get_host_gpu_info_direct(hostname):
         # Calculate total GPU usage from all VMs
         total_gpu_used = 0
         for server in servers:
-            # Get flavor info and extract GPU count
-            flavor_name = getattr(server, 'flavor', {}).get('original_name', 'N/A')
+            # Get flavor info and extract GPU count - try multiple ways to get flavor name
+            flavor_name = None
+            
+            # Try different ways to get the flavor name
+            if hasattr(server, 'flavor') and isinstance(server.flavor, dict):
+                flavor_name = server.flavor.get('original_name') or server.flavor.get('name')
+            elif hasattr(server, 'flavor') and hasattr(server.flavor, 'name'):
+                flavor_name = server.flavor.name
+            elif hasattr(server, 'flavor_name'):
+                flavor_name = server.flavor_name
+            
+            # Debug print to see what we're getting
+            print(f"🔍 DEBUG GPU: {hostname} VM {getattr(server, 'name', 'unknown')}: flavor_name='{flavor_name}'")
+            
             if flavor_name and flavor_name != 'N/A':
-                # Extract GPU count from flavor name like 'n3-RTX-A6000x8'
+                # Extract GPU count from flavor name like 'n3-H100x1', 'n3-H100x2', 'n3-RTX-A6000x8'
                 import re
                 match = re.search(r'x(\d+)', flavor_name)
                 if match:
                     gpu_count = int(match.group(1))
                     total_gpu_used += gpu_count
+                    print(f"🎮 DEBUG GPU: {hostname} VM {getattr(server, 'name', 'unknown')}: {flavor_name} = {gpu_count} GPUs")
+                else:
+                    print(f"⚠️ DEBUG GPU: {hostname} VM {getattr(server, 'name', 'unknown')}: Could not parse GPU count from '{flavor_name}'")
         
         # Determine total GPU capacity based on host type
         host_gpu_capacity = 10 if 'A4000' in hostname else 8
@@ -1362,6 +1377,9 @@ def get_host_gpu_info_direct(hostname):
         # CRITICAL FIX: If no VMs found, total_gpu_used should definitely be 0
         if len(servers) == 0:
             total_gpu_used = 0
+        
+        # Debug output to track GPU calculation
+        print(f"📊 DEBUG GPU FINAL: {hostname} = {total_gpu_used}/{host_gpu_capacity} GPUs (from {len(servers)} VMs)")
         
         return {
             'gpu_used': total_gpu_used,
