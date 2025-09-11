@@ -2140,48 +2140,12 @@ async function loadContractDataForColumn(contractAggregate) {
                 
                 let hostsHtml = '';
                 selectedContract.hosts.forEach(host => {
-                    // Use the same createHostCardCompact function as other columns for consistency
+                    // Always use the same createHostCardCompact function as other columns for consistency
                     if (typeof window.Frontend?.createHostCardCompact === 'function') {
                         hostsHtml += window.Frontend.createHostCardCompact(host, 'contract', selectedContract.aggregate);
                     } else {
-                        // Fallback with proper machine-card styling matching other columns
-                        const hasVms = host.has_vms;
-                        const cardClass = hasVms ? 'machine-card has-vms' : 'machine-card';
-                        const warningIcon = hasVms ? '<i class="fas fa-exclamation-triangle warning-icon"></i>' : '';
-                        
-                        hostsHtml += `
-                            <div class="${cardClass}" 
-                                 draggable="true" 
-                                 data-host="${host.name}" 
-                                 data-type="contract"
-                                 data-aggregate="${selectedContract.aggregate}"
-                                 data-has-vms="${hasVms}">
-                                <div class="machine-card-header">
-                                    <i class="fas fa-grip-vertical drag-handle"></i>
-                                    <div class="machine-name">${host.name}</div>
-                                    ${warningIcon}
-                                </div>
-                                <div class="machine-status">
-                                    <div class="vm-info">
-                                        <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
-                                        <span class="gpu-badge ${host.gpu_used > 0 ? 'active' : 'zero'}">${host.gpu_usage_ratio || '0/8'}</span>
-                                        <span class="gpu-label">GPUs</span>
-                                    </div>
-                                    <div class="tenant-info">
-                                        <span class="tenant-badge ${host.owner_group === 'Nexgen Cloud' ? 'nexgen' : 'investors'}">
-                                            <i class="${host.owner_group === 'Nexgen Cloud' ? 'fas fa-cloud' : 'fas fa-users'}"></i>
-                                            ${host.owner_group === 'Nexgen Cloud' ? host.owner_group : host.tenant || 'Unknown'}
-                                        </span>
-                                    </div>
-                                    <div class="nvlinks-info">
-                                        <span class="nvlinks-badge ${host.nvlinks === true ? 'enabled' : (host.nvlinks === false ? 'disabled' : 'unknown')}">
-                                            <i class="fas fa-link"></i>
-                                            NVLinks: ${host.nvlinks === true ? 'Yes' : (host.nvlinks === false ? 'No' : 'Unknown')}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+                        console.error('❌ Frontend.createHostCardCompact not available - this should not happen');
+                        hostsHtml += '<div class="text-danger">Error loading card format</div>';
                     }
                 });
                 

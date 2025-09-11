@@ -2217,6 +2217,28 @@ window.Frontend = {
 };
 
 
+/**
+ * Detect narrow columns and apply appropriate card layout
+ */
+function adjustCardLayoutForColumnWidth() {
+    const columns = document.querySelectorAll('.aggregate-column');
+    
+    columns.forEach(column => {
+        const columnWidth = column.offsetWidth;
+        
+        // If column is less than 120px wide, use single card per row
+        if (columnWidth < 120) {
+            column.classList.add('narrow-column');
+        } else {
+            column.classList.remove('narrow-column');
+        }
+    });
+}
+
+// Run on window resize and initially
+window.addEventListener('resize', adjustCardLayoutForColumnWidth);
+document.addEventListener('DOMContentLoaded', adjustCardLayoutForColumnWidth);
+
 // Make tooltip functions globally available
 window.showHostTooltip = showHostTooltip;
 window.hideHostTooltip = hideHostTooltip;

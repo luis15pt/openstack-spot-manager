@@ -2939,3 +2939,28 @@ body {
         width: calc(45% - 6px); /* Wider cards on larger screens */
     }
 }
+
+/* Force single card per row when column containers are narrow */
+.aggregate-column {
+    container-type: inline-size;
+}
+
+@container (max-width: 120px) {
+    .machine-card-compact {
+        width: calc(100% - 6px) !important;
+        margin: 2px 0;
+    }
+}
+
+/* Class-based approach for narrow columns */
+.narrow-column .machine-card-compact {
+    width: calc(100% - 6px) !important;
+    margin: 2px 0;
+}
+
+/* Fallback for browsers without container queries */
+@media (max-width: 768px) {
+    .machine-card-compact {
+        width: calc(100% - 6px) !important;
+    }
+}
