@@ -284,6 +284,8 @@ def netbox_agent():
                 'has_gpu_tag': has_gpu_tag,
                 'is_gpu_server': is_gpu_server,
                 'gpu_type': gpu_type,  # GPU type from NetBox tags
+                'netbox_device_id': device.get('id'),
+                'netbox_url': device.get('display_url') or device.get('url'),
                 'gpu_used': 0,
                 'gpu_capacity': 8,  # Default assumption
                 'gpu_usage_ratio': '0/8',

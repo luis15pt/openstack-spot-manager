@@ -66,18 +66,8 @@ def get_netbox_tenants_bulk(hostnames):
                 print(f"❌ NetBox API error: {response.status_code}")
                 break
         
-        # Debug: Show first device structure
-        if all_devices and len(all_devices) > 0:
-            print(f"🔍 Sample NetBox device structure:")
-            sample_device = all_devices[0]
-            print(f"  Device name: {sample_device.get('name')}")
-            for key in sorted(sample_device.keys()):
-                if 'url' in key.lower():
-                    print(f"  - {key}: {sample_device.get(key)}")
-
         # Create a mapping of device name to tenant info
         device_map = {}
-        print(f"🔍 Processing {len(all_devices)} devices from NetBox")
         for i, device in enumerate(all_devices):
             device_name = device.get('name')
             if device_name in uncached_hostnames:
@@ -92,29 +82,12 @@ def get_netbox_tenants_bulk(hostnames):
                 if nvlinks is None:
                     nvlinks = False
                 
-                # Debug NetBox device fields for URL extraction
-                device_id = device.get('id')
-                display_url = device.get('display_url')
-                api_url = device.get('url')
-                
-                print(f"🔍 NetBox device {device_name}:")
-                print(f"  - ID: {device_id}")
-                print(f"  - display_url: {display_url}")
-                print(f"  - url: {api_url}")
-                print(f"  - All available keys: {sorted(device.keys())}")
-                
-                # Check if ID/URL fields exist with different names
-                id_fields = [k for k in device.keys() if 'id' in k.lower()]
-                url_fields = [k for k in device.keys() if 'url' in k.lower()]
-                print(f"  - ID-related fields: {id_fields}")
-                print(f"  - URL-related fields: {url_fields}")
-                
                 result = {
                     'tenant': tenant_name,
                     'owner_group': owner_group,
                     'nvlinks': nvlinks,
-                    'netbox_device_id': device_id,
-                    'netbox_url': display_url or api_url
+                    'netbox_device_id': device.get('id'),
+                    'netbox_url': device.get('display_url') or device.get('url')
                 }
                 
                 device_map[device_name] = result
