@@ -1390,9 +1390,9 @@ function renderOnDemandVariantColumns(ondemandData) {
     }
     
     // Calculate ondemand variant column width using flex percentages
-    // Runpod (15%) + Spot (15%) + Contract (20%) + Out of Stock (15%) = 65% used, 35% remaining for ondemand variants
+    // Runpod (20%) + Spot (20%) + Contract (20%) + Out of Stock (20%) = 80% used, 20% remaining for ondemand variants
     const totalVariants = ondemandData.variants ? ondemandData.variants.length : 1;
-    const ondemandAvailablePercentage = 35; // 100% - 15% (runpod) - 15% (spot) - 20% (contract) - 15% (out of stock)
+    const ondemandAvailablePercentage = 20; // 100% - 20% (runpod) - 20% (spot) - 20% (contract) - 20% (out of stock)
     const variantPercentage = ondemandAvailablePercentage / totalVariants;
     
     console.log('🔍 Column calculation:', {
@@ -1402,7 +1402,7 @@ function renderOnDemandVariantColumns(ondemandData) {
     });
     
     // Don't change RunPod, Spot, or Contract column widths - they're fixed in HTML with flex
-    // RunPod: 15%, Spot: 15%, Contract: 20%, Out of Stock: 15%, OnDemand variants: 35% total
+    // RunPod: 20%, Spot: 20%, Contract: 20%, Out of Stock: 20%, OnDemand variants: 20% total
     
     // Check if variants include NVLink differentiation (only split columns for NVLink variants)
     const hasNVLinkVariants = ondemandData.variants && ondemandData.variants.length > 1 && 
