@@ -258,11 +258,16 @@ def register_routes(app):
                     
                     # OPTIMIZATION: Skip expensive data based on flags
                     vm_count = host_info['vm_count'] if include_vms else 0
-                    gpu_info = host_info.get('gpu_info', {
-                        'gpu_used': 0, 
-                        'gpu_capacity': 8, 
-                        'gpu_usage_ratio': '0/8'
-                    }) if include_gpu_info else {'gpu_used': 0, 'gpu_capacity': 8, 'gpu_usage_ratio': '0/8'}
+                    
+                    # GPU data is stored directly in host_info, not nested under 'gpu_info'
+                    if include_gpu_info:
+                        gpu_info = {
+                            'gpu_used': host_info.get('gpu_used', 0),
+                            'gpu_capacity': host_info.get('gpu_capacity', 8), 
+                            'gpu_usage_ratio': host_info.get('gpu_usage_ratio', '0/8')
+                        }
+                    else:
+                        gpu_info = {'gpu_used': 0, 'gpu_capacity': 8, 'gpu_usage_ratio': '0/8'}
                     
                     if aggregate_type in ['spot', 'ondemand', 'contracts']:
                         host_data = {

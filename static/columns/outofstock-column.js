@@ -33,12 +33,13 @@ class OutOfStockColumn extends BaseColumn {
         // Update GPU statistics (for out of stock, this represents unused capacity)
         this.updateGpuStats(data.gpu_summary);
         
-        // Display comprehensive status breakdown if available
-        this.renderStatusBreakdown(data.breakdown_summary);
-        
-        // Render hosts using enhanced pattern with status colors
+        // Use standard host rendering like other columns for consistency
         if (data.hosts && data.hosts.length > 0) {
-            this.renderOutOfStockHosts(data.hosts);
+            // Display comprehensive status breakdown if available
+            this.renderStatusBreakdown(data.breakdown_summary);
+            
+            // Use standard host rendering for consistent styling
+            this.renderHosts(data.hosts, data.name);
         } else {
             // Show empty state
             this.renderEmptyState();
