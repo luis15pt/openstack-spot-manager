@@ -355,20 +355,13 @@ def register_routes(app):
             print(f"🏁 All host processing completed in {processing_time:.2f}s")
             
             # Calculate GPU summary statistics for On-Demand and Spot only
-            def calculate_gpu_summary(data):
-                total_used = sum(host.get('gpu_used', 0) for host in data)
-                total_capacity = sum(host.get('gpu_capacity', 8) for host in data)  # Default to 8 GPUs per host
-                return {
-                    'gpu_used': total_used,
-                    'gpu_capacity': total_capacity,
-                    'gpu_usage_ratio': f"{total_used}/{total_capacity}"
-                }
-            
-            ondemand_gpu_summary = calculate_gpu_summary(ondemand_data)
-            runpod_gpu_summary = calculate_gpu_summary(runpod_data)
-            spot_gpu_summary = calculate_gpu_summary(spot_data)
-            contract_gpu_summary = calculate_gpu_summary(contract_data)
-            outofstock_gpu_summary = calculate_gpu_summary(outofstock_hosts)
+            # Use pre-calculated GPU summaries from backend instead of recalculating
+            # The backend finalize_gpu_column() already calculated these correctly
+            ondemand_gpu_summary = gpu_data.get('ondemand', {}).get('gpu_summary', {'gpu_used': 0, 'gpu_capacity': 0, 'gpu_usage_ratio': '0/0'})
+            runpod_gpu_summary = gpu_data.get('runpod', {}).get('gpu_summary', {'gpu_used': 0, 'gpu_capacity': 0, 'gpu_usage_ratio': '0/0'})  
+            spot_gpu_summary = gpu_data.get('spot', {}).get('gpu_summary', {'gpu_used': 0, 'gpu_capacity': 0, 'gpu_usage_ratio': '0/0'})
+            contract_gpu_summary = gpu_data.get('contract', {}).get('gpu_summary', {'gpu_used': 0, 'gpu_capacity': 0, 'gpu_usage_ratio': '0/0'})
+            outofstock_gpu_summary = gpu_data.get('outofstock', {}).get('gpu_summary', {'gpu_used': 0, 'gpu_capacity': 0, 'gpu_usage_ratio': '0/0'})
             
             # Debug GPU summaries to understand frontend issue
             print(f"🔍 DEBUG API: {gpu_type} GPU summaries:")
