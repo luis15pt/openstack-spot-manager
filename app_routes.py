@@ -168,7 +168,9 @@ def register_routes(app):
             # Special handling for outofstock which has different structure
             if gpu_type == 'outofstock':
                 hosts_data = gpu_data.get('hosts', [])
-                print(f"🔍 DEBUG: Outofstock API called, gpu_data keys: {list(gpu_data.keys()) if gpu_data else 'None'}")
+                print(f"🔍 DEBUG: Outofstock API called")
+                print(f"🔍 DEBUG: organized_data keys: {list(organized_data.keys())}")
+                print(f"🔍 DEBUG: gpu_data type: {type(gpu_data)}, keys: {list(gpu_data.keys()) if gpu_data else 'None'}")
                 print(f"🔍 DEBUG: Outofstock hosts count: {len(hosts_data)}")
                 if hosts_data:
                     print(f"🔍 DEBUG: First 3 outofstock hostnames: {[h.get('hostname', 'unknown') for h in hosts_data[:3]]}")
