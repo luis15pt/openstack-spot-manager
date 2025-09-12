@@ -992,7 +992,6 @@ def finalize_gpu_column_with_pools(column_data):
         total_used = sum(host.get('gpu_used', 0) for host in hosts)
         total_capacity = sum(host.get('gpu_capacity', 8) for host in hosts)
         
-        print(f"🔍 DEBUG POOL {pool_type}: {len(hosts)} hosts, {total_used}/{total_capacity} GPUs")
         
         # Create pool result with API-compatible structure
         result[pool_type] = {
@@ -1469,7 +1468,6 @@ def get_host_gpu_info_direct(hostname):
                     gpu_count = int(match.group(1))
                     total_gpu_used += gpu_count
                 else:
-                    print(f"⚠️ DEBUG GPU: {hostname} VM {getattr(server, 'name', 'unknown')}: Could not parse GPU count from '{flavor_name}'")
         
         # Determine total GPU capacity based on host type
         host_gpu_capacity = 10 if 'A4000' in hostname else 8
