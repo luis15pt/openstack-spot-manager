@@ -705,7 +705,8 @@ function handleDragStart(e) {
         host: this.dataset.host,
         type: this.dataset.type,
         element: this,
-        classes: this.className
+        classes: this.className,
+        allDataset: this.dataset
     });
     
     this.classList.add('dragging');
@@ -862,6 +863,9 @@ async function addToPendingOperations(hostname, sourceType, targetType, targetVa
         sourceAggregate,
         targetVariant
     });
+    
+    console.log('🔍 sourceCard found:', sourceCard);
+    console.log('🔍 sourceCard.dataset:', sourceCard?.dataset);
     
     try {
         // Determine target aggregate based on target type
