@@ -1965,8 +1965,10 @@ function createHostCardCompact(host, type, aggregateName = null) {
              data-openstack-aggregate="${host.openstack_aggregate || ''}"
              data-vm-count="${host.vm_count || 0}"
              onmouseenter="showHostTooltip(event, this)"
-             onmouseleave="hideHostTooltip()">
+             onmouseleave="hideHostTooltip()"
+             onclick="handleCardClick(event, this)">
             ${host.netbox_url ? `<a href="${host.netbox_url}" target="_blank" class="netbox-link" title="View in NetBox" onclick="event.stopPropagation()"><img src="/static/netbox-logo.png" alt="NetBox" class="netbox-logo"></a>` : ''}
+            ${type === 'runpod' && !hasVms ? `<div class="launch-runpod-compact" title="Launch VM on this host" onclick="event.stopPropagation(); window.Hyperstack.scheduleRunpodLaunch('${host.name}')">🚀</div>` : ''}
             <div class="machine-card-compact-content">
                 <div class="machine-info-compact">
                     <div class="machine-name-compact">${host.name}</div>
@@ -1978,6 +1980,20 @@ function createHostCardCompact(host, type, aggregateName = null) {
             </div>
         </div>
     `;
+}
+
+// CARD CLICK FUNCTIONALITY
+function handleCardClick(event, element) {
+    // Check if the card has pending operations
+    if (element.classList.contains('pending-operation')) {
+        // Navigate to pending operations tab
+        const pendingTab = document.querySelector('[data-bs-target="#pending"]');
+        if (pendingTab) {
+            pendingTab.click();
+        }
+        event.preventDefault();
+        event.stopPropagation();
+    }
 }
 
 // TOOLTIP FUNCTIONALITY

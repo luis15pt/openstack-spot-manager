@@ -2957,6 +2957,75 @@ body {
     }
 }
 
+/* ===== PENDING OPERATIONS FOR COMPACT CARDS ===== */
+.machine-card-compact.pending-operation {
+    border: 2px solid #ffc107;
+    background: linear-gradient(45deg, #ffffff 25%, #fff3cd 25%, #fff3cd 50%, #ffffff 50%, #ffffff 75%, #fff3cd 75%, #fff3cd);
+    background-size: 6px 6px;
+    animation: pendingStripesCompact 1s linear infinite;
+    position: relative;
+}
+
+@keyframes pendingStripesCompact {
+    0% { background-position: 0 0; }
+    100% { background-position: 6px 6px; }
+}
+
+.machine-card-compact.pending-operation::after {
+    content: "PENDING";
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: #ffc107;
+    color: #000;
+    font-size: 8px;
+    font-weight: bold;
+    padding: 1px 3px;
+    border-radius: 2px;
+    z-index: 10;
+}
+
+/* Pending operation overlay with link to operations tab */
+.machine-card-compact.pending-operation::before {
+    content: "📋";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    background: #007bff;
+    color: white;
+    font-size: 10px;
+    padding: 2px 3px;
+    border-radius: 2px;
+    cursor: pointer;
+    z-index: 10;
+    title: "View pending operations";
+}
+
+.machine-card-compact.pending-operation:hover::before {
+    background: #0056b3;
+}
+
+/* ===== RUNPOD LAUNCH BUTTON FOR COMPACT CARDS ===== */
+.launch-runpod-compact {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    background: #28a745;
+    color: white;
+    font-size: 12px;
+    padding: 2px 4px;
+    border-radius: 2px;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.launch-runpod-compact:hover {
+    background: #1e7e34;
+    transform: scale(1.1);
+}
+
 /* NetBox link icon */
 .netbox-link {
     position: absolute;
