@@ -671,7 +671,10 @@ function createHostCard(host, type, aggregateName = null) {
 // EXACT ORIGINAL setupDragAndDrop function
 function setupDragAndDrop() {
     // Remove existing event listeners to prevent duplicates
-    document.querySelectorAll('.machine-card').forEach(card => {
+    const existingCards = document.querySelectorAll('.machine-card');
+    console.log('🔧 setupDragAndDrop: Found', existingCards.length, 'existing cards');
+    
+    existingCards.forEach(card => {
         card.removeEventListener('dragstart', handleDragStart);
         card.removeEventListener('dragend', handleDragEnd);
         card.removeEventListener('click', handleHostClick);
@@ -685,7 +688,17 @@ function setupDragAndDrop() {
     });
     
     // Add event listeners to machine cards
-    document.querySelectorAll('.machine-card').forEach(card => {
+    const newCards = document.querySelectorAll('.machine-card');
+    console.log('🔧 setupDragAndDrop: Setting up', newCards.length, 'cards with drag events');
+    
+    newCards.forEach((card, index) => {
+        console.log(`🔧 Card ${index}:`, {
+            host: card.dataset.host,
+            type: card.dataset.type,
+            draggable: card.draggable,
+            hasDataset: !!card.dataset
+        });
+        
         card.addEventListener('dragstart', handleDragStart);
         card.addEventListener('dragend', handleDragEnd);
         card.addEventListener('click', handleHostClick);
