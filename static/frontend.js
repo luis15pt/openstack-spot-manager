@@ -598,80 +598,13 @@ function renderOnDemandVariants(container, hosts, variants) {
     setupDragAndDrop();
 }
 
-// EXACT ORIGINAL createHostCard function
-function createHostCard(host, type, aggregateName = null) {
-    const hasVms = host.has_vms;
-    const vmBadgeClass = hasVms ? 'vm-badge active' : 'vm-badge zero';
-    const warningIcon = hasVms ? '<i class="fas fa-exclamation-triangle warning-icon"></i>' : '';
-    const cardClass = hasVms ? 'machine-card has-vms' : 'machine-card';
-    
-    // Create tenant badge
-    const tenant = host.tenant || 'Unknown';
-    const ownerGroup = host.owner_group || 'Investors';
-    const tenantBadgeClass = ownerGroup === 'Nexgen Cloud' ? 'tenant-badge nexgen' : 'tenant-badge investors';
-    const tenantIcon = ownerGroup === 'Nexgen Cloud' ? 'fas fa-cloud' : 'fas fa-users';
-    
-    return `
-        <div class="${cardClass}" 
-             draggable="true" 
-             data-host="${host.name}" 
-             data-type="${type}"
-             data-aggregate="${host.variant || aggregateName || ''}"
-             data-has-vms="${hasVms}"
-             data-owner-group="${ownerGroup}"
-             data-nvlinks="${host.nvlinks}">
-            <div class="machine-card-header">
-                <i class="fas fa-grip-vertical drag-handle"></i>
-                <div class="machine-name">${host.name}</div>
-                ${warningIcon}
-            </div>
-            <div class="machine-status">
-                <div class="vm-info ${host.vm_count > 0 ? 'clickable-vm-count' : ''}" 
-                     ${host.vm_count > 0 ? `onclick="showVmDetails('${host.name}')"` : ''}>
-                    <i class="fas fa-circle status-dot ${hasVms ? 'active' : 'inactive'}"></i>
-                    ${type === 'runpod' ? 
-                        `<span class="${vmBadgeClass}">${host.vm_count}</span>
-                         <span class="vm-label">${host.vm_count > 0 ? 'VMs' : 'No VMs'}</span>` :
-                        `<span class="gpu-badge ${host.gpu_used > 0 ? 'active' : 'zero'}">${host.gpu_usage_ratio || '0/8'}</span>
-                         <span class="gpu-label">GPUs</span>`
-                    }
-                </div>
-                <div class="tenant-info">
-                    <span class="${tenantBadgeClass}" title="${tenant}">
-                        <i class="${tenantIcon}"></i>
-                        ${ownerGroup === 'Nexgen Cloud' ? ownerGroup : tenant}
-                    </span>
-                </div>
-                <div class="nvlinks-info">
-                    <span class="nvlinks-badge ${host.nvlinks === true ? 'enabled' : (host.nvlinks === false ? 'disabled' : 'unknown')}" title="NVLinks ${host.nvlinks === true ? 'Enabled' : (host.nvlinks === false ? 'Disabled' : 'Unknown')}">
-                        <i class="fas fa-link"></i>
-                        NVLinks: ${host.nvlinks === true ? 'Yes' : (host.nvlinks === false ? 'No' : 'Unknown')}
-                    </span>
-                </div>
-                ${host.variant ? `
-                <div class="variant-info">
-                    <span class="variant-badge" title="Aggregate: ${host.variant}">
-                        <i class="fas fa-tag"></i>
-                        ${host.variant}
-                    </span>
-                </div>` : ''}
-                ${type === 'runpod' && !hasVms ? `
-                <div class="launch-runpod-info">
-                    <button class="btn btn-sm btn-outline-primary launch-runpod-btn" 
-                            onclick="window.Hyperstack.scheduleRunpodLaunch('${host.name}')" 
-                            title="Schedule VM launch on this host">
-                        <i class="fas fa-rocket"></i> Launch into Runpod
-                    </button>
-                </div>` : ''}
-            </div>
-        </div>
-    `;
-}
+// LEGACY FUNCTION REMOVED: createHostCard is no longer used
+// All cards now use createHostCardCompact which creates .machine-card-compact
 
 // EXACT ORIGINAL setupDragAndDrop function
 function setupDragAndDrop() {
     // Remove existing event listeners to prevent duplicates
-    const existingCards = document.querySelectorAll('.machine-card');
+    const existingCards = document.querySelectorAll('.machine-card-compact');
     console.log('🔧 setupDragAndDrop: Found', existingCards.length, 'existing cards');
     
     existingCards.forEach(card => {
@@ -688,7 +621,7 @@ function setupDragAndDrop() {
     });
     
     // Add event listeners to machine cards
-    const newCards = document.querySelectorAll('.machine-card');
+    const newCards = document.querySelectorAll('.machine-card-compact');
     console.log('🔧 setupDragAndDrop: Setting up', newCards.length, 'cards with drag events');
     
     newCards.forEach((card, index) => {
@@ -1307,7 +1240,7 @@ function updatePendingOperationsDisplay() {
 
 function updateCardPendingIndicators() {
     // Remove all pending indicators
-    document.querySelectorAll('.machine-card').forEach(card => {
+    document.querySelectorAll('.machine-card-compact').forEach(card => {
         card.classList.remove('pending-operation');
     });
     
@@ -2249,7 +2182,6 @@ window.Frontend = {
     updatePendingOperationsDisplay,
     updateCardPendingIndicators,
     refreshAffectedColumns,
-    createHostCard,
     createHostCardCompact
 };
 
