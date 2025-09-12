@@ -1468,6 +1468,7 @@ def get_host_gpu_info_direct(hostname):
                     gpu_count = int(match.group(1))
                     total_gpu_used += gpu_count
                 else:
+                    pass
         
         # Determine total GPU capacity based on host type
         host_gpu_capacity = 10 if 'A4000' in hostname else 8
