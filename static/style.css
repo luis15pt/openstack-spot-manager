@@ -2252,7 +2252,7 @@ body {
 }
 
 .hosts-row .col-md-2 {
-    flex: 1 1 0; /* Equal width columns that grow to fill space */
+    flex: 1 1 0 !important; /* Equal width columns that grow to fill space - force override */
     min-width: 0; /* Remove minimum width that causes wrapping */
     max-width: none; /* Remove width constraints to allow flexible sizing */
 }
