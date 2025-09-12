@@ -2123,9 +2123,13 @@ function showHostTooltip(event, element) {
     const rect = element.getBoundingClientRect();
     const tooltipRect = currentTooltip.getBoundingClientRect();
     
+    // Account for scroll position when calculating absolute position
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    
     // Always position above the element
-    let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
-    let top = rect.top - tooltipRect.height - 15; // More spacing from element
+    let left = rect.left + scrollLeft + (rect.width / 2) - (tooltipRect.width / 2);
+    let top = rect.top + scrollTop - tooltipRect.height - 15; // More spacing from element
     
     // Adjust horizontal position if tooltip would go off screen
     if (left < 10) left = 10;
@@ -2140,12 +2144,12 @@ function showHostTooltip(event, element) {
         const spaceBelow = window.innerHeight - rect.bottom;
         
         if (spaceBelow > spaceAbove && spaceBelow > tooltipRect.height + 20) {
-            top = rect.bottom + 15;
+            top = rect.bottom + scrollTop + 15;
             // Update arrow position for bottom placement
             currentTooltip.classList.add('tooltip-below');
         } else {
             // Keep above but adjust to viewport edge
-            top = 10;
+            top = scrollTop + 10;
         }
     }
     
