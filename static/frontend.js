@@ -1969,6 +1969,7 @@ function createHostCardCompact(host, type, aggregateName = null) {
              onclick="handleCardClick(event, this)">
             ${host.netbox_url ? `<a href="${host.netbox_url}" target="_blank" class="netbox-link" title="View in NetBox" onclick="event.stopPropagation()"><img src="/static/netbox-logo.png" alt="NetBox" class="netbox-logo"></a>` : ''}
             ${type === 'runpod' && !hasVms ? `<div class="launch-runpod-compact" title="Launch VM on this host" onclick="event.stopPropagation(); window.Hyperstack.scheduleRunpodLaunch('${host.name}')">🚀</div>` : ''}
+            ${hasVms && (host.vm_count || 0) > 0 ? `<div class="instances-button-compact" title="View running VMs (${host.vm_count || 0})" onclick="event.stopPropagation(); showVMInstancesModal('${host.name}', ${host.vm_count || 0})">💻</div>` : ''}
             <div class="machine-card-compact-content">
                 <div class="machine-info-compact">
                     <div class="machine-name-compact">${host.name}</div>
@@ -2171,6 +2172,123 @@ function hideHostTooltip() {
     }
 }
 
+// VM INSTANCES MODAL FUNCTIONALITY
+let currentVMModal = null;
+
+async function showVMInstancesModal(hostname, vmCount) {
+    // Remove any existing modal
+    hideVMInstancesModal();
+
+    try {
+        // Fetch VM details from the API
+        const response = await fetch(`/api/host-vms/${hostname}`);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch VM details: ${response.status}`);
+        }
+
+        const vmData = await response.json();
+        const vms = vmData.vms || [];
+
+        // Create modal backdrop
+        const modalBackdrop = document.createElement('div');
+        modalBackdrop.className = 'vm-instances-modal-backdrop';
+        modalBackdrop.onclick = hideVMInstancesModal;
+
+        // Create modal content
+        const modalContent = document.createElement('div');
+        modalContent.className = 'vm-instances-modal';
+        modalContent.onclick = (e) => e.stopPropagation(); // Prevent backdrop click
+
+        // Build VM list HTML
+        const vmListHtml = vms.length > 0 ? vms.map(vm => `
+            <div class="vm-instance-item">
+                <div class="vm-instance-header">
+                    <span class="vm-name">${vm.Name || 'Unknown'}</span>
+                    <span class="vm-status vm-status-${(vm.Status || 'unknown').toLowerCase()}">${vm.Status || 'Unknown'}</span>
+                </div>
+                <div class="vm-instance-details">
+                    <div class="vm-detail"><label>Flavor:</label> <span>${vm.Flavor || 'N/A'}</span></div>
+                    <div class="vm-detail"><label>Image:</label> <span>${vm.Image || 'N/A'}</span></div>
+                    <div class="vm-detail"><label>Created:</label> <span>${vm.Created ? new Date(vm.Created).toLocaleDateString() : 'N/A'}</span></div>
+                    <div class="vm-detail"><label>ID:</label> <span class="vm-id">${vm.ID || 'N/A'}</span></div>
+                </div>
+            </div>
+        `).join('') : '<div class="no-vms">No VMs found</div>';
+
+        modalContent.innerHTML = `
+            <div class="vm-instances-modal-header">
+                <h3>Running VMs on ${hostname}</h3>
+                <button class="vm-modal-close" onclick="hideVMInstancesModal()">✕</button>
+            </div>
+            <div class="vm-instances-modal-body">
+                <div class="vm-instances-summary">
+                    <span class="vm-count-badge">${vms.length} VM${vms.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="vm-instances-list">
+                    ${vmListHtml}
+                </div>
+            </div>
+        `;
+
+        modalBackdrop.appendChild(modalContent);
+        document.body.appendChild(modalBackdrop);
+        currentVMModal = modalBackdrop;
+
+        // Add animation class after a brief delay
+        setTimeout(() => {
+            modalBackdrop.classList.add('show');
+        }, 10);
+
+    } catch (error) {
+        console.error('Failed to load VM instances:', error);
+        // Show error modal
+        showVMInstancesError(hostname, error.message);
+    }
+}
+
+function showVMInstancesError(hostname, errorMessage) {
+    const modalBackdrop = document.createElement('div');
+    modalBackdrop.className = 'vm-instances-modal-backdrop';
+    modalBackdrop.onclick = hideVMInstancesModal;
+
+    const modalContent = document.createElement('div');
+    modalContent.className = 'vm-instances-modal';
+    modalContent.onclick = (e) => e.stopPropagation();
+
+    modalContent.innerHTML = `
+        <div class="vm-instances-modal-header">
+            <h3>VMs on ${hostname}</h3>
+            <button class="vm-modal-close" onclick="hideVMInstancesModal()">✕</button>
+        </div>
+        <div class="vm-instances-modal-body">
+            <div class="vm-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Failed to load VM details: ${errorMessage}</p>
+            </div>
+        </div>
+    `;
+
+    modalBackdrop.appendChild(modalContent);
+    document.body.appendChild(modalBackdrop);
+    currentVMModal = modalBackdrop;
+
+    setTimeout(() => {
+        modalBackdrop.classList.add('show');
+    }, 10);
+}
+
+function hideVMInstancesModal() {
+    if (currentVMModal) {
+        currentVMModal.classList.remove('show');
+        setTimeout(() => {
+            if (currentVMModal) {
+                currentVMModal.remove();
+                currentVMModal = null;
+            }
+        }, 300); // Match CSS transition duration
+    }
+}
+
 // Export for modular access - only the minimum needed
 window.Frontend = {
     // State
@@ -2231,6 +2349,10 @@ document.addEventListener('DOMContentLoaded', adjustCardLayoutForColumnWidth);
 // Make tooltip functions globally available
 window.showHostTooltip = showHostTooltip;
 window.hideHostTooltip = hideHostTooltip;
+
+// Make VM instances modal functions globally available
+window.showVMInstancesModal = showVMInstancesModal;
+window.hideVMInstancesModal = hideVMInstancesModal;
 
 // Debug: Log when Frontend module is exported
 console.log('📄 FRONTEND.JS: Module loaded, Frontend object exported');
