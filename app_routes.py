@@ -962,13 +962,21 @@ def register_routes(app):
 
     @app.route('/api/execute-runpod-launch', methods=['POST'])
     def execute_runpod_launch():
+        print(f"🔥 CRITICAL: /api/execute-runpod-launch route was accessed!")
         """Execute the runpod VM launch using Hyperstack API"""
+        print(f"\n🔥 DEBUG: execute_runpod_launch function called")
+        print(f"🔥 DEBUG: Request method: {request.method}")
+        print(f"🔥 DEBUG: Request content type: {request.content_type}")
+
         data = request.json
-        hostname = data.get('hostname')
-        image_name = data.get('image_name')
-        image_id = data.get('image_id')
-        
+        print(f"🔥 DEBUG: Request data: {data}")
+
+        hostname = data.get('hostname') if data else None
+        image_name = data.get('image_name') if data else None
+        image_id = data.get('image_id') if data else None
+
         print(f"\n🚀 EXECUTING RUNPOD LAUNCH: {hostname} with image: {image_name}")
+        print(f"🔥 DEBUG: Parsed hostname: {hostname}, image_name: {image_name}, image_id: {image_id}")
         
         if not hostname:
             return jsonify({'error': 'Missing hostname parameter'}), 400
@@ -1934,3 +1942,10 @@ power_state:
             
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Debug: Log all registered routes at the end
+    print("\n🔥 DEBUG: All routes registered in register_routes():")
+    for rule in app.url_map.iter_rules():
+        if 'execute-runpod-launch' in rule.rule:
+            print(f"🔥 DEBUG: Found execute-runpod-launch route: {rule.rule} -> {rule.endpoint}")
+    print("🔥 DEBUG: Route registration complete\n")
