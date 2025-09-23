@@ -421,6 +421,8 @@ def get_gpu_type_from_hostname_fast(hostname):
         return 'A100'
     elif 'rtx-a6000' in hostname_lower or 'rtx_a6000' in hostname_lower or 'esc8' in hostname_lower:
         return 'RTX-A6000'
+    elif 'rtx6000pro' in hostname_lower or 'rtx-6000-pro' in hostname_lower:
+        return 'RTX-PRO6000-SE'
     elif 'l40' in hostname_lower:
         return 'L40'
     elif 'a4000' in hostname_lower:
