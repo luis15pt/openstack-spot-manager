@@ -6,6 +6,7 @@ function buildFlavorNameFromCache(hostname) {
     try {
         // Get current GPU type from global state
         const gpuType = window.currentGpuType;
+        console.log(`🔥 DEBUG: window.currentGpuType = ${gpuType} for hostname ${hostname}`);
         if (!gpuType) {
             console.warn(`⚠️ No GPU type available, using fallback for ${hostname}`);
             return 'n3-RTX-A6000x8'; // Safe fallback
@@ -25,10 +26,14 @@ function buildFlavorNameFromCache(hostname) {
 
         // Extract base GPU type from aggregate name if available
         let baseGpuType = gpuType;
+        console.log(`🔥 DEBUG: Initial baseGpuType = ${baseGpuType}`);
+
         if (window.Frontend && window.Frontend.aggregateData && window.Frontend.aggregateData.runpod) {
             const aggregateName = window.Frontend.aggregateData.runpod.name;
+            console.log(`🔥 DEBUG: aggregateName = ${aggregateName}`);
             if (aggregateName && aggregateName.includes('RTX-PRO6000-SE')) {
                 baseGpuType = 'RTX-PRO6000-SE';
+                console.log(`🔥 DEBUG: Updated baseGpuType to RTX-PRO6000-SE`);
             }
         }
 
