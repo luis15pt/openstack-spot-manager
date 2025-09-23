@@ -26,20 +26,19 @@ class OutOfStockColumn extends BaseColumn {
     update(data) {
         // Use same logging pattern as other columns
         this.logUpdate(data.hosts ? data.hosts.length : 0);
-        
-        // Update count
-        this.updateCount(data.hosts ? data.hosts.length : 0);
-        
-        // Update GPU statistics (for out of stock, this represents unused capacity)
-        this.updateGpuStats(data.gpu_summary);
-        
-        // Use standard host rendering like other columns for consistent dropdown structure
+
+        // Store hosts for search functionality
         if (data.hosts && data.hosts.length > 0) {
-            this.renderHosts(data.hosts, data.name);
+            this.setHosts(data.hosts);
         } else {
-            // Show empty state
+            this.setHosts([]);
             this.renderEmptyState();
         }
+
+        // Update GPU statistics (for out of stock, this represents unused capacity)
+        this.updateGpuStats(data.gpu_summary);
+
+        // Note: renderHosts is now called by setHosts() with filtered results
     }
 
 

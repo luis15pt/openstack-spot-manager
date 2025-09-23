@@ -18,6 +18,12 @@ class BaseColumn {
         this.gpuProgressBarElementId = config.gpuProgressBarElementId; // e.g., 'runpodGpuProgressBar'
         this.hostsContainerId = config.hostsContainerId; // e.g., 'runpodHosts'
         this.nameElementId = config.nameElementId; // e.g., 'runpodName' (optional)
+
+        // Search functionality
+        this.allHosts = []; // Store original unfiltered hosts
+        this.filteredHosts = []; // Store current filtered hosts
+        this.searchTerm = ''; // Current search term
+        this.initializeSearch();
     }
 
     /**
@@ -112,6 +118,126 @@ class BaseColumn {
      */
     logUpdate(hostCount) {
         console.log(`🔄 Updating ${this.name} column with ${hostCount} hosts`);
+    }
+
+    /**
+     * Initialize search functionality for this column
+     */
+    initializeSearch() {
+        // Create search input element ID
+        this.searchInputId = `${this.id}Search`;
+
+        // Add search input to column header when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.addSearchInput());
+        } else {
+            // Try to add search input immediately, but also set a timeout as fallback
+            this.addSearchInput();
+            setTimeout(() => this.addSearchInput(), 100);
+        }
+    }
+
+    /**
+     * Add search input to column header
+     */
+    addSearchInput() {
+        // Find the column header
+        const columnElement = document.getElementById(`${this.id}Column`);
+        if (!columnElement) {
+            console.log(`⏳ Column ${this.id}Column not found yet, will retry...`);
+            return;
+        }
+
+        const cardHeader = columnElement.querySelector('.card-header');
+        if (!cardHeader) {
+            console.log(`⏳ Card header for ${this.id} not found yet, will retry...`);
+            return;
+        }
+
+        // Check if search input already exists
+        if (document.getElementById(this.searchInputId)) {
+            return; // Already added
+        }
+
+        // Create search input container
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'column-search-container mt-2';
+        searchContainer.innerHTML = `
+            <div class="input-group input-group-sm">
+                <input type="text"
+                       class="form-control column-search-input"
+                       id="${this.searchInputId}"
+                       placeholder="Search hosts or owner..."
+                       autocomplete="off">
+                <button class="btn btn-outline-light btn-sm column-search-clear"
+                        type="button"
+                        title="Clear search"
+                        style="display: none;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+        // Add to header
+        cardHeader.appendChild(searchContainer);
+
+        // Set up event listeners
+        const searchInput = document.getElementById(this.searchInputId);
+        const clearButton = searchContainer.querySelector('.column-search-clear');
+
+        searchInput.addEventListener('input', (e) => {
+            this.handleSearch(e.target.value);
+            clearButton.style.display = e.target.value ? 'block' : 'none';
+        });
+
+        clearButton.addEventListener('click', () => {
+            searchInput.value = '';
+            this.handleSearch('');
+            clearButton.style.display = 'none';
+            searchInput.focus();
+        });
+
+        console.log(`✅ Search input added to ${this.name} column`);
+    }
+
+    /**
+     * Handle search input changes
+     */
+    handleSearch(searchTerm) {
+        this.searchTerm = searchTerm.toLowerCase().trim();
+
+        if (!this.searchTerm) {
+            // No search term, show all hosts
+            this.filteredHosts = [...this.allHosts];
+        } else {
+            // Filter hosts based on search term
+            this.filteredHosts = this.allHosts.filter(host => {
+                const hostName = (host.name || '').toLowerCase();
+                const ownerGroup = (host.owner_group || '').toLowerCase();
+                const tenant = (host.tenant || '').toLowerCase();
+
+                return hostName.includes(this.searchTerm) ||
+                       ownerGroup.includes(this.searchTerm) ||
+                       tenant.includes(this.searchTerm);
+            });
+        }
+
+        // Re-render with filtered hosts
+        this.renderHosts(this.filteredHosts);
+
+        // Update count to show filtered results
+        const displayCount = this.searchTerm ?
+            `${this.filteredHosts.length}/${this.allHosts.length}` :
+            this.allHosts.length;
+        this.updateCount(displayCount);
+    }
+
+    /**
+     * Store hosts and apply current search filter
+     */
+    setHosts(hosts) {
+        this.allHosts = [...hosts];
+        this.handleSearch(this.searchTerm); // Apply current filter
     }
 
     /**

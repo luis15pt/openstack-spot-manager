@@ -26,15 +26,14 @@ class RunpodColumn extends BaseColumn {
     update(data) {
         // Original: console.log(`🔄 Updating RunPod column with ${data.hosts.length} hosts`);
         this.logUpdate(data.hosts.length);
-        
-        // Original: document.getElementById('runpodCount').textContent = data.hosts.length;
-        this.updateCount(data.hosts.length);
-        
+
+        // Store hosts for search functionality
+        this.setHosts(data.hosts);
+
         // Original: GPU statistics update with exact same logic and fallback handling
         this.updateGpuStats(data.gpu_summary);
-        
-        // Original: window.Frontend.renderHosts('runpodHosts', data.hosts, 'runpod', data.name);
-        this.renderHosts(data.hosts, data.name);
+
+        // Note: renderHosts is now called by setHosts() with filtered results
     }
 }
 

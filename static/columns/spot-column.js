@@ -26,15 +26,14 @@ class SpotColumn extends BaseColumn {
     update(data) {
         // Original: console.log(`🔄 Updating Spot column with ${data.hosts.length} hosts`);
         this.logUpdate(data.hosts.length);
-        
-        // Original: document.getElementById('spotCount').textContent = data.hosts.length;
-        this.updateCount(data.hosts.length);
-        
+
+        // Store hosts for search functionality
+        this.setHosts(data.hosts);
+
         // Original: GPU statistics update with exact same logic (no fallback warning for spot)
         this.updateGpuStats(data.gpu_summary);
-        
-        // Original: window.Frontend.renderHosts('spotHosts', data.hosts, 'spot', data.name);
-        this.renderHosts(data.hosts, data.name);
+
+        // Note: renderHosts is now called by setHosts() with filtered results
     }
 }
 

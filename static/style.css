@@ -3286,3 +3286,61 @@ body {
     font-style: italic;
 }
 
+/* Column Search Functionality */
+.column-search-container {
+    margin-top: 8px;
+}
+
+.column-search-input {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
+}
+
+.column-search-input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.column-search-input:focus {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.25);
+    color: white;
+}
+
+.column-search-clear {
+    border-left: none;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.8);
+    transition: all 0.2s ease;
+}
+
+.column-search-clear:hover {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+}
+
+/* Search input focus states for different column colors */
+.bg-purple .column-search-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(138, 43, 226, 0.25);
+}
+
+.bg-warning .column-search-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+}
+
+.bg-primary .column-search-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.bg-success .column-search-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
+}
+
+.bg-danger .column-search-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
