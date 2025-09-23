@@ -1,6 +1,48 @@
 // Hyperstack API operations for OpenStack Spot Manager
 // Handles VM launches, networking, and firewall operations
 
+// Build flavor name from cached aggregate data
+function buildFlavorNameFromCache(hostname) {
+    try {
+        // Get current GPU type from global state
+        const gpuType = window.currentGpuType;
+        if (!gpuType) {
+            console.warn(`⚠️ No GPU type available, using fallback for ${hostname}`);
+            return 'n3-RTX-A6000x8'; // Safe fallback
+        }
+
+        // Extract GPU count from hostname pattern
+        let gpuCount = 8; // Default for most hosts
+
+        // Try to get more accurate count from cached aggregate data
+        if (window.Frontend && window.Frontend.aggregateData && window.Frontend.aggregateData.runpod) {
+            const runpodHosts = window.Frontend.aggregateData.runpod.hosts || [];
+            const hostData = runpodHosts.find(host => host.name === hostname);
+            if (hostData && hostData.gpu_capacity) {
+                gpuCount = hostData.gpu_capacity;
+            }
+        }
+
+        // Extract base GPU type from aggregate name if available
+        let baseGpuType = gpuType;
+        if (window.Frontend && window.Frontend.aggregateData && window.Frontend.aggregateData.runpod) {
+            const aggregateName = window.Frontend.aggregateData.runpod.name;
+            if (aggregateName && aggregateName.includes('RTX-PRO6000-SE')) {
+                baseGpuType = 'RTX-PRO6000-SE';
+            }
+        }
+
+        // Build flavor name: n3-{GPU_TYPE}x{GPU_COUNT}
+        const flavorName = `n3-${baseGpuType}x${gpuCount}`;
+        console.log(`✅ Built flavor name: ${flavorName} for ${hostname} (GPU: ${baseGpuType}, Count: ${gpuCount})`);
+        return flavorName;
+
+    } catch (error) {
+        console.error(`❌ Error building flavor name for ${hostname}:`, error);
+        return 'n3-RTX-A6000x8'; // Safe fallback
+    }
+}
+
 // Execute RunPod VM launch
 function executeRunpodLaunch(hostname) {
     return new Promise((resolve, reject) => {
@@ -668,7 +710,7 @@ function confirmImageSelection() {
     // Add RunPod launch operation with selected image
     window.Frontend.addRunPodLaunchOperation(currentLaunchHostname, {
         vm_name: currentLaunchHostname,
-        flavor_name: 'default', // Should be determined based on host specs
+        flavor_name: buildFlavorNameFromCache(currentLaunchHostname),
         image_name: selectedImage.name,
         image_id: selectedImage.id,
         key_name: 'default', // Should be determined based on user preferences
