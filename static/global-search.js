@@ -173,8 +173,8 @@ class GlobalSearch {
             filtered.ondemand.hosts = filterHosts(filtered.ondemand.hosts);
         }
 
-        if (filtered.contract && filtered.contract.hosts) {
-            filtered.contract.hosts = filterHosts(filtered.contract.hosts);
+        if (filtered.contracts && filtered.contracts.hosts) {
+            filtered.contracts.hosts = filterHosts(filtered.contracts.hosts);
         }
 
         if (filtered.outofstock && filtered.outofstock.hosts) {
@@ -201,8 +201,8 @@ class GlobalSearch {
             window.columns.ondemand.update(data.ondemand);
         }
 
-        if (window.columns && window.columns.contract && data.contract) {
-            window.columns.contract.update(data.contract);
+        if (window.columns && window.columns.contract && data.contracts) {
+            window.columns.contract.update({contracts: data.contracts});
         }
 
         if (window.columns && window.columns.outofstock && data.outofstock) {
