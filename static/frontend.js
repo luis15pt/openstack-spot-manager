@@ -1660,7 +1660,7 @@ function generateIndividualCommandOperations(operation) {
     "image_name": "${operation.image_name}",
     "flavor_name": "${operation.flavor_name}",
     "assign_floating_ip": true,
-    "user_data": "<CLOUD_INIT_SCRIPT_WITH_RUNPOD_API_KEY>"
+    "user_data": "${operation.user_data ? '[MASKED - CONTAINS API KEYS]' : '<CLOUD_INIT_SCRIPT_WITH_RUNPOD_API_KEY>'}"
   }' # VM: ${operation.vm_name || operation.hostname}`,
             verification_commands: [
                 `openstack server show <VM_NAME> --all-projects`,

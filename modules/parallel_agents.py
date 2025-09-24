@@ -1283,30 +1283,62 @@ def compute_comprehensive_outofstock_devices(all_netbox_devices, host_to_aggrega
 def validate_inventory_accountability(organized_results, all_netbox_devices, netbox_inventory_stats):
     """
     Validate that NetBox total equals UI column totals for 100% device accountability
+    Also detect duplicate hosts appearing in multiple columns
     """
     print(f"🔍 Validating inventory accountability...")
-    
+
     # Count NetBox GPU servers
     netbox_gpu_servers = [d for d in all_netbox_devices.values() if d.get('is_gpu_server', False)]
     netbox_total = len(netbox_gpu_servers)
-    
-    # Count UI column totals
+
+    # Count UI column totals and detect duplicates
     ui_total = 0
     column_counts = {}
-    
+    all_hosts_seen = {}  # hostname -> [list of columns it appears in]
+
     for gpu_type, data in organized_results.items():
         if gpu_type == 'outofstock':
             count = data.get('device_count', 0) if isinstance(data, dict) else 0
             column_counts['out_of_stock'] = count
+            # Check outofstock hosts for duplicates
+            if isinstance(data, dict) and 'hosts' in data:
+                for host in data['hosts']:
+                    hostname = host.get('hostname')
+                    if hostname:
+                        if hostname not in all_hosts_seen:
+                            all_hosts_seen[hostname] = []
+                        all_hosts_seen[hostname].append('out_of_stock')
         else:
             # Handle both dict and other data types defensively
             if isinstance(data, dict):
                 count = data.get('total_hosts', 0)
+                # Check regular column hosts for duplicates
+                hosts = data.get('hosts', [])
+                for host in hosts:
+                    hostname = host.get('hostname') or host.get('name')
+                    if hostname:
+                        if hostname not in all_hosts_seen:
+                            all_hosts_seen[hostname] = []
+                        all_hosts_seen[hostname].append(gpu_type)
             else:
                 print(f"⚠️ Warning: {gpu_type} data is not dict: {type(data)}")
                 count = 0
             column_counts[gpu_type] = count
         ui_total += count
+
+    # Detect duplicate hosts
+    duplicate_hosts = {hostname: columns for hostname, columns in all_hosts_seen.items() if len(columns) > 1}
+    if duplicate_hosts:
+        print(f"🚨 DUPLICATE HOSTS DETECTED:")
+        for hostname, columns in duplicate_hosts.items():
+            print(f"   - {hostname} appears in: {', '.join(columns)}")
+            # Add duplicate reason to outofstock hosts if they appear there
+            for gpu_type, data in organized_results.items():
+                if gpu_type == 'outofstock' and isinstance(data, dict) and 'hosts' in data:
+                    for host in data['hosts']:
+                        if host.get('hostname') == hostname:
+                            existing_reason = host.get('outofstock_reason', '')
+                            host['outofstock_reason'] = f"{existing_reason} | DUPLICATE: Also in {', '.join([c for c in columns if c != 'out_of_stock'])}"
     
     # Validation check
     is_valid = (netbox_total == ui_total)

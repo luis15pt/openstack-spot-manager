@@ -342,13 +342,20 @@
                                             <div class="card-header bg-danger text-white">
                                                 <h4 class="mb-0 d-flex justify-content-between align-items-center">
                                                     <span>
-                                                        <i class="fas fa-exclamation-triangle"></i> 
+                                                        <i class="fas fa-exclamation-triangle"></i>
                                                         <span id="outofstockName">Out of Stock</span>
                                                         <span class="badge bg-light text-dark ms-2" id="outofstockCount">0</span>
                                                     </span>
-                                                    <button class="btn btn-sm btn-outline-light" id="refreshOutofstockBtn" title="Refresh Out of Stock">
-                                                        <i class="fas fa-sync"></i>
-                                                    </button>
+                                                    <div>
+                                                        <button class="btn btn-sm btn-outline-light me-1" id="outofstockInfoBtn"
+                                                                title="View Out of Stock Reasons"
+                                                                data-bs-toggle="modal" data-bs-target="#outofstockLegendModal">
+                                                            <i class="fas fa-info-circle"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-light" id="refreshOutofstockBtn" title="Refresh Out of Stock">
+                                                            <i class="fas fa-sync"></i>
+                                                        </button>
+                                                    </div>
                                                 </h4>
                                                 <div class="mt-2">
                                                     <small class="text-light">Unused: <span id="outofstockGpuUsage">0/0</span> (<span id="outofstockGpuPercent">0%</span>)</small>
@@ -1252,5 +1259,116 @@
             </div>
         </div>
     </div>
+
+    <!-- Out of Stock Reasons Legend Modal -->
+    <div class="modal fade" id="outofstockLegendModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Out of Stock Reasons
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-4 text-muted">
+                        Servers appear in the "Out of Stock" column when they cannot be used for new deployments.
+                        Here are the possible reasons:
+                    </p>
+
+                    <div class="row">
+                        <!-- NetBox Status Reasons -->
+                        <div class="col-md-6">
+                            <h6 class="fw-bold text-primary mb-3">
+                                <i class="fas fa-database me-2"></i>NetBox Status
+                            </h6>
+
+                            <div class="mb-3">
+                                <span class="badge bg-warning text-dark me-2">RMA</span>
+                                <small>Hardware under Return Merchandise Authorization - being repaired or replaced</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <span class="badge bg-secondary me-2">Inventory</span>
+                                <small>Device in inventory but not yet deployed to production</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <span class="badge bg-dark me-2">Offline</span>
+                                <small>Device is powered off or unreachable</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <span class="badge bg-danger me-2">Failed</span>
+                                <small>Device has failed hardware or system issues</small>
+                            </div>
+                        </div>
+
+                        <!-- OpenStack & System Reasons -->
+                        <div class="col-md-6">
+                            <h6 class="fw-bold text-success mb-3">
+                                <i class="fas fa-cloud me-2"></i>OpenStack & System
+                            </h6>
+
+                            <div class="mb-3">
+                                <span class="badge bg-info me-2">No Aggregate</span>
+                                <small>Host not assigned to any OpenStack aggregate (not schedulable)</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <span class="badge bg-warning text-dark me-2">Unknown GPU</span>
+                                <small>GPU type could not be determined from hostname pattern</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <span class="badge bg-primary me-2">Hypervisor Down</span>
+                                <small>OpenStack hypervisor service is down or unreachable</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <!-- Special Conditions -->
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="fw-bold text-warning mb-3">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Special Conditions
+                            </h6>
+
+                            <div class="alert alert-warning">
+                                <strong>DUPLICATE:</strong> Host appears in multiple columns due to data inconsistency -
+                                may be tagged incorrectly in NetBox or have conflicting OpenStack state
+                            </div>
+
+                            <div class="alert alert-info">
+                                <strong>Full Capacity:</strong> All GPUs are already allocated to running VMs -
+                                no capacity for new deployments
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Inventory Accountability -->
+                    <div class="mt-4 p-3 bg-light rounded">
+                        <h6 class="fw-bold mb-2">
+                            <i class="fas fa-chart-pie me-2"></i>Inventory Accountability
+                        </h6>
+                        <small class="text-muted">
+                            The system validates that NetBox device count matches UI column totals to ensure
+                            100% device accountability. Any discrepancies indicate data synchronization issues
+                            that need investigation.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
