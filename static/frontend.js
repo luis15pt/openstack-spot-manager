@@ -2040,8 +2040,16 @@ function createHostCardCompact(host, type, aggregateName = null) {
     // Create unique ID for tooltip
     const cardId = `host-${host.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
-    // Calculate flavor name for display
-    const flavorName = window.Hyperstack ? window.Hyperstack.buildFlavorName(host.name) : 'unknown';
+    // Calculate flavor name for display (with safe fallback)
+    let flavorName = 'unknown';
+    try {
+        if (window.Hyperstack && typeof window.Hyperstack.buildFlavorName === 'function') {
+            flavorName = window.Hyperstack.buildFlavorName(host.name);
+        }
+    } catch (error) {
+        console.warn(`⚠️ Could not build flavor name for ${host.name}:`, error);
+        flavorName = 'error';
+    }
 
     return `
         <div class="machine-card-compact ${statusClass}"
