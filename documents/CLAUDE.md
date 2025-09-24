@@ -286,3 +286,111 @@ window.DEBUG_MODE = true;
 ```
 
 This codebase represents a sophisticated infrastructure management system with enterprise-grade performance optimizations. Maintain the high standards of performance, error handling, and monitoring when contributing.
+
+## Code Quality Review & Recommendations
+
+### 🔴 **Critical Issues**
+
+#### Security Concerns
+1. **Shell Command Injection Risk** (`app_business_logic.py:370`, `modules/openstack_operations.py`)
+   - Using `subprocess.run(shell=True)` with potentially user-controlled input
+   - **Fix**: Use parameterized commands or validate/sanitize input strictly
+
+2. **API Key Logging Risk** (`app_business_logic.py:355`)
+   - The `mask_api_key()` function exists but may not cover all logging scenarios
+   - **Fix**: Audit all logging to ensure no API keys are exposed
+
+### 🟡 **Code Quality Improvements**
+
+#### Code Duplication & Organization
+1. **Duplicate Functions** 
+   - `get_host_gpu_info_with_debug()` exists in both `app_business_logic.py` and `modules/host_operations.py`
+   - `get_host_vm_count_with_debug()` also duplicated
+   - **Fix**: Consolidate into one location, preferably in modules
+
+2. **Exception Handling Pattern** (96 occurrences)
+   - Generic `except Exception as e:` throughout codebase
+   - **Fix**: Use specific exception types where possible
+
+3. **Large Functions**
+   - `modules/parallel_agents.py` has very long functions (1500+ lines file)
+   - **Fix**: Break into smaller, focused functions
+
+#### Frontend Issues
+1. **Console Logging** (514 occurrences across JS files)
+   - Extensive `console.log/error/warn` usage in production code
+   - **Fix**: Implement proper logging system for production
+
+2. **Global Variables**
+   - Many global variables in JavaScript files
+   - **Fix**: Encapsulate in modules/namespaces
+
+### 🟢 **Unused Code to Remove**
+
+#### Potentially Unused Functions
+1. **Debug Functions** - Both `*_with_debug()` versions appear to only be used internally within bulk operations
+   - Consider if debug versions are still needed
+   
+2. **Legacy Code Check Needed**
+   - The codebase shows signs of evolution, should audit for unused imports
+
+### 🔵 **Architectural Recommendations**
+
+#### Code Organization
+1. **Module Structure**
+   - Good separation of concerns in `modules/` directory
+   - Consider moving business logic functions from `app_business_logic.py` to appropriate modules
+
+2. **Configuration Management**
+   - ✅ Good use of environment variables for API keys
+   - Consider centralizing configuration in a config module
+
+3. **Error Handling**
+   - Implement centralized error handling/logging
+   - Use custom exception classes for better error differentiation
+
+#### Performance Optimizations
+1. **Caching Strategy**
+   - `cache-manager.js` exists, ensure it's being used effectively
+   - Consider adding caching to expensive OpenStack operations
+
+2. **Parallel Processing**
+   - ✅ Good use of `ThreadPoolExecutor` in bulk operations
+   - `modules/parallel_agents.py` shows sophisticated parallel processing
+
+### 📊 **Codebase Statistics**
+- **Total LOC**: ~15,495 lines
+- **Largest files**: 
+  - `static/script.js` (2,573 lines)
+  - `static/frontend.js` (2,234 lines) 
+  - `app_routes.py` (1,935 lines)
+  - `modules/parallel_agents.py` (1,595 lines)
+
+### 🎯 **Priority Actions**
+
+#### High Priority
+1. **Fix shell injection security risk** - Critical security vulnerability
+2. **Remove duplicate functions** - Code maintainability issue
+3. **Reduce console.log usage in production** - Performance and security concern
+
+#### Medium Priority  
+1. **Implement proper error handling patterns** - Use specific exceptions
+2. **Break up large functions** - Improve maintainability
+3. **Audit and remove unused code** - Reduce technical debt
+
+#### Low Priority
+1. **Improve code documentation** - Add docstrings and comments
+2. **Standardize naming conventions** - Consistency across codebase
+3. **Add type hints to Python functions** - Better IDE support and validation
+
+### 📋 **Code Quality Checklist for Future Changes**
+
+Before submitting code changes, ensure:
+- [ ] No use of `subprocess.run(shell=True)` without input sanitization
+- [ ] No duplicate function definitions across modules
+- [ ] Production code has minimal console.log statements
+- [ ] Specific exception types used instead of generic `Exception`
+- [ ] Functions are under 100 lines where possible
+- [ ] All sensitive data is properly masked in logs
+- [ ] New code follows existing architectural patterns
+- [ ] Performance impact has been considered

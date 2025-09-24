@@ -307,7 +307,12 @@ function initializeEventListeners() {
         if (selectedType) {
             window.currentGpuType = selectedType;
             console.log(`📊 Loading data for GPU type: ${selectedType}`);
-            
+
+            // Reset global search when changing GPU types
+            if (window.GlobalSearch) {
+                window.GlobalSearch.onGpuTypeChange();
+            }
+
             // Show the hosts row now that a GPU type is selected
             const hostsRow = document.getElementById('hostsRow');
             if (hostsRow) {

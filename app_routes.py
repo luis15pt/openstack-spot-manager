@@ -214,7 +214,7 @@ def register_routes(app):
             for host_data in all_hosts:
                 hostname = host_data['hostname']
                 aggregate = host_data['aggregate']
-                
+
                 # Determine aggregate type
                 if config.get('runpod') and aggregate == config['runpod']:
                     runpod_hosts.append(hostname)
@@ -226,7 +226,7 @@ def register_routes(app):
                             ondemand_hosts.append(hostname)
                             ondemand_host_variants[hostname] = variant['variant']
                             break
-                
+
                 # Check contracts separately (not elif - contracts can coexist with other types)
                 if config.get('contracts'):
                     for contract in config['contracts']:
