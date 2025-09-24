@@ -1063,6 +1063,11 @@ runcmd:
 
       # Output a summary of the variables set during the script
       echo "The Hostname is $HOSTNAME, the public IP is $PUBLIC_IP, and the cert ID is $installCertValue"
+  # Configure cgroup v2 for Docker and NVIDIA compatibility on Ubuntu 24.04
+  - stat -fc %T /sys/fs/cgroup
+  - cp /etc/default/grub.d/cgroup.cfg /etc/default/grub.d/cgroup.cfg.bkp || true
+  - sed -i 's/systemd.unified_cgroup_hierarchy=false/systemd.unified_cgroup_hierarchy=true/' /etc/default/grub.d/cgroup.cfg || true
+  - update-grub
 
 power_state:
   delay: "+2"
