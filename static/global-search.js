@@ -188,25 +188,25 @@ class GlobalSearch {
      * Update the display with filtered data
      */
     updateDisplay(data) {
-        // Update each column using existing update functions
-        if (window.runpodColumn && data.runpod) {
-            window.runpodColumn.update(data.runpod);
+        // Update each column using existing update functions from window.columns object
+        if (window.columns && window.columns.runpod && data.runpod) {
+            window.columns.runpod.update(data.runpod);
         }
 
-        if (window.spotColumn && data.spot) {
-            window.spotColumn.update(data.spot);
+        if (window.columns && window.columns.spot && data.spot) {
+            window.columns.spot.update(data.spot);
         }
 
-        if (window.ondemandColumn && data.ondemand) {
-            window.ondemandColumn.update(data.ondemand);
+        if (window.columns && window.columns.ondemand && data.ondemand) {
+            window.columns.ondemand.update(data.ondemand);
         }
 
-        if (window.contractColumn && data.contract) {
-            window.contractColumn.update(data.contract);
+        if (window.columns && window.columns.contract && data.contract) {
+            window.columns.contract.update(data.contract);
         }
 
-        if (window.outofstockColumn && data.outofstock) {
-            window.outofstockColumn.update(data.outofstock);
+        if (window.columns && window.columns.outofstock && data.outofstock) {
+            window.columns.outofstock.update(data.outofstock);
         }
 
         // Also update variant columns if they exist
