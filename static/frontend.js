@@ -1655,10 +1655,10 @@ function generateIndividualCommandOperations(operation) {
   -H 'api_key: <HYPERSTACK_API_KEY>' \\
   -H 'Content-Type: application/json' \\
   -d '{
-    "name": "<VM_NAME>",
-    "environment_name": "CA1-RunPod", 
+    "name": "${operation.vm_name || operation.hostname}",
+    "environment_name": "CA1-RunPod",
     "image_name": "${operation.image_name}",
-    "flavor_name": "<GPU_FLAVOR>",
+    "flavor_name": "${operation.flavor_name}",
     "assign_floating_ip": true,
     "user_data": "<CLOUD_INIT_SCRIPT_WITH_RUNPOD_API_KEY>"
   }' # VM: ${operation.vm_name || operation.hostname}`,
