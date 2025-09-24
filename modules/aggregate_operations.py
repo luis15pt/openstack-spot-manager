@@ -404,30 +404,40 @@ def get_gpu_aggregates_cache_stats():
 
 def get_gpu_type_from_hostname_fast(hostname):
     """Extract GPU type from hostname pattern without any API calls
-    
+
     This is the fastest method - uses hostname patterns only.
     Falls back to None if pattern doesn't match, allowing cache lookup.
     """
     hostname_lower = hostname.lower()
-    
+    print(f"🔍 DEBUG: Fast hostname pattern check for {hostname} (lowercase: {hostname_lower})")
+
     # Pattern matching for common hostname formats
     if 'h200sxm' in hostname_lower or 'h200-sxm' in hostname_lower:
+        print(f"🎯 DEBUG: Matched H200-SXM5 pattern")
         return 'H200-SXM5'
     elif 'h100sxm' in hostname_lower or 'h100-sxm' in hostname_lower:
+        print(f"🎯 DEBUG: Matched H100-SXM5 pattern")
         return 'H100-SXM5'
     elif 'h100' in hostname_lower:
+        print(f"🎯 DEBUG: Matched H100 pattern")
         return 'H100'
     elif 'a100' in hostname_lower:
+        print(f"🎯 DEBUG: Matched A100 pattern")
         return 'A100'
-    elif 'rtx-a6000' in hostname_lower or 'rtx_a6000' in hostname_lower or 'esc8' in hostname_lower:
+    elif 'rtx-a6000' in hostname_lower or 'rtx_a6000' in hostname_lower:
+        print(f"🎯 DEBUG: Matched RTX-A6000 pattern")
         return 'RTX-A6000'
     elif 'rtx6000pro' in hostname_lower or 'rtx-6000-pro' in hostname_lower:
+        print(f"🎯 DEBUG: Matched RTX-PRO6000-SE pattern")
         return 'RTX-PRO6000-SE'
     elif 'l40' in hostname_lower:
+        print(f"🎯 DEBUG: Matched L40 pattern")
         return 'L40'
     elif 'a4000' in hostname_lower:
+        print(f"🎯 DEBUG: Matched A4000 pattern")
         return 'A4000'
-    
+
+    print(f"🔍 DEBUG: No hostname pattern matched for {hostname}, will try cache lookup")
     return None  # Pattern didn't match, need to use cache lookup
 
 def find_gpu_type_in_parallel_data(hostname, parallel_data):

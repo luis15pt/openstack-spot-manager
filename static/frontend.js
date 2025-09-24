@@ -2039,12 +2039,15 @@ function createHostCardCompact(host, type, aggregateName = null) {
     
     // Create unique ID for tooltip
     const cardId = `host-${host.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
-    
+
+    // Calculate flavor name for display
+    const flavorName = window.Hyperstack ? window.Hyperstack.buildFlavorName(host.name) : 'unknown';
+
     return `
-        <div class="machine-card-compact ${statusClass}" 
+        <div class="machine-card-compact ${statusClass}"
              id="${cardId}"
-             draggable="true" 
-             data-host="${host.name}" 
+             draggable="true"
+             data-host="${host.name}"
              data-type="${type}"
              data-aggregate="${host.variant || aggregateName || ''}"
              data-has-vms="${hasVms}"
@@ -2057,6 +2060,7 @@ function createHostCardCompact(host, type, aggregateName = null) {
              data-gpu-type="${host.gpu_type || ''}"
              data-openstack-aggregate="${host.openstack_aggregate || ''}"
              data-vm-count="${host.vm_count || 0}"
+             data-flavor-name="${flavorName}"
              onmouseenter="showHostTooltip(event, this)"
              onmouseleave="hideHostTooltip()"
              onclick="handleCardClick(event, this)">
@@ -2108,6 +2112,7 @@ function showHostTooltip(event, element) {
     const gpuType = element.dataset.gpuType;
     const openstackAggregate = element.dataset.openstackAggregate;
     const vmCount = element.dataset.vmCount;
+    const flavorName = element.dataset.flavorName;
     const gpuText = element.querySelector('.gpu-badge-compact').textContent;
     
     // Get additional data from the element or parse from display
@@ -2151,7 +2156,16 @@ function showHostTooltip(event, element) {
             <span class="tooltip-value">${gpuType}</span>
         </div>`;
     }
-    
+
+    // Flavor name for debugging
+    if (flavorName && flavorName !== 'unknown') {
+        tooltipRows += `
+        <div class="tooltip-row">
+            <span class="tooltip-label">Flavor Name:</span>
+            <span class="tooltip-value">${flavorName}</span>
+        </div>`;
+    }
+
     tooltipRows += `
         <div class="tooltip-row">
             <span class="tooltip-label">GPU Usage:</span>

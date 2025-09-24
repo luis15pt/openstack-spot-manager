@@ -880,7 +880,7 @@ def enrich_device_with_openstack_data(device, vm_counts, gpu_info, host_to_aggre
     """Enrich NetBox device with OpenStack VM and GPU data"""
     hostname = device['hostname']
     enriched = device.copy()
-    
+
     # Add VM information
     if hostname in vm_counts:
         vm_data = vm_counts[hostname]
@@ -890,8 +890,8 @@ def enrich_device_with_openstack_data(device, vm_counts, gpu_info, host_to_aggre
             enriched['vm_count'] = vm_data
         else:
             print(f"⚠️ enrich_device_with_openstack_data: vm_counts[{hostname}] is {type(vm_data)}, expected dict or int")
-    
-    # Add GPU information  
+
+    # Add GPU information
     if hostname in gpu_info:
         gpu_data = gpu_info[hostname]
         if isinstance(gpu_data, dict):
@@ -902,12 +902,16 @@ def enrich_device_with_openstack_data(device, vm_counts, gpu_info, host_to_aggre
             print(f"⚠️ enrich_device_with_openstack_data: gpu_info[{hostname}] is {type(gpu_data)}, expected dict or int")
     else:
         pass
-        
+
     # Add aggregate information
     aggregate_name = host_to_aggregate.get(hostname)
     enriched['openstack_aggregate'] = aggregate_name
     enriched['aggregate'] = aggregate_name  # Ensure both field names are available
-    
+
+    # Recalculate has_vms based on actual vm_count after enrichment
+    vm_count = enriched.get('vm_count', 0)
+    enriched['has_vms'] = vm_count > 0
+
     return enriched
 
 def assign_device_to_column(device, tempest_hosts, disabled_hosts, host_to_aggregate):
