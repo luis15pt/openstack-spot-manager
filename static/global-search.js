@@ -213,6 +213,9 @@ class GlobalSearch {
         if (window.Frontend && window.Frontend.renderOnDemandVariantColumns && data.ondemand) {
             window.Frontend.renderOnDemandVariantColumns(data.ondemand);
         }
+
+        // Clear individual column search inputs when global search is active
+        this.clearIndividualColumnSearches();
     }
 
     /**
@@ -220,6 +223,24 @@ class GlobalSearch {
      */
     deepClone(obj) {
         return JSON.parse(JSON.stringify(obj));
+    }
+
+    /**
+     * Clear individual column search inputs
+     */
+    clearIndividualColumnSearches() {
+        // Clear BaseColumn searches
+        const columnSearchInputs = document.querySelectorAll('.column-search-input');
+        columnSearchInputs.forEach(input => {
+            if (input.id !== 'globalSearch') {
+                input.value = '';
+                // Hide clear button
+                const clearBtn = input.parentElement?.querySelector('.column-search-clear');
+                if (clearBtn) {
+                    clearBtn.style.display = 'none';
+                }
+            }
+        });
     }
 
     /**

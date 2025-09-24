@@ -1416,6 +1416,21 @@ function renderOnDemandVariantColumns(ondemandData) {
                                         <div class="progress-bar bg-light" role="progressbar" style="width: 0%" id="${variantId}GpuProgressBar"></div>
                                     </div>
                                 </div>
+                                <div class="column-search-container mt-2">
+                                    <div class="input-group input-group-sm">
+                                        <input type="text"
+                                               class="form-control column-search-input"
+                                               id="${variantId}Search"
+                                               placeholder="Search hosts or owner..."
+                                               autocomplete="off">
+                                        <button class="btn btn-outline-light btn-sm column-search-clear"
+                                                type="button"
+                                                title="Clear search"
+                                                style="display: none;">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <div class="card-body drop-zone" id="${variantId}Hosts" data-type="ondemand" data-variant="${variant.aggregate}">
                                 <!-- ${variant.variant} hosts will be dynamically inserted here -->
@@ -1435,12 +1450,15 @@ function renderOnDemandVariantColumns(ondemandData) {
             const variantHosts = ondemandData.hosts.filter(host => host.variant === variant.aggregate);
             const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
             const container = document.getElementById(`${variantId}Hosts`);
-            
+
             if (container) {
                 renderHosts(container.id, variantHosts, variantId, variant.aggregate);
-                
+
                 // Update column statistics
                 updateVariantColumnStats(variantId, variantHosts);
+
+                // Add search functionality to variant column
+                addVariantColumnSearch(variantId, variantHosts);
             }
         });
         
@@ -1473,6 +1491,81 @@ function renderOnDemandVariantColumns(ondemandData) {
             }
         }
     }
+}
+
+// Add search functionality to variant columns
+function addVariantColumnSearch(variantId, allHosts) {
+    const searchInput = document.getElementById(`${variantId}Search`);
+    const clearButton = document.querySelector(`#${variantId}Search`).parentElement.querySelector('.column-search-clear');
+
+    if (!searchInput) {
+        console.warn(`⚠️ Search input not found for variant ${variantId}`);
+        return;
+    }
+
+    // Store hosts for filtering
+    searchInput.variantHosts = allHosts;
+    searchInput.variantId = variantId;
+
+    // Add event listeners
+    let searchTimeout;
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            handleVariantColumnSearch(e.target.value, variantId, allHosts);
+        }, 300);
+
+        // Show/hide clear button
+        if (clearButton) {
+            clearButton.style.display = e.target.value ? 'block' : 'none';
+        }
+    });
+
+    if (clearButton) {
+        clearButton.addEventListener('click', () => {
+            searchInput.value = '';
+            handleVariantColumnSearch('', variantId, allHosts);
+            clearButton.style.display = 'none';
+            searchInput.focus();
+        });
+    }
+
+    console.log(`✅ Search added to variant column ${variantId}`);
+}
+
+// Handle variant column search
+function handleVariantColumnSearch(searchTerm, variantId, allHosts) {
+    const trimmedSearch = searchTerm.toLowerCase().trim();
+
+    let filteredHosts;
+    if (!trimmedSearch) {
+        filteredHosts = [...allHosts];
+    } else {
+        filteredHosts = allHosts.filter(host => {
+            const hostname = (host.name || host.hostname || '').toLowerCase();
+            const ownerGroup = (host.owner_group || '').toLowerCase();
+            const tenant = (host.tenant || '').toLowerCase();
+
+            return hostname.includes(trimmedSearch) ||
+                   ownerGroup.includes(trimmedSearch) ||
+                   tenant.includes(trimmedSearch);
+        });
+    }
+
+    // Re-render with filtered hosts
+    const containerName = `${variantId}Hosts`;
+    renderHosts(containerName, filteredHosts, variantId);
+
+    // Update count display
+    const countElement = document.querySelector(`#${variantId}Column .badge`);
+    if (countElement) {
+        const displayCount = trimmedSearch ?
+            `${filteredHosts.length}/${allHosts.length}` :
+            allHosts.length;
+        countElement.textContent = displayCount;
+    }
+
+    console.log(`🔍 Variant ${variantId} search: "${searchTerm}" -> ${filteredHosts.length}/${allHosts.length} hosts`);
 }
 
 // Update variant column statistics
