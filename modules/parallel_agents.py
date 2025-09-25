@@ -840,18 +840,17 @@ def organize_by_netbox_devices(results):
             else:
                 print(f"⚠️ organize_by_netbox_devices: {key} hosts is {type(hosts)}, expected list")
     
-    # Count NetBox GPU servers with proper filtering (same as processing logic)
+    # Count NetBox GPU servers - RAW count without status filtering
+    # (status filtering only affects UI columns, not baseline inventory)
     netbox_gpu_count = 0
     for hostname, device in all_netbox_devices.items():
         # Ensure device is a dictionary before processing (defensive programming)
         if not isinstance(device, dict):
             continue
-            
+
         if not device.get('is_gpu_server', False):
             continue
-        status = device.get('status', '').lower()
-        if status in ['inventory', 'offline', 'staging']:
-            continue
+        # REMOVED status filtering - NetBox inventory should be raw count
         device_tags = device.get('device_tags', [])
         if 'UNPOPULATED CHASSIS' in [tag.upper() for tag in device_tags] or not device_tags:
             continue
