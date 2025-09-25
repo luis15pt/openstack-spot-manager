@@ -32,6 +32,23 @@
                                 <small class="text-muted" id="backgroundLoadingStatus" style="display: none;">
                                     <i class="fas fa-spinner fa-spin"></i> Loading...
                                 </small>
+
+                                <!-- Filter by Owner -->
+                                <label class="text-light small mb-1 d-block mt-2">Filter by</label>
+                                <div class="d-flex gap-2">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="filterInvestor" checked>
+                                        <label class="form-check-label text-light small" for="filterInvestor">
+                                            Investor Owned
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="filterNGC" checked>
+                                        <label class="form-check-label text-light small" for="filterNGC">
+                                            NGC
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -50,24 +67,6 @@
                             </div>
                         </div>
 
-                        <!-- Owner Filters -->
-                        <div class="navbar-nav me-4">
-                            <label class="text-light small mb-1 d-block">Owner Filters</label>
-                            <div class="d-flex gap-3">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="filterInvestor" checked>
-                                    <label class="form-check-label text-light small" for="filterInvestor">
-                                        Investor Owned
-                                    </label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="filterNGC" checked>
-                                    <label class="form-check-label text-light small" for="filterNGC">
-                                        NGC
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
 
                         <!-- Action Buttons & Status -->
                         <div class="navbar-nav">
