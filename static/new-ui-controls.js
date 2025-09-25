@@ -259,7 +259,9 @@ class NewUIControls {
      * Initialize GPU type summary functionality
      */
     initializeGpuTypeSummary() {
-        // Hook into existing Frontend renderAggregateData to show summary and apply filters
+        // TEMPORARILY DISABLED - Hook into existing Frontend renderAggregateData to show summary and apply filters
+        console.log('🚫 Owner filtering temporarily disabled for debugging');
+        /*
         const originalRender = window.Frontend?.renderAggregateData;
         if (originalRender) {
             window.Frontend.renderAggregateData = (data) => {
@@ -282,6 +284,7 @@ class NewUIControls {
         } else {
             console.warn('⚠️ Frontend.renderAggregateData not found - owner filters may not work');
         }
+        */
 
         // Hook into GPU type selection to update summary (but don't interfere with hostsRow visibility)
         const gpuTypeSelect = document.getElementById('gpuTypeSelect');
