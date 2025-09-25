@@ -67,8 +67,19 @@ class NewUIControls {
             const columnData = this.currentGpuData[columnType];
             if (!columnData || !columnData.hosts) return;
 
-            const columnContainer = document.getElementById(`${columnType}HostsList`);
-            if (!columnContainer) return;
+            // Use correct container IDs based on column type
+            let containerId;
+            if (columnType === 'contracts') {
+                containerId = 'contractHostsList'; // Special case for contracts
+            } else {
+                containerId = `${columnType}Hosts`; // Standard pattern: runpodHosts, spotHosts, etc.
+            }
+
+            const columnContainer = document.getElementById(containerId);
+            if (!columnContainer) {
+                console.log(`⚠️ Container '${containerId}' not found for ${columnType}`);
+                return;
+            }
 
             let columnVisible = 0;
             let columnHidden = 0;
@@ -106,21 +117,43 @@ class NewUIControls {
      * Determine if a host should be shown based on owner filters
      */
     shouldShowHost(host, showInvestor, showNGC) {
+        // Debug the host data structure to understand what fields are available
+        console.log('🔍 Host data for filtering:', {
+            hostname: host.hostname || host.name,
+            owner: host.owner,
+            tenant: host.tenant,
+            tenant_name: host.tenant_name,
+            customer: host.customer,
+            contract_name: host.contract_name,
+            allFields: Object.keys(host)
+        });
+
         // Extract owner/tenant info from various possible fields
-        const owner = (host.owner || host.tenant || host.customer || '').toLowerCase();
-        const tenantName = (host.tenant_name || host.contract_name || '').toLowerCase();
+        const owner = (host.owner || '').toLowerCase();
+        const tenant = (host.tenant || '').toLowerCase();
+        const tenantName = (host.tenant_name || '').toLowerCase();
+        const contractName = (host.contract_name || '').toLowerCase();
+        const customer = (host.customer || '').toLowerCase();
         const hostname = (host.hostname || host.name || '').toLowerCase();
 
-        // NGC detection patterns (more specific)
+        // NGC detection patterns (check multiple fields)
         const isNGC =
             owner.includes('ngc') ||
             owner.includes('nexgen') ||
+            tenant.includes('ngc') ||
+            tenant.includes('nexgen') ||
             tenantName.includes('ngc') ||
             tenantName.includes('nexgen') ||
+            contractName.includes('ngc') ||
+            contractName.includes('nexgen') ||
+            customer.includes('ngc') ||
+            customer.includes('nexgen') ||
             hostname.includes('ngc');
 
         // Investor-owned detection (everything else that's not NGC)
         const isInvestorOwned = !isNGC;
+
+        console.log(`📊 ${hostname}: NGC=${isNGC}, Investor=${isInvestorOwned}, Show=${(showInvestor && isInvestorOwned) || (showNGC && isNGC)}`);
 
         // Apply filter logic
         return (showInvestor && isInvestorOwned) || (showNGC && isNGC);
@@ -233,6 +266,8 @@ class NewUIControls {
         const originalRender = window.Frontend?.renderAggregateData;
         if (originalRender) {
             window.Frontend.renderAggregateData = (data) => {
+                console.log('🎯 New UI Controls: Intercepted data loading');
+
                 // Call original render first
                 originalRender.call(window.Frontend, data);
 
@@ -241,8 +276,14 @@ class NewUIControls {
 
                 // Store data and apply current filters
                 this.currentGpuData = data;
-                this.applyCurrentFilters();
+
+                // Small delay to ensure DOM is rendered
+                setTimeout(() => {
+                    this.applyCurrentFilters();
+                }, 100);
             };
+        } else {
+            console.warn('⚠️ Frontend.renderAggregateData not found - owner filters may not work');
         }
 
         // Hook into GPU type selection to update summary
