@@ -207,8 +207,8 @@ class ContractColumn extends BaseColumn {
         });
         
         const contractGpuSummary = {
-            total_gpu_used: totalUsed,
-            total_gpu_capacity: totalCapacity,
+            gpu_used: totalUsed,
+            gpu_capacity: totalCapacity,
             gpu_usage_ratio: `${totalUsed}/${totalCapacity}`
         };
         
