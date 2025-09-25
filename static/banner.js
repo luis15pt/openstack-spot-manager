@@ -31,14 +31,16 @@ function updateNetBoxInventoryComparison(data) {
         columnsTotal += data.outofstock.hosts.length;
     }
     
-    // Get NetBox total from metadata or calculate from all data sources
+    // Get NetBox total from inventory validation data (pure NetBox count)
     let netboxTotal = 0;
-    
-    // If we have a netbox_summary, use that
-    if (data.netbox_summary && data.netbox_summary.total_hosts) {
+
+    // Use the actual NetBox total from inventory validation (not influenced by OpenStack)
+    if (data._inventory_validation && data._inventory_validation.netbox_total) {
+        netboxTotal = data._inventory_validation.netbox_total;
+    } else if (data.netbox_summary && data.netbox_summary.total_hosts) {
         netboxTotal = data.netbox_summary.total_hosts;
     } else {
-        // Otherwise sum up what we know from the data
+        // Fallback: use columns total (this was causing the contamination bug)
         netboxTotal = columnsTotal;
     }
     
