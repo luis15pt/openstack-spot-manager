@@ -253,8 +253,10 @@ class NewUIControls {
                 if (selectedType) {
                     this.updateSelectedGpuType(selectedType);
                     this.showGpuTypeSummary();
+                    this.showHostsRow();
                 } else {
                     this.hideGpuTypeSummary();
+                    this.hideHostsRow();
                 }
             });
         }
@@ -279,6 +281,28 @@ class NewUIControls {
         const summarySection = document.getElementById('gpuTypeSummary');
         if (summarySection) {
             summarySection.style.display = 'none';
+        }
+    }
+
+    /**
+     * Show the hosts row when GPU type is selected
+     */
+    showHostsRow() {
+        const hostsRow = document.getElementById('hostsRow');
+        if (hostsRow) {
+            hostsRow.classList.remove('d-none');
+            console.log('👁️ Hosts row is now visible');
+        }
+    }
+
+    /**
+     * Hide the hosts row when no GPU type is selected
+     */
+    hideHostsRow() {
+        const hostsRow = document.getElementById('hostsRow');
+        if (hostsRow) {
+            hostsRow.classList.add('d-none');
+            console.log('🙈 Hosts row is now hidden');
         }
     }
 
