@@ -1321,9 +1321,10 @@ function renderOnDemandVariantColumns(ondemandData) {
             });
             
             // Check if this is a core column that should be kept
-            const isKeepColumn = col.id === 'ondemandColumnFallback' || 
+            const isKeepColumn = col.id === 'ondemandColumnFallback' ||
                                 col.id === 'contractColumn' ||
-                                (columnDiv && ['runpodColumn', 'spotColumn', 'ondemandColumn', 'contractAggregateColumn'].includes(columnDiv.id));
+                                col.id === 'outofstockColumn' ||
+                                (columnDiv && ['runpodColumn', 'spotColumn', 'ondemandColumn', 'contractAggregateColumn', 'outofstockColumn'].includes(columnDiv.id));
             
             if (!isKeepColumn) {
                 // This is a dynamically added variant column - remove it
