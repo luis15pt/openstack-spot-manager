@@ -16,72 +16,103 @@
                     <i class="fas fa-server"></i> OpenStack Spot Manager
                 </h1>
                 
-                <!-- GPU Type Selector -->
-                <div class="row mb-4">
-                    <div class="col-md-6 offset-md-3">
-                        <div class="card">
-                            <div class="card-body">
-                                <label for="gpuTypeSelect" class="form-label">
-                                    Select GPU Type:
-                                    <small class="text-muted ms-2" id="backgroundLoadingStatus" style="display: none;">
-                                        <i class="fas fa-spinner fa-spin"></i> Loading other types...
-                                    </small>
-                                </label>
-                                <div class="d-flex gap-2">
-                                    <select id="gpuTypeSelect" class="form-select">
-                                        <option value="">Loading GPU types...</option>
-                                    </select>
-                                    <button type="button" class="btn btn-primary" onclick="refreshData()" title="Refresh all data with detailed progress tracking">
-                                        <i class="fas fa-sync-alt"></i> Refresh
+                <!-- Professional Control Toolbar -->
+                <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+                    <div class="container-fluid px-3">
+                        <!-- GPU Type Selection -->
+                        <div class="navbar-nav me-4">
+                            <div class="nav-item">
+                                <label class="text-light small mb-1 d-block">GPU Type</label>
+                                <select id="gpuTypeSelect" class="form-select form-select-sm" style="min-width: 160px;">
+                                    <option value="">Loading types...</option>
+                                </select>
+                                <small class="text-muted" id="backgroundLoadingStatus" style="display: none;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Host Search -->
+                        <div class="navbar-nav flex-grow-1 me-4">
+                            <div class="nav-item w-100">
+                                <label class="text-light small mb-1 d-block">Search Hosts</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" id="globalSearch" class="form-control"
+                                           placeholder="Hostname, customer, contract..." autocomplete="off">
+                                    <button class="btn btn-outline-light" type="button" id="clearSearchBtn"
+                                            title="Clear search" style="display: none;">
+                                        <i class="fas fa-times"></i>
                                     </button>
                                 </div>
-                                
-                                <!-- Global Search -->
-                                <div class="mt-3">
-                                    <label for="globalSearch" class="form-label">
-                                        <i class="fas fa-search"></i> Search Hosts:
-                                        <small class="text-muted ms-2">Search by hostname, owner, or tenant across all columns</small>
+                            </div>
+                        </div>
+
+                        <!-- Owner Filters -->
+                        <div class="navbar-nav me-4">
+                            <label class="text-light small mb-1 d-block">Owner Filters</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="filterInvestor" checked>
+                                    <label class="form-check-label text-light small" for="filterInvestor">
+                                        Investor Owned
                                     </label>
-                                    <div class="input-group">
-                                        <input type="text"
-                                               id="globalSearch"
-                                               class="form-control"
-                                               placeholder="e.g., CA1-ESC8-012, Nexgen Cloud, or investor name..."
-                                               autocomplete="off">
-                                        <button class="btn btn-outline-secondary"
-                                                type="button"
-                                                id="clearSearchBtn"
-                                                title="Clear search"
-                                                style="display: none;">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </div>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="filterNGC" checked>
+                                    <label class="form-check-label text-light small" for="filterNGC">
+                                        NGC
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons & Status -->
+                        <div class="navbar-nav">
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- Refresh Button -->
+                                <button type="button" class="btn btn-primary btn-sm" onclick="refreshData()"
+                                        title="Refresh all data">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+
+                                <!-- Management Tools Dropdown -->
+                                <div class="dropdown">
+                                    <button class="btn btn-secondary btn-sm dropdown-toggle" type="button"
+                                            data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-tools"></i> Tools
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#pending">
+                                            <i class="fas fa-clock"></i> Pending Operations
+                                            <span class="badge bg-warning ms-2" id="pendingDropdownCount">0</span>
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#commands">
+                                            <i class="fas fa-terminal"></i> Command Log
+                                            <span class="badge bg-secondary ms-2" id="commandDropdownCount">0</span>
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#results">
+                                            <i class="fas fa-chart-line"></i> Analytics
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#debug">
+                                            <i class="fas fa-bug"></i> Debug
+                                            <span class="badge bg-info ms-2" id="debugDropdownCount">45</span>
+                                        </a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><button class="dropdown-item" type="button" id="clear-cache-btn"
+                                                    title="Clear caches without refreshing data">
+                                            <i class="fas fa-trash text-warning"></i> Clear Cache
+                                        </button></li>
+                                    </ul>
                                 </div>
 
-                                <!-- Cache Status Info -->
-                                <div class="row mt-3">
-                                    <div class="col-md-8">
-                                        <button type="button" class="btn btn-outline-warning btn-sm" id="clear-cache-btn" title="Clear caches without refreshing data">
-                                            <i class="fas fa-trash"></i> Clear Cache Only
-                                        </button>
-                                    </div>
-                                    <div class="col-md-4 text-end">
-                                        <small class="text-muted" id="cache-status">
-                                            <i class="fas fa-database"></i> Cache: Loading...
-                                        </small>
-                                    </div>
-                                </div>
-                                
-                                <div class="d-flex justify-content-between align-items-center mt-2">
-                                    <small class="form-text text-muted">
-                                        <i class="fas fa-info-circle"></i> 
-                                        Types marked with ⚡ are cached and will load instantly
-                                    </small>
+                                <!-- Cache Status Indicator -->
+                                <div class="text-light small" title="Cache status">
+                                    <i class="fas fa-database"></i> <span id="cache-status">Loading...</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </nav>
                 
                 <!-- Loading Indicator -->
                 <div id="loadingIndicator" class="text-center d-none">
@@ -101,7 +132,7 @@
                 
                 <!-- Main Content -->
                 <div id="mainContent">
-                    <!-- Tab Navigation -->
+                    <!-- Simplified Tab Navigation - Focus on Main Content -->
                     <ul class="nav nav-tabs" id="mainTabs" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="hosts-tab" data-bs-toggle="tab" data-bs-target="#hosts" type="button" role="tab">
@@ -109,30 +140,30 @@
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab">
+                            <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" style="display: none;">
                                 <i class="fas fa-clock"></i> Pending Operations
                                 <span class="badge bg-warning ms-1" id="pendingTabCount">0</span>
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="commands-tab" data-bs-toggle="tab" data-bs-target="#commands" type="button" role="tab">
+                            <button class="nav-link" id="commands-tab" data-bs-toggle="tab" data-bs-target="#commands" type="button" role="tab" style="display: none;">
                                 <i class="fas fa-terminal"></i> Command Log
                                 <span class="badge bg-secondary ms-1" id="commandCount">0</span>
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="results-tab" data-bs-toggle="tab" data-bs-target="#results" type="button" role="tab">
+                            <button class="nav-link" id="results-tab" data-bs-toggle="tab" data-bs-target="#results" type="button" role="tab" style="display: none;">
                                 <i class="fas fa-chart-pie"></i> Analytics
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="debug-tab" data-bs-toggle="tab" data-bs-target="#debug" type="button" role="tab">
+                            <button class="nav-link" id="debug-tab" data-bs-toggle="tab" data-bs-target="#debug" type="button" role="tab" style="display: none;">
                                 <i class="fas fa-bug"></i> Debug
                                 <span class="badge bg-info ms-1" id="debugTabCount">0</span>
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="system-info-tab" data-bs-toggle="tab" data-bs-target="#system-info" type="button" role="tab">
+                            <button class="nav-link" id="system-info-tab" data-bs-toggle="tab" data-bs-target="#system-info" type="button" role="tab" style="display: none;">
                                 <i class="fas fa-info-circle"></i> System Info
                             </button>
                         </li>
@@ -1177,6 +1208,9 @@
 
     <!-- Global Search Module -->
     <script src="{{ url_for('static', filename='global-search.js') }}"></script>
+
+    <!-- New UI Controls -->
+    <script src="{{ url_for('static', filename='new-ui-controls.js') }}"></script>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script src="{{ url_for('static', filename='customer-view.js') }}"></script>
