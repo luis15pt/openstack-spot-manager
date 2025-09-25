@@ -101,10 +101,21 @@ class NewUIControls {
                 }
             });
 
-            // Update column count
-            const countElement = document.getElementById(`${columnType}HostCount`);
+            // Update column count with correct ID mapping
+            let countElementId;
+            if (columnType === 'contracts') {
+                countElementId = 'contractHostCount'; // Special case
+            } else if (columnType === 'outofstock') {
+                countElementId = 'outofstockCount'; // Special case - different from standard pattern
+            } else {
+                countElementId = `${columnType}Count`; // Standard pattern: runpodCount, spotCount, ondemandCount
+            }
+
+            const countElement = document.getElementById(countElementId);
             if (countElement) {
                 countElement.textContent = columnVisible;
+            } else {
+                console.log(`⚠️ Count element '${countElementId}' not found for ${columnType}`);
             }
 
             console.log(`📊 ${columnType}: ${columnVisible} visible, ${columnHidden} hidden`);
@@ -140,15 +151,21 @@ class NewUIControls {
         const isNGC =
             owner.includes('ngc') ||
             owner.includes('nexgen') ||
+            owner.includes('chris starkey') ||
             tenant.includes('ngc') ||
             tenant.includes('nexgen') ||
+            tenant.includes('chris starkey') ||
             tenantName.includes('ngc') ||
             tenantName.includes('nexgen') ||
+            tenantName.includes('chris starkey') ||
             contractName.includes('ngc') ||
             contractName.includes('nexgen') ||
+            contractName.includes('chris starkey') ||
             customer.includes('ngc') ||
             customer.includes('nexgen') ||
-            hostname.includes('ngc');
+            customer.includes('chris starkey') ||
+            hostname.includes('ngc') ||
+            hostname.includes('chris starkey');
 
         // Investor-owned detection (everything else that's not NGC)
         const isInvestorOwned = !isNGC;
@@ -277,16 +294,16 @@ class NewUIControls {
                 // Store data and apply current filters
                 this.currentGpuData = data;
 
-                // Small delay to ensure DOM is rendered
+                // Small delay to ensure DOM is rendered and let script.js handle hostsRow visibility
                 setTimeout(() => {
                     this.applyCurrentFilters();
-                }, 100);
+                }, 200); // Increased delay to let script.js handle visibility first
             };
         } else {
             console.warn('⚠️ Frontend.renderAggregateData not found - owner filters may not work');
         }
 
-        // Hook into GPU type selection to update summary
+        // Hook into GPU type selection to update summary (but don't interfere with hostsRow visibility)
         const gpuTypeSelect = document.getElementById('gpuTypeSelect');
         if (gpuTypeSelect) {
             gpuTypeSelect.addEventListener('change', () => {
@@ -294,10 +311,10 @@ class NewUIControls {
                 if (selectedType) {
                     this.updateSelectedGpuType(selectedType);
                     this.showGpuTypeSummary();
-                    this.showHostsRow();
+                    // Let script.js handle hostsRow visibility - don't interfere
                 } else {
                     this.hideGpuTypeSummary();
-                    this.hideHostsRow();
+                    // Let script.js handle hostsRow visibility - don't interfere
                 }
             });
         }
@@ -325,27 +342,7 @@ class NewUIControls {
         }
     }
 
-    /**
-     * Show the hosts row when GPU type is selected
-     */
-    showHostsRow() {
-        const hostsRow = document.getElementById('hostsRow');
-        if (hostsRow) {
-            hostsRow.classList.remove('d-none');
-            console.log('👁️ Hosts row is now visible');
-        }
-    }
-
-    /**
-     * Hide the hosts row when no GPU type is selected
-     */
-    hideHostsRow() {
-        const hostsRow = document.getElementById('hostsRow');
-        if (hostsRow) {
-            hostsRow.classList.add('d-none');
-            console.log('🙈 Hosts row is now hidden');
-        }
-    }
+    // Note: hostsRow visibility is now managed by script.js to avoid conflicts
 
     /**
      * Update the selected GPU type display
