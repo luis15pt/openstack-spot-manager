@@ -1,20 +1,22 @@
-# OpenStack Spot Manager
+# GRM - GPU Resource Manager
 
-A comprehensive web-based management interface for OpenStack GPU compute resources, providing unified control over host aggregates, VM deployments, and multi-cloud resource management.
+*The CRM for GPU Infrastructure*
+
+A comprehensive web-based management platform for GPU compute resources across multiple cloud providers, providing unified control over OpenStack, RunPod, contract hardware, and multi-cloud resource management.
 
 ## Overview
 
-The OpenStack Spot Manager is a Flask-based application that enables efficient management of GPU hosts across different resource pools (on-demand, spot, contract), with integrated support for RunPod deployments via Hyperstack API. The system provides real-time monitoring, drag-and-drop host migration, and automated resource optimization.
+GRM (GPU Resource Manager) is a Flask-based application that enables efficient management of GPU resources across multiple platforms and resource pools (OpenStack on-demand/spot, RunPod cloud instances, contract hardware). Like how CRM revolutionized customer management, GRM provides a unified interface for GPU infrastructure management with real-time monitoring, drag-and-drop operations, and automated resource optimization.
 
 ## Features
 
 ### Core Functionality
-- **Multi-Pool Host Management**: Manage hosts across on-demand, spot, and contract aggregates
-- **Real-time GPU Monitoring**: Track GPU utilization and VM counts across all hosts
-- **Drag-and-Drop Operations**: Intuitive interface for host migrations between pools
-- **Modular Column System**: Clean, uniform column layout with consistent spacing and headers
-- **Contract Management**: Dedicated interface with filtering for multi-tenant contract aggregate management
-- **Background Data Loading**: Automatic preloading of GPU data with intelligent caching
+- **Multi-Platform GPU Management**: Unified interface for OpenStack, RunPod, and contract hardware
+- **Real-time GPU Monitoring**: Track GPU utilization and VM counts across all platforms
+- **Drag-and-Drop Operations**: Intuitive interface for resource migrations between pools
+- **Modular Column System**: Clean, uniform layout with consistent spacing and headers
+- **Contract Management**: Dedicated interface for multi-tenant contract hardware management
+- **Background Data Loading**: Automatic preloading with intelligent multi-level caching
 
 ### Advanced Features
 - **Intelligent Cache Updates**: Instant UI feedback - VM launches and host migrations appear immediately without waiting for cache expiry
@@ -56,8 +58,8 @@ The OpenStack Spot Manager is a Flask-based application that enables efficient m
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/openstack-spot-manager.git
-cd openstack-spot-manager
+git clone https://github.com/your-org/grm.git
+cd grm
 
 # Create virtual environment
 python3 -m venv venv
@@ -161,10 +163,10 @@ gunicorn -w 4 -b 0.0.0.0:6969 app:app
 ### Using Docker
 ```bash
 # Build container
-docker build -t openstack-spot-manager .
+docker build -t grm .
 
 # Run container
-docker run -p 6969:6969 --env-file .env openstack-spot-manager
+docker run -p 6969:6969 --env-file .env grm
 ```
 
 See [Deployment Guide](DEPLOYMENT_GUIDE.md) for complete production setup instructions.

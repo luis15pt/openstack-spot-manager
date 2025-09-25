@@ -1,7 +1,9 @@
-# OpenStack Spot Manager - Overview
+# GRM - GPU Resource Manager
+
+*The CRM for GPU Infrastructure*
 
 ## Purpose
-OpenStack Spot Manager is an enterprise-grade infrastructure management system that optimizes GPU resource allocation across multiple cloud providers. It provides real-time monitoring and management of GPU hosts across OpenStack, RunPod, and other cloud platforms.
+GRM (GPU Resource Manager) is an enterprise-grade infrastructure management system that revolutionizes GPU resource allocation across multiple cloud providers. Like how CRM transformed customer relationship management, GRM provides unified real-time monitoring and management of GPU resources across OpenStack, RunPod, contract hardware, and other cloud platforms.
 
 ## Key Features
 
@@ -58,4 +60,4 @@ OpenStack Spot Manager is an enterprise-grade infrastructure management system t
 
 ---
 
-*OpenStack Spot Manager streamlines GPU resource management across multiple cloud platforms, providing enterprise-grade performance optimization and real-time monitoring capabilities.*
+*GRM (GPU Resource Manager) revolutionizes GPU infrastructure management across multiple cloud platforms, providing enterprise-grade performance optimization and real-time monitoring capabilities. Just as CRM became essential for customer management, GRM is becoming the standard for GPU resource orchestration.*

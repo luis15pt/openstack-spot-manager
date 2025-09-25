@@ -1,4 +1,4 @@
-// Frontend UI operations for OpenStack Spot Manager
+// Frontend UI operations for GRM - GPU Resource Manager
 // EXACT ORIGINAL FUNCTIONS - only variable names changed for modular access
 
 // Global state variables - exact match to original

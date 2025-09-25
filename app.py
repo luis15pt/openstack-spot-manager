@@ -15,7 +15,7 @@ register_routes(app)
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🚀 OpenStack Spot Manager Starting...")
+    print("🚀 GRM - GPU Resource Manager Starting...")
     print("=" * 60)
     print("📊 Debug mode: ENABLED")
     print("🌐 Server: http://0.0.0.0:6969")
