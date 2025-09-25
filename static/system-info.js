@@ -29,7 +29,7 @@ function updateSystemInfo(data) {
         const availableGpuTypes = document.getElementById('availableGpuTypes');
         if (parallelStats && data.aggregates) {
             const aggCount = Object.keys(data.aggregates).length;
-            parallelStats.textContent = `⚡ Parallel: 0 hosts, ${aggCount} aggs, ${data.gpuTypes.length} types`;
+            parallelStats.textContent = `Parallel: 0 hosts, ${aggCount} aggs, ${data.gpuTypes.length} types`;
         }
         if (availableGpuTypes) {
             availableGpuTypes.textContent = data.gpuTypes.length;
@@ -157,7 +157,7 @@ function updateSystemInfoFromCache(cacheData) {
     // Update parallel stats with host count
     const parallelStats = document.getElementById('parallelStats');
     if (parallelStats && cacheData.cacheMethod === 'parallel_agents') {
-        parallelStats.textContent = `⚡ Parallel: ${cacheData.totalHosts} hosts, ${cacheData.totalAggregates} aggs, ${cacheData.totalGpuTypes} types`;
+        parallelStats.textContent = `Parallel: ${cacheData.totalHosts} hosts, ${cacheData.totalAggregates} aggs, ${cacheData.totalGpuTypes} types`;
     }
     
     // Update detailed cache information

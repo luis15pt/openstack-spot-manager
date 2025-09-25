@@ -788,11 +788,11 @@ function updateGpuTypeSelector(cachedTypes = []) {
     if (!select) return;
     
     const options = select.querySelectorAll('option');
+    // Remove lightning bolt indicators - users don't need to see caching details
     options.forEach(option => {
-        if (option.value && cachedTypes.includes(option.value)) {
-            if (!option.textContent.includes('⚡')) {
-                option.textContent = option.textContent + ' ⚡';
-            }
+        // Keep option text clean without cache indicators
+        if (option.value && option.textContent.includes('⚡')) {
+            option.textContent = option.textContent.replace(' ⚡', '');
         }
     });
 }
