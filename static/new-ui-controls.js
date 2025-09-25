@@ -64,7 +64,7 @@ class NewUIControls {
         let totalHidden = 0;
         let totalVisible = 0;
 
-        // Apply filters to each column
+        // Apply filters to main columns
         const columns = ['runpod', 'ondemand', 'spot', 'contracts', 'outofstock'];
 
         columns.forEach(columnType => {
@@ -124,6 +124,52 @@ class NewUIControls {
 
             console.log(`📊 ${columnType}: ${columnVisible} visible, ${columnHidden} hidden`);
         });
+
+        // Apply filters to variant columns (e.g., On-Demand NVLink variants)
+        if (this.currentGpuData.ondemand && this.currentGpuData.ondemand.variants) {
+            this.currentGpuData.ondemand.variants.forEach(variant => {
+                const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
+                const variantContainer = document.getElementById(`${variantId}Hosts`);
+
+                if (!variantContainer) {
+                    console.log(`⚠️ Variant container '${variantId}Hosts' not found for variant ${variant.variant}`);
+                    return;
+                }
+
+                // Filter hosts for this variant
+                const variantHosts = this.currentGpuData.ondemand.hosts.filter(host => host.variant === variant.aggregate);
+
+                let variantVisible = 0;
+                let variantHidden = 0;
+
+                variantHosts.forEach((host, index) => {
+                    const hostCard = variantContainer.children[index];
+                    if (!hostCard) return;
+
+                    const shouldShow = this.shouldShowHost(host, showInvestor, showNGC);
+
+                    if (shouldShow) {
+                        hostCard.style.display = '';
+                        variantVisible++;
+                        totalVisible++;
+                    } else {
+                        hostCard.style.display = 'none';
+                        variantHidden++;
+                        totalHidden++;
+                    }
+                });
+
+                // Update variant column count
+                const variantCountElement = document.getElementById(`${variantId}Count`);
+                if (variantCountElement) {
+                    variantCountElement.textContent = variantVisible;
+                } else {
+                    console.log(`⚠️ Count element '${variantId}Count' not found for variant ${variant.variant}`);
+                }
+
+                console.log(`📊 ${variant.variant}: ${variantVisible} visible, ${variantHidden} hidden`);
+            });
+        }
 
         console.log(`👁️ Total filter results: ${totalVisible} visible, ${totalHidden} hidden`);
     }
