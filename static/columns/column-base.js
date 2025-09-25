@@ -107,23 +107,6 @@ class BaseColumn {
     renderHosts(hosts, aggregateName = null) {
         // Exact call from existing functions
         if (window.Frontend && window.Frontend.renderHosts) {
-            // Check if container exists before rendering
-            const container = document.getElementById(this.hostsContainerId);
-            if (!container) {
-                console.warn(`⚠️ Container ${this.hostsContainerId} not found, retrying after DOM update...`);
-                // Retry after a short delay to allow DOM to update
-                setTimeout(() => {
-                    const retryContainer = document.getElementById(this.hostsContainerId);
-                    if (retryContainer) {
-                        console.log(`✅ Container ${this.hostsContainerId} now available, rendering hosts`);
-                        window.Frontend.renderHosts(this.hostsContainerId, hosts, this.id, aggregateName);
-                    } else {
-                        console.error(`❌ Container ${this.hostsContainerId} still not found after retry`);
-                    }
-                }, 100);
-                return;
-            }
-
             window.Frontend.renderHosts(this.hostsContainerId, hosts, this.id, aggregateName);
         } else {
             console.error(`❌ Frontend.renderHosts not available for ${this.id} column`);

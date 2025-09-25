@@ -81,7 +81,7 @@ class NewUIControls {
 
             const columnContainer = document.getElementById(containerId);
             if (!columnContainer) {
-                console.log(`⚠️ Container '${containerId}' not found for ${columnType}`);
+                console.log(`⚠️ Container '${containerId}' not found for ${columnType} - column may not be rendered yet`);
                 return;
             }
 
@@ -274,10 +274,10 @@ class NewUIControls {
                 // Store data and apply current filters
                 this.currentGpuData = data;
 
-                // Small delay to ensure DOM is rendered and let script.js handle hostsRow visibility
+                // Small delay to ensure DOM is rendered and columns are rendered first
                 setTimeout(() => {
                     this.applyCurrentFilters();
-                }, 200); // Increased delay to let script.js handle visibility first
+                }, 500); // Increased delay to let columns render first
             };
         } else {
             console.warn('⚠️ Frontend.renderAggregateData not found - owner filters may not work');
