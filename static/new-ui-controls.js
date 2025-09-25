@@ -39,8 +39,12 @@ class NewUIControls {
 
         console.log(`🔍 Owner filters changed: Investor=${investorChecked}, NGC=${ngcChecked}`);
 
-        // Use cached data from Frontend
-        this.currentGpuData = window.Frontend?.aggregateData;
+        // Use the stored data from the intercepted renderAggregateData call
+        // Don't overwrite this.currentGpuData here - it's set in the intercept function
+        if (!this.currentGpuData) {
+            console.log('⚠️ No cached GPU data available, trying window.Frontend.aggregateData as fallback');
+            this.currentGpuData = window.Frontend?.aggregateData;
+        }
 
         // Apply filters to all visible host cards
         this.applyOwnerFilters(investorChecked, ngcChecked);
@@ -131,46 +135,22 @@ class NewUIControls {
         // Debug the host data structure to understand what fields are available
         console.log('🔍 Host data for filtering:', {
             hostname: host.hostname || host.name,
-            owner: host.owner,
+            owner_group: host.owner_group,
             tenant: host.tenant,
-            tenant_name: host.tenant_name,
-            customer: host.customer,
-            contract_name: host.contract_name,
             allFields: Object.keys(host)
         });
 
-        // Extract owner/tenant info from various possible fields
-        const owner = (host.owner || '').toLowerCase();
-        const tenant = (host.tenant || '').toLowerCase();
-        const tenantName = (host.tenant_name || '').toLowerCase();
-        const contractName = (host.contract_name || '').toLowerCase();
-        const customer = (host.customer || '').toLowerCase();
-        const hostname = (host.hostname || host.name || '').toLowerCase();
+        // Use the actual data structure: owner_group field
+        const ownerGroup = host.owner_group || 'Investors'; // Default to Investors if missing
 
-        // NGC detection patterns (check multiple fields)
-        const isNGC =
-            owner.includes('ngc') ||
-            owner.includes('nexgen') ||
-            owner.includes('chris starkey') ||
-            tenant.includes('ngc') ||
-            tenant.includes('nexgen') ||
-            tenant.includes('chris starkey') ||
-            tenantName.includes('ngc') ||
-            tenantName.includes('nexgen') ||
-            tenantName.includes('chris starkey') ||
-            contractName.includes('ngc') ||
-            contractName.includes('nexgen') ||
-            contractName.includes('chris starkey') ||
-            customer.includes('ngc') ||
-            customer.includes('nexgen') ||
-            customer.includes('chris starkey') ||
-            hostname.includes('ngc') ||
-            hostname.includes('chris starkey');
+        // NGC detection: owner_group === 'Nexgen Cloud'
+        const isNGC = ownerGroup === 'Nexgen Cloud';
 
-        // Investor-owned detection (everything else that's not NGC)
-        const isInvestorOwned = !isNGC;
+        // Investor detection: owner_group === 'Investors'
+        const isInvestorOwned = ownerGroup === 'Investors';
 
-        console.log(`📊 ${hostname}: NGC=${isNGC}, Investor=${isInvestorOwned}, Show=${(showInvestor && isInvestorOwned) || (showNGC && isNGC)}`);
+        const hostname = host.hostname || host.name || 'unknown';
+        console.log(`📊 ${hostname}: owner_group="${ownerGroup}", NGC=${isNGC}, Investor=${isInvestorOwned}, Show=${(showInvestor && isInvestorOwned) || (showNGC && isNGC)}`);
 
         // Apply filter logic
         return (showInvestor && isInvestorOwned) || (showNGC && isNGC);
