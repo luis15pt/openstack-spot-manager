@@ -113,7 +113,94 @@
                         </div>
                     </div>
                 </nav>
-                
+
+                <!-- GPU Type Summary Cards -->
+                <div id="gpuTypeSummary" class="row mb-4" style="display: none;">
+                    <div class="col-12">
+                        <div class="card bg-light">
+                            <div class="card-body py-3">
+                                <div class="row align-items-center">
+                                    <!-- GPU Usage Overview -->
+                                    <div class="col-md-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <i class="fas fa-microchip text-primary fa-2x"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-1 text-primary">Total GPU Usage</h6>
+                                                <div class="gpu-overview-stats">
+                                                    <span class="badge bg-primary fs-6" id="totalGpuUsage">Not loaded</span>
+                                                    <span class="badge bg-primary fs-6 ms-2" id="gpuUsagePercentage">-</span>
+                                                </div>
+                                                <small class="text-muted d-block">Active GPUs</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- NetBox Inventory -->
+                                    <div class="col-md-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <i class="fas fa-database text-info fa-2x"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-1 text-info">NetBox Inventory</h6>
+                                                <span class="badge bg-info fs-6" id="netboxInventoryCount">-</span>
+                                                <small class="text-muted d-block">Physical hosts</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Columns Total -->
+                                    <div class="col-md-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <i class="fas fa-columns text-success fa-2x"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-1 text-success">Columns Total</h6>
+                                                <span class="badge bg-success fs-6" id="columnsInventoryCount">-</span>
+                                                <small class="d-block" id="inventoryStatus">
+                                                    <i class="fas fa-sync-alt fa-spin text-muted"></i> Calculating...
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- GPU Type Info -->
+                                    <div class="col-md-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <i class="fas fa-microchip text-warning fa-2x"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-1 text-warning" id="selectedGpuTypeName">Select GPU Type</h6>
+                                                <small class="text-muted d-block">
+                                                    <span id="cacheStatusIndicator">⚡ Cached</span> |
+                                                    <span id="backgroundLoadingStatus" style="display: none;">
+                                                        <i class="fas fa-spinner fa-spin"></i> Loading...
+                                                    </span>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Quick Info Row -->
+                                <div class="row mt-2">
+                                    <div class="col-12">
+                                        <small class="text-muted">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Types marked with ⚡ are cached and will load instantly.
+                                            Use owner filters above to show only Investor Owned or NGC systems.
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Loading Indicator -->
                 <div id="loadingIndicator" class="text-center d-none">
                     <div class="spinner-border text-primary" role="status">
@@ -173,57 +260,6 @@
                     <div class="tab-content" id="mainTabContent">
                         <!-- Hosts Tab -->
                         <div class="tab-pane fade show active" id="hosts" role="tabpanel">
-                            <!-- System Overview Banner -->
-                            <div class="row mt-3">
-                                <div class="col-12">
-                                    <div class="card border-0 shadow-sm">
-                                        <div class="card-body py-3">
-                                            <div class="row align-items-center">
-                                                <div class="col-md-4">
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="me-3">
-                                                            <i class="fas fa-microchip text-primary fa-2x"></i>
-                                                        </div>
-                                                        <div>
-                                                            <h5 class="mb-1 text-primary">Total GPU Usage</h5>
-                                                            <div class="gpu-overview-stats">
-                                                                <span class="badge bg-primary fs-6" id="totalGpuUsage">Not loaded</span>
-                                                                <span class="badge bg-primary fs-6 ms-2" id="gpuUsagePercentage">-</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="me-3">
-                                                            <i class="fas fa-database text-info fa-2x"></i>
-                                                        </div>
-                                                        <div>
-                                                            <h6 class="mb-1 text-info">NetBox Inventory</h6>
-                                                            <span class="badge bg-info fs-6" id="netboxInventoryCount">-</span>
-                                                            <small class="text-muted d-block">Physical hosts</small>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="me-3">
-                                                            <i class="fas fa-columns text-success fa-2x"></i>
-                                                        </div>
-                                                        <div>
-                                                            <h6 class="mb-1 text-success">Columns Total</h6>
-                                                            <span class="badge bg-success fs-6" id="columnsInventoryCount">-</span>
-                                                            <small class="d-block" id="inventoryStatus">
-                                                                <i class="fas fa-sync-alt fa-spin text-muted"></i> Calculating...
-                                                            </small>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                             
                             <div class="row mt-3 hosts-row d-none" id="hostsRow">
                                 

@@ -8,6 +8,10 @@ class NewUIControls {
         this.initializeOwnerFilters();
         this.initializeDropdownBadgeSync();
         this.initializeToolsDropdown();
+        this.initializeGpuTypeSummary();
+
+        // Store reference to current GPU data for filtering
+        this.currentGpuData = null;
     }
 
     /**
@@ -35,65 +39,91 @@ class NewUIControls {
 
         console.log(`🔍 Owner filters changed: Investor=${investorChecked}, NGC=${ngcChecked}`);
 
+        // Use cached data from Frontend
+        this.currentGpuData = window.Frontend?.aggregateData;
+
         // Apply filters to all visible host cards
         this.applyOwnerFilters(investorChecked, ngcChecked);
-
-        // Update column counts after filtering
-        this.updateColumnCountsAfterFilter();
     }
 
     /**
-     * Apply owner filters to host cards
+     * Apply owner filters to host cards with better detection logic
      */
     applyOwnerFilters(showInvestor, showNGC) {
-        // Find all host cards across all columns
-        const hostCards = document.querySelectorAll('.host-card, .host-row, [data-owner], [data-tenant]');
-        let hiddenCount = 0;
-        let visibleCount = 0;
+        if (!this.currentGpuData) {
+            console.log('⚠️ No GPU data available for filtering');
+            return;
+        }
 
-        hostCards.forEach(card => {
-            // Determine if this host should be shown
-            let shouldShow = false;
+        console.log('🔍 Applying owner filters with GPU data:', this.currentGpuData);
 
-            // Check various ways owner/tenant info might be stored
-            const owner = card.getAttribute('data-owner') || '';
-            const tenant = card.getAttribute('data-tenant') || '';
-            const cardText = card.textContent || '';
+        let totalHidden = 0;
+        let totalVisible = 0;
 
-            // Investor-owned detection patterns
-            const isInvestorOwned =
-                owner.toLowerCase().includes('investor') ||
-                tenant.toLowerCase().includes('investor') ||
-                cardText.includes('Investor') ||
-                cardText.includes('investor-owned') ||
-                !cardText.includes('NGC') && !cardText.includes('Nexgen');
+        // Apply filters to each column
+        const columns = ['runpod', 'ondemand', 'spot', 'contracts', 'outofstock'];
 
-            // NGC detection patterns
-            const isNGC =
-                owner.toLowerCase().includes('ngc') ||
-                tenant.toLowerCase().includes('ngc') ||
-                cardText.includes('NGC') ||
-                cardText.includes('Nexgen');
+        columns.forEach(columnType => {
+            const columnData = this.currentGpuData[columnType];
+            if (!columnData || !columnData.hosts) return;
 
-            // Apply filter logic
-            if (showInvestor && isInvestorOwned) {
-                shouldShow = true;
+            const columnContainer = document.getElementById(`${columnType}HostsList`);
+            if (!columnContainer) return;
+
+            let columnVisible = 0;
+            let columnHidden = 0;
+
+            columnData.hosts.forEach((host, index) => {
+                const hostCard = columnContainer.children[index];
+                if (!hostCard) return;
+
+                const shouldShow = this.shouldShowHost(host, showInvestor, showNGC);
+
+                if (shouldShow) {
+                    hostCard.style.display = '';
+                    columnVisible++;
+                    totalVisible++;
+                } else {
+                    hostCard.style.display = 'none';
+                    columnHidden++;
+                    totalHidden++;
+                }
+            });
+
+            // Update column count
+            const countElement = document.getElementById(`${columnType}HostCount`);
+            if (countElement) {
+                countElement.textContent = columnVisible;
             }
-            if (showNGC && isNGC) {
-                shouldShow = true;
-            }
 
-            // Show/hide the card
-            if (shouldShow) {
-                card.style.display = '';
-                visibleCount++;
-            } else {
-                card.style.display = 'none';
-                hiddenCount++;
-            }
+            console.log(`📊 ${columnType}: ${columnVisible} visible, ${columnHidden} hidden`);
         });
 
-        console.log(`👁️ Owner filter results: ${visibleCount} visible, ${hiddenCount} hidden`);
+        console.log(`👁️ Total filter results: ${totalVisible} visible, ${totalHidden} hidden`);
+    }
+
+    /**
+     * Determine if a host should be shown based on owner filters
+     */
+    shouldShowHost(host, showInvestor, showNGC) {
+        // Extract owner/tenant info from various possible fields
+        const owner = (host.owner || host.tenant || host.customer || '').toLowerCase();
+        const tenantName = (host.tenant_name || host.contract_name || '').toLowerCase();
+        const hostname = (host.hostname || host.name || '').toLowerCase();
+
+        // NGC detection patterns (more specific)
+        const isNGC =
+            owner.includes('ngc') ||
+            owner.includes('nexgen') ||
+            tenantName.includes('ngc') ||
+            tenantName.includes('nexgen') ||
+            hostname.includes('ngc');
+
+        // Investor-owned detection (everything else that's not NGC)
+        const isInvestorOwned = !isNGC;
+
+        // Apply filter logic
+        return (showInvestor && isInvestorOwned) || (showNGC && isNGC);
     }
 
     /**
@@ -196,6 +226,85 @@ class NewUIControls {
     }
 
     /**
+     * Initialize GPU type summary functionality
+     */
+    initializeGpuTypeSummary() {
+        // Hook into existing Frontend renderAggregateData to show summary and apply filters
+        const originalRender = window.Frontend?.renderAggregateData;
+        if (originalRender) {
+            window.Frontend.renderAggregateData = (data) => {
+                // Call original render first
+                originalRender.call(window.Frontend, data);
+
+                // Show GPU type summary
+                this.showGpuTypeSummary();
+
+                // Store data and apply current filters
+                this.currentGpuData = data;
+                this.applyCurrentFilters();
+            };
+        }
+
+        // Hook into GPU type selection to update summary
+        const gpuTypeSelect = document.getElementById('gpuTypeSelect');
+        if (gpuTypeSelect) {
+            gpuTypeSelect.addEventListener('change', () => {
+                const selectedType = gpuTypeSelect.value;
+                if (selectedType) {
+                    this.updateSelectedGpuType(selectedType);
+                    this.showGpuTypeSummary();
+                } else {
+                    this.hideGpuTypeSummary();
+                }
+            });
+        }
+
+        console.log('✅ GPU type summary initialized');
+    }
+
+    /**
+     * Show the GPU type summary section
+     */
+    showGpuTypeSummary() {
+        const summarySection = document.getElementById('gpuTypeSummary');
+        if (summarySection) {
+            summarySection.style.display = '';
+        }
+    }
+
+    /**
+     * Hide the GPU type summary section
+     */
+    hideGpuTypeSummary() {
+        const summarySection = document.getElementById('gpuTypeSummary');
+        if (summarySection) {
+            summarySection.style.display = 'none';
+        }
+    }
+
+    /**
+     * Update the selected GPU type display
+     */
+    updateSelectedGpuType(gpuType) {
+        const nameElement = document.getElementById('selectedGpuTypeName');
+        if (nameElement) {
+            nameElement.textContent = gpuType;
+        }
+    }
+
+    /**
+     * Apply current filter settings to cached data
+     */
+    applyCurrentFilters() {
+        const investorChecked = document.getElementById('filterInvestor')?.checked || false;
+        const ngcChecked = document.getElementById('filterNGC')?.checked || false;
+
+        if (this.currentGpuData) {
+            this.applyOwnerFilters(investorChecked, ngcChecked);
+        }
+    }
+
+    /**
      * Get current filter state
      */
     getFilterState() {
@@ -203,6 +312,14 @@ class NewUIControls {
             investor: document.getElementById('filterInvestor')?.checked || false,
             ngc: document.getElementById('filterNGC')?.checked || false
         };
+    }
+
+    /**
+     * Update GPU data reference (called when new data is loaded)
+     */
+    updateGpuData(data) {
+        this.currentGpuData = data;
+        this.applyCurrentFilters();
     }
 }
 
