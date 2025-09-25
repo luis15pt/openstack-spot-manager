@@ -59,7 +59,8 @@ class NewUIControls {
             return;
         }
 
-        console.log('🔍 Applying owner filters with GPU data:', this.currentGpuData);
+        console.log('🔍 Applying owner filters:', { showInvestor, showNGC });
+        console.log('📊 GPU data structure:', Object.keys(this.currentGpuData));
 
         let totalHidden = 0;
         let totalVisible = 0;
@@ -84,6 +85,8 @@ class NewUIControls {
                 console.log(`⚠️ Container '${containerId}' not found for ${columnType} - column may not be rendered yet`);
                 return;
             }
+
+            console.log(`✅ Found container '${containerId}' with ${columnContainer.children.length} children for ${columnData.hosts.length} hosts`);
 
             let columnVisible = 0;
             let columnHidden = 0;
@@ -127,6 +130,7 @@ class NewUIControls {
 
         // Apply filters to variant columns (e.g., On-Demand NVLink variants)
         if (this.currentGpuData.ondemand && this.currentGpuData.ondemand.variants) {
+            console.log(`🔍 Processing ${this.currentGpuData.ondemand.variants.length} variant columns:`, this.currentGpuData.ondemand.variants.map(v => v.variant));
             this.currentGpuData.ondemand.variants.forEach(variant => {
                 const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
                 const variantContainer = document.getElementById(`${variantId}Hosts`);
@@ -322,6 +326,7 @@ class NewUIControls {
 
                 // Small delay to ensure DOM is rendered and columns are rendered first
                 setTimeout(() => {
+                    console.log('🕒 Applying filters after 500ms delay');
                     this.applyCurrentFilters();
                 }, 500); // Increased delay to let columns render first
             };
