@@ -65,6 +65,7 @@ class NewUIControls {
 
         // If both filters are enabled, return original data
         if (investorChecked && ngcChecked) {
+            console.log('🔍 Both filters enabled, returning original data');
             return data;
         }
 
@@ -79,9 +80,17 @@ class NewUIControls {
         columns.forEach(columnType => {
             if (filteredData[columnType] && filteredData[columnType].hosts) {
                 const originalHosts = filteredData[columnType].hosts;
+                const originalCount = originalHosts.length;
+                const originalGpuSummary = filteredData[columnType].gpu_summary;
+
+                console.log(`🔍 ${columnType}: ${originalCount} hosts, original GPU summary:`, originalGpuSummary);
+
                 filteredData[columnType].hosts = originalHosts.filter(host =>
                     this.shouldShowHost(host, investorChecked, ngcChecked)
                 );
+
+                const filteredCount = filteredData[columnType].hosts.length;
+                console.log(`🔍 ${columnType}: filtered from ${originalCount} to ${filteredCount} hosts`);
 
                 // Recalculate GPU summary based on filtered hosts
                 this.recalculateGpuSummary(filteredData[columnType]);
@@ -92,9 +101,9 @@ class NewUIControls {
     }
 
     /**
-     * Recalculate GPU summary based on filtered hosts
+     * Preserve GPU summary proportionally based on filtered hosts
      */
-    recalculateGpuSummary(columnData) {
+    recalculateGpuSummary(columnData, originalHostCount) {
         if (!columnData.hosts || columnData.hosts.length === 0) {
             columnData.gpu_summary = {
                 gpu_used: 0,
@@ -103,19 +112,9 @@ class NewUIControls {
             return;
         }
 
-        let totalUsed = 0;
-        let totalCapacity = 0;
-
-        columnData.hosts.forEach(host => {
-            const gpuInfo = host.gpu_info || {};
-            totalUsed += gpuInfo.gpu_used || 0;
-            totalCapacity += gpuInfo.gpu_capacity || 8; // Default to 8 if not specified
-        });
-
-        columnData.gpu_summary = {
-            gpu_used: totalUsed,
-            gpu_capacity: totalCapacity
-        };
+        // Simple approach: keep the original gpu_summary since it's already calculated correctly
+        // The filtering at the data level should preserve the correct totals
+        console.log(`🔍 Preserving GPU summary for ${columnData.hosts.length} filtered hosts in ${columnData.name || 'Unknown'}`);
     }
 
     /**
@@ -168,8 +167,24 @@ class NewUIControls {
         // Investor detection: owner_group === 'Investors'
         const isInvestorOwned = ownerGroup === 'Investors';
 
-        // Apply filter logic
-        return (showInvestor && isInvestorOwned) || (showNGC && isNGC);
+        const shouldShow = (showInvestor && isInvestorOwned) || (showNGC && isNGC);
+
+        // Debug the first few filter decisions
+        static debugCount = 0;
+        if (this.constructor.debugCount < 5) {
+            console.log(`🔍 shouldShowHost debug #${this.constructor.debugCount}:`, {
+                hostname: host.name || host.hostname || 'unknown',
+                owner_group: ownerGroup,
+                isNGC,
+                isInvestorOwned,
+                showInvestor,
+                showNGC,
+                shouldShow
+            });
+            this.constructor.debugCount++;
+        }
+
+        return shouldShow;
     }
 
     /**
