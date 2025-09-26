@@ -70,8 +70,6 @@ class NewUIControls {
         }
 
         console.log('🔍 Filtering data before render:', { investorChecked, ngcChecked });
-        console.log('🔍 Original data._inventory_validation:', data._inventory_validation);
-        console.log('🔍 Original data.netbox_summary:', data.netbox_summary);
 
         // Create a deep copy to avoid modifying original data
         const filteredData = JSON.parse(JSON.stringify(data));
@@ -161,13 +159,20 @@ class NewUIControls {
      */
     shouldShowHost(host, showInvestor, showNGC) {
         // Use the actual data structure: owner_group field
-        const ownerGroup = host.owner_group || 'Investors'; // Default to Investors if missing
+        const ownerGroup = host.owner_group || 'unknown';
 
-        // NGC detection: owner_group === 'Nexgen Cloud'
-        const isNGC = ownerGroup === 'Nexgen Cloud';
+        // NGC detection: check for Chris Starkey or similar patterns
+        const isNGC = ownerGroup === 'chris starkey' ||
+                      ownerGroup === 'Chris Starkey' ||
+                      ownerGroup === 'Nexgen Cloud' ||
+                      ownerGroup === 'NGC' ||
+                      (ownerGroup && ownerGroup.toLowerCase().includes('chris')) ||
+                      (ownerGroup && ownerGroup.toLowerCase().includes('starkey'));
 
-        // Investor detection: owner_group === 'Investors'
-        const isInvestorOwned = ownerGroup === 'Investors';
+        // Investor detection: check for Investors or other patterns
+        const isInvestorOwned = ownerGroup === 'Investors' ||
+                               ownerGroup === 'investors' ||
+                               (ownerGroup && ownerGroup.toLowerCase().includes('investor'));
 
         const shouldShow = (showInvestor && isInvestorOwned) || (showNGC && isNGC);
 
