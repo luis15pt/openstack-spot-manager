@@ -89,20 +89,31 @@ class NewUIControls {
             let columnVisible = 0;
             let columnHidden = 0;
 
-            columnData.hosts.forEach((host, index) => {
-                const hostCard = columnContainer.children[index];
-                if (!hostCard) return;
+            columnData.hosts.forEach((host) => {
+                const hostname = host.hostname || host.name;
+                if (!hostname) return;
+
+                // Find host cards by data-hostname attribute (works for nested structure)
+                const hostCards = columnContainer.querySelectorAll(`[data-hostname="${hostname}"]`);
 
                 const shouldShow = this.shouldShowHost(host, showInvestor, showNGC);
 
-                if (shouldShow) {
-                    hostCard.style.display = '';
-                    columnVisible++;
-                    totalVisible++;
-                } else {
-                    hostCard.style.display = 'none';
-                    columnHidden++;
-                    totalHidden++;
+                hostCards.forEach(hostCard => {
+                    if (shouldShow) {
+                        hostCard.style.display = '';
+                    } else {
+                        hostCard.style.display = 'none';
+                    }
+                });
+
+                if (hostCards.length > 0) {
+                    if (shouldShow) {
+                        columnVisible++;
+                        totalVisible++;
+                    } else {
+                        columnHidden++;
+                        totalHidden++;
+                    }
                 }
             });
 
@@ -143,20 +154,31 @@ class NewUIControls {
                 let variantVisible = 0;
                 let variantHidden = 0;
 
-                variantHosts.forEach((host, index) => {
-                    const hostCard = variantContainer.children[index];
-                    if (!hostCard) return;
+                variantHosts.forEach((host) => {
+                    const hostname = host.hostname || host.name;
+                    if (!hostname) return;
+
+                    // Find host cards by data-hostname attribute (works for nested structure)
+                    const hostCards = variantContainer.querySelectorAll(`[data-hostname="${hostname}"]`);
 
                     const shouldShow = this.shouldShowHost(host, showInvestor, showNGC);
 
-                    if (shouldShow) {
-                        hostCard.style.display = '';
-                        variantVisible++;
-                        totalVisible++;
-                    } else {
-                        hostCard.style.display = 'none';
-                        variantHidden++;
-                        totalHidden++;
+                    hostCards.forEach(hostCard => {
+                        if (shouldShow) {
+                            hostCard.style.display = '';
+                        } else {
+                            hostCard.style.display = 'none';
+                        }
+                    });
+
+                    if (hostCards.length > 0) {
+                        if (shouldShow) {
+                            variantVisible++;
+                            totalVisible++;
+                        } else {
+                            variantHidden++;
+                            totalHidden++;
+                        }
                     }
                 });
 
