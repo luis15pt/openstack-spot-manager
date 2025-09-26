@@ -1074,7 +1074,15 @@ function updatePendingOperationsDisplay() {
     
     // Update visual indicators on cards
     updateCardPendingIndicators();
-    
+
+    // Auto-show Pending Operations tab when there are pending operations
+    if (pendingOperations.length > 0) {
+        const pendingTab = document.querySelector('[data-bs-target="#pending"]');
+        if (pendingTab && !pendingTab.classList.contains('active')) {
+            pendingTab.click();
+        }
+    }
+
     if (!list) return;
     
     if (pendingOperations.length === 0) {

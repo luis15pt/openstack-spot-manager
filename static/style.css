@@ -451,7 +451,7 @@ body {
 .machine-card.pending-operation::after {
     content: "QUEUED";
     position: absolute;
-    top: 4px;
+    bottom: 4px;
     right: 4px;
     background: #ffc107;
     color: #000;
@@ -2974,7 +2974,7 @@ body {
 .machine-card-compact.pending-operation::after {
     content: "PENDING";
     position: absolute;
-    top: 2px;
+    bottom: 2px;
     right: 2px;
     background: #ffc107;
     color: #000;
@@ -2989,7 +2989,7 @@ body {
 .machine-card-compact.pending-operation::before {
     content: "📋";
     position: absolute;
-    top: 2px;
+    bottom: 2px;
     left: 2px;
     background: #007bff;
     color: white;
