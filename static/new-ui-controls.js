@@ -169,6 +169,17 @@ class NewUIControls {
 
         const shouldShow = (showInvestor && isInvestorOwned) || (showNGC && isNGC);
 
+        // Debug ALL owner_group values to understand the data
+        if (!this.allOwnerGroups) this.allOwnerGroups = new Set();
+        this.allOwnerGroups.add(ownerGroup);
+
+        // Log unique owner groups every 50 hosts to avoid spam
+        if (!this.ownerLogCount) this.ownerLogCount = 0;
+        this.ownerLogCount++;
+        if (this.ownerLogCount % 50 === 0) {
+            console.log(`🔍 Unique owner_group values seen so far:`, Array.from(this.allOwnerGroups));
+        }
+
         // Debug the first few filter decisions
         if (!this.debugCount) this.debugCount = 0;
         if (this.debugCount < 5) {
