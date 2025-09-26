@@ -107,7 +107,8 @@ class NewUIControls {
         if (!columnData.hosts || columnData.hosts.length === 0) {
             columnData.gpu_summary = {
                 gpu_used: 0,
-                gpu_capacity: 0
+                gpu_capacity: 0,
+                gpu_usage_ratio: '0/0'
             };
             console.log(`🔍 Set GPU summary to 0/0 for ${columnData.name || 'Unknown'} (no filtered hosts)`);
             return;
@@ -125,7 +126,8 @@ class NewUIControls {
 
         columnData.gpu_summary = {
             gpu_used: totalUsed,
-            gpu_capacity: totalCapacity
+            gpu_capacity: totalCapacity,
+            gpu_usage_ratio: `${totalUsed}/${totalCapacity}`
         };
 
         console.log(`🔍 Recalculated GPU summary for ${columnData.hosts.length} filtered hosts in ${columnData.name || 'Unknown'}: ${totalUsed}/${totalCapacity}`);
