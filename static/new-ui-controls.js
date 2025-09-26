@@ -39,140 +39,43 @@ class NewUIControls {
 
         console.log(`🔍 Owner filters changed: Investor=${investorChecked}, NGC=${ngcChecked}`);
 
-        // Use the stored data from the intercepted renderAggregateData call
-        // Don't overwrite this.currentGpuData here - it's set in the intercept function
-        if (!this.currentGpuData) {
-            console.log('⚠️ No cached GPU data available, trying window.Frontend.aggregateData as fallback');
-            this.currentGpuData = window.Frontend?.aggregateData;
+        // Trigger a re-render with filtered data
+        if (this.currentGpuData && window.Frontend && window.Frontend.renderAggregateData) {
+            window.Frontend.renderAggregateData(this.currentGpuData);
+        } else {
+            console.log('⚠️ No cached GPU data available for re-rendering');
         }
-
-        // Apply filters to all visible host cards
-        this.applyOwnerFilters(investorChecked, ngcChecked);
     }
 
     /**
-     * Apply owner filters to host cards with better detection logic
+     * Filter data before rendering instead of manipulating DOM after
      */
-    applyOwnerFilters(showInvestor, showNGC) {
-        if (!this.currentGpuData) {
-            console.log('⚠️ No GPU data available for filtering');
-            return;
+    filterDataBeforeRender(data) {
+        const investorChecked = document.getElementById('filterInvestor')?.checked ?? true;
+        const ngcChecked = document.getElementById('filterNGC')?.checked ?? true;
+
+        // If both filters are enabled, return original data
+        if (investorChecked && ngcChecked) {
+            return data;
         }
 
-        console.log('🔍 Applying owner filters:', { showInvestor, showNGC });
+        console.log('🔍 Filtering data before render:', { investorChecked, ngcChecked });
 
-        let totalHidden = 0;
-        let totalVisible = 0;
+        // Create a deep copy to avoid modifying original data
+        const filteredData = JSON.parse(JSON.stringify(data));
 
-        // Apply filters to main columns
+        // Filter main columns
         const columns = ['runpod', 'ondemand', 'spot', 'contracts', 'outofstock'];
 
         columns.forEach(columnType => {
-            const columnData = this.currentGpuData[columnType];
-            if (!columnData || !columnData.hosts) return;
-
-            // Use correct container IDs based on column type
-            let containerId;
-            if (columnType === 'contracts') {
-                containerId = 'contractHostsList'; // Special case for contracts
-            } else {
-                containerId = `${columnType}Hosts`; // Standard pattern: runpodHosts, spotHosts, etc.
+            if (filteredData[columnType] && filteredData[columnType].hosts) {
+                filteredData[columnType].hosts = filteredData[columnType].hosts.filter(host =>
+                    this.shouldShowHost(host, investorChecked, ngcChecked)
+                );
             }
-
-            const columnContainer = document.getElementById(containerId);
-            if (!columnContainer) {
-                console.log(`⚠️ Container '${containerId}' not found for ${columnType} - column may not be rendered yet`);
-                return;
-            }
-
-
-            let columnVisible = 0;
-            let columnHidden = 0;
-
-            columnData.hosts.forEach((host, index) => {
-                const hostCard = columnContainer.children[index];
-                if (!hostCard) return;
-
-                const shouldShow = this.shouldShowHost(host, showInvestor, showNGC);
-
-                if (shouldShow) {
-                    hostCard.style.display = '';
-                    columnVisible++;
-                    totalVisible++;
-                } else {
-                    hostCard.style.display = 'none';
-                    columnHidden++;
-                    totalHidden++;
-                }
-            });
-
-            // Update column count with correct ID mapping
-            let countElementId;
-            if (columnType === 'contracts') {
-                countElementId = 'contractHostCount'; // Special case
-            } else if (columnType === 'outofstock') {
-                countElementId = 'outofstockCount'; // Special case - different from standard pattern
-            } else {
-                countElementId = `${columnType}Count`; // Standard pattern: runpodCount, spotCount, ondemandCount
-            }
-
-            const countElement = document.getElementById(countElementId);
-            if (countElement) {
-                countElement.textContent = columnVisible;
-            } else {
-                console.log(`⚠️ Count element '${countElementId}' not found for ${columnType}`);
-            }
-
-            console.log(`📊 ${columnType}: ${columnVisible} visible, ${columnHidden} hidden`);
         });
 
-        // Apply filters to variant columns (e.g., On-Demand NVLink variants)
-        if (this.currentGpuData.ondemand && this.currentGpuData.ondemand.variants) {
-            this.currentGpuData.ondemand.variants.forEach(variant => {
-                const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
-                const variantContainer = document.getElementById(`${variantId}Hosts`);
-
-                if (!variantContainer) {
-                    console.log(`⚠️ Variant container '${variantId}Hosts' not found for variant ${variant.variant}`);
-                    return;
-                }
-
-                // Filter hosts for this variant
-                const variantHosts = this.currentGpuData.ondemand.hosts.filter(host => host.variant === variant.aggregate);
-
-                let variantVisible = 0;
-                let variantHidden = 0;
-
-                variantHosts.forEach((host, index) => {
-                    const hostCard = variantContainer.children[index];
-                    if (!hostCard) return;
-
-                    const shouldShow = this.shouldShowHost(host, showInvestor, showNGC);
-
-                    if (shouldShow) {
-                        hostCard.style.display = '';
-                        variantVisible++;
-                        totalVisible++;
-                    } else {
-                        hostCard.style.display = 'none';
-                        variantHidden++;
-                        totalHidden++;
-                    }
-                });
-
-                // Update variant column count
-                const variantCountElement = document.getElementById(`${variantId}Count`);
-                if (variantCountElement) {
-                    variantCountElement.textContent = variantVisible;
-                } else {
-                    console.log(`⚠️ Count element '${variantId}Count' not found for variant ${variant.variant}`);
-                }
-
-                console.log(`📊 ${variant.variant}: ${variantVisible} visible, ${variantHidden} hidden`);
-            });
-        }
-
-        console.log(`👁️ Total filter results: ${totalVisible} visible, ${totalHidden} hidden`);
+        return filteredData;
     }
 
     /**
@@ -301,19 +204,17 @@ class NewUIControls {
             window.Frontend.renderAggregateData = (data) => {
                 console.log('🎯 New UI Controls: Intercepted data loading');
 
-                // Call original render first
-                originalRender.call(window.Frontend, data);
+                // Filter the data BEFORE rendering
+                const filteredData = this.filterDataBeforeRender(data);
+
+                // Call original render with filtered data
+                originalRender.call(window.Frontend, filteredData);
 
                 // Show GPU type summary
                 this.showGpuTypeSummary();
 
-                // Store data and apply current filters
+                // Store original data for future filtering
                 this.currentGpuData = data;
-
-                // Small delay to ensure DOM is rendered and columns are rendered first
-                setTimeout(() => {
-                        this.applyCurrentFilters();
-                }, 500); // Increased delay to let columns render first
             };
         } else {
             console.warn('⚠️ Frontend.renderAggregateData not found - owner filters may not work');
@@ -370,17 +271,6 @@ class NewUIControls {
         }
     }
 
-    /**
-     * Apply current filter settings to cached data
-     */
-    applyCurrentFilters() {
-        const investorChecked = document.getElementById('filterInvestor')?.checked || false;
-        const ngcChecked = document.getElementById('filterNGC')?.checked || false;
-
-        if (this.currentGpuData) {
-            this.applyOwnerFilters(investorChecked, ngcChecked);
-        }
-    }
 
     /**
      * Get current filter state
@@ -392,13 +282,6 @@ class NewUIControls {
         };
     }
 
-    /**
-     * Update GPU data reference (called when new data is loaded)
-     */
-    updateGpuData(data) {
-        this.currentGpuData = data;
-        this.applyCurrentFilters();
-    }
 }
 
 // Initialize when DOM is loaded
