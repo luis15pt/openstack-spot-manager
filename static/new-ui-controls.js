@@ -70,6 +70,8 @@ class NewUIControls {
         }
 
         console.log('🔍 Filtering data before render:', { investorChecked, ngcChecked });
+        console.log('🔍 Original data._inventory_validation:', data._inventory_validation);
+        console.log('🔍 Original data.netbox_summary:', data.netbox_summary);
 
         // Create a deep copy to avoid modifying original data
         const filteredData = JSON.parse(JSON.stringify(data));
