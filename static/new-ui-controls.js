@@ -60,7 +60,6 @@ class NewUIControls {
         }
 
         console.log('🔍 Applying owner filters:', { showInvestor, showNGC });
-        console.log('📊 GPU data structure:', Object.keys(this.currentGpuData));
 
         let totalHidden = 0;
         let totalVisible = 0;
@@ -86,7 +85,6 @@ class NewUIControls {
                 return;
             }
 
-            console.log(`✅ Found container '${containerId}' with ${columnContainer.children.length} children for ${columnData.hosts.length} hosts`);
 
             let columnVisible = 0;
             let columnHidden = 0;
@@ -130,7 +128,6 @@ class NewUIControls {
 
         // Apply filters to variant columns (e.g., On-Demand NVLink variants)
         if (this.currentGpuData.ondemand && this.currentGpuData.ondemand.variants) {
-            console.log(`🔍 Processing ${this.currentGpuData.ondemand.variants.length} variant columns:`, this.currentGpuData.ondemand.variants.map(v => v.variant));
             this.currentGpuData.ondemand.variants.forEach(variant => {
                 const variantId = variant.aggregate.replace(/[^a-zA-Z0-9]/g, '');
                 const variantContainer = document.getElementById(`${variantId}Hosts`);
@@ -182,14 +179,6 @@ class NewUIControls {
      * Determine if a host should be shown based on owner filters
      */
     shouldShowHost(host, showInvestor, showNGC) {
-        // Debug the host data structure to understand what fields are available
-        console.log('🔍 Host data for filtering:', {
-            hostname: host.hostname || host.name,
-            owner_group: host.owner_group,
-            tenant: host.tenant,
-            allFields: Object.keys(host)
-        });
-
         // Use the actual data structure: owner_group field
         const ownerGroup = host.owner_group || 'Investors'; // Default to Investors if missing
 
@@ -198,9 +187,6 @@ class NewUIControls {
 
         // Investor detection: owner_group === 'Investors'
         const isInvestorOwned = ownerGroup === 'Investors';
-
-        const hostname = host.hostname || host.name || 'unknown';
-        console.log(`📊 ${hostname}: owner_group="${ownerGroup}", NGC=${isNGC}, Investor=${isInvestorOwned}, Show=${(showInvestor && isInvestorOwned) || (showNGC && isNGC)}`);
 
         // Apply filter logic
         return (showInvestor && isInvestorOwned) || (showNGC && isNGC);
@@ -326,8 +312,7 @@ class NewUIControls {
 
                 // Small delay to ensure DOM is rendered and columns are rendered first
                 setTimeout(() => {
-                    console.log('🕒 Applying filters after 500ms delay');
-                    this.applyCurrentFilters();
+                        this.applyCurrentFilters();
                 }, 500); // Increased delay to let columns render first
             };
         } else {

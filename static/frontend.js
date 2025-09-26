@@ -1406,9 +1406,9 @@ function renderOnDemandVariantColumns(ondemandData) {
                             <div class="card-header bg-primary text-white">
                                 <h4 class="mb-0 d-flex justify-content-between align-items-center">
                                     <span>
-                                        <i class="fas fa-server"></i> 
+                                        <i class="fas fa-server"></i>
                                         ${variant.variant}
-                                        <span class="badge bg-light text-dark ms-2">${variantHosts.length}</span>
+                                        <span class="badge bg-light text-dark ms-2" id="${variantId}Count">${variantHosts.length}</span>
                                     </span>
                                 </h4>
                                 <div class="mt-2">
