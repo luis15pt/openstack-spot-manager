@@ -41,7 +41,13 @@ class NewUIControls {
 
         // Trigger a re-render with filtered data
         if (this.currentGpuData && window.Frontend && window.Frontend.renderAggregateData) {
-            window.Frontend.renderAggregateData(this.currentGpuData);
+            // Filter the data first, then pass to render
+            const filteredData = this.filterDataBeforeRender(this.currentGpuData);
+
+            // Call the original render function directly with filtered data
+            // Skip our interception to avoid double filtering
+            const originalRender = window.Frontend._originalRenderAggregateData || window.Frontend.renderAggregateData;
+            originalRender.call(window.Frontend, filteredData);
         } else {
             console.log('⚠️ No cached GPU data available for re-rendering');
         }
@@ -64,18 +70,49 @@ class NewUIControls {
         // Create a deep copy to avoid modifying original data
         const filteredData = JSON.parse(JSON.stringify(data));
 
-        // Filter main columns
+        // Filter main columns and recalculate GPU summaries
         const columns = ['runpod', 'ondemand', 'spot', 'contracts', 'outofstock'];
 
         columns.forEach(columnType => {
             if (filteredData[columnType] && filteredData[columnType].hosts) {
-                filteredData[columnType].hosts = filteredData[columnType].hosts.filter(host =>
+                const originalHosts = filteredData[columnType].hosts;
+                filteredData[columnType].hosts = originalHosts.filter(host =>
                     this.shouldShowHost(host, investorChecked, ngcChecked)
                 );
+
+                // Recalculate GPU summary based on filtered hosts
+                this.recalculateGpuSummary(filteredData[columnType]);
             }
         });
 
         return filteredData;
+    }
+
+    /**
+     * Recalculate GPU summary based on filtered hosts
+     */
+    recalculateGpuSummary(columnData) {
+        if (!columnData.hosts || columnData.hosts.length === 0) {
+            columnData.gpu_summary = {
+                gpu_used: 0,
+                gpu_capacity: 0
+            };
+            return;
+        }
+
+        let totalUsed = 0;
+        let totalCapacity = 0;
+
+        columnData.hosts.forEach(host => {
+            const gpuInfo = host.gpu_info || {};
+            totalUsed += gpuInfo.gpu_used || 0;
+            totalCapacity += gpuInfo.gpu_capacity || 8; // Default to 8 if not specified
+        });
+
+        columnData.gpu_summary = {
+            gpu_used: totalUsed,
+            gpu_capacity: totalCapacity
+        };
     }
 
     /**
@@ -201,6 +238,9 @@ class NewUIControls {
         // Hook into existing Frontend renderAggregateData to show summary and apply filters
         const originalRender = window.Frontend?.renderAggregateData;
         if (originalRender) {
+            // Store reference to original function for direct calls when filters change
+            window.Frontend._originalRenderAggregateData = originalRender;
+
             window.Frontend.renderAggregateData = (data) => {
                 console.log('🎯 New UI Controls: Intercepted data loading');
 
