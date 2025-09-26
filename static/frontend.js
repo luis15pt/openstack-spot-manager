@@ -186,10 +186,22 @@ function renderAggregateData(data) {
         totalGpuCapacity += data.spot.gpu_summary.gpu_capacity || 0;
     }
     
-    // Add On-Demand GPUs (including all NVLink variants)
-    if (data.ondemand && data.ondemand.gpu_summary) {
-        totalGpuUsed += data.ondemand.gpu_summary.gpu_used || 0;
-        totalGpuCapacity += data.ondemand.gpu_summary.gpu_capacity || 0;
+    // Add On-Demand GPUs (calculate from variants if they exist, otherwise use gpu_summary)
+    if (data.ondemand) {
+        if (data.ondemand.variants && data.ondemand.variants.length > 1) {
+            // Calculate total from all variants
+            data.ondemand.variants.forEach(variant => {
+                const variantHosts = data.ondemand.hosts.filter(host => host.variant === variant.aggregate);
+                variantHosts.forEach(host => {
+                    totalGpuUsed += host.gpu_used || 0;
+                    totalGpuCapacity += host.gpu_capacity || 8; // Default 8 GPUs per host
+                });
+            });
+        } else if (data.ondemand.gpu_summary) {
+            // Single variant, use gpu_summary
+            totalGpuUsed += data.ondemand.gpu_summary.gpu_used || 0;
+            totalGpuCapacity += data.ondemand.gpu_summary.gpu_capacity || 0;
+        }
     }
     
     // Add Contract GPUs (use filtered data instead of DOM elements)
