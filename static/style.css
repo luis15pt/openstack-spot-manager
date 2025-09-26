@@ -451,15 +451,17 @@ body {
 .machine-card.pending-operation::after {
     content: "QUEUED";
     position: absolute;
-    bottom: 4px;
+    top: 50%;
     right: 4px;
+    transform: translateY(-50%);
     background: #ffc107;
     color: #000;
     font-size: 0.6em;
     font-weight: bold;
     padding: 2px 6px;
     border-radius: 8px;
-    z-index: 2;
+    z-index: 15;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 
 .machine-card.has-vms .machine-name {
@@ -2974,30 +2976,34 @@ body {
 .machine-card-compact.pending-operation::after {
     content: "PENDING";
     position: absolute;
-    bottom: 2px;
+    top: 50%;
     right: 2px;
+    transform: translateY(-50%);
     background: #ffc107;
     color: #000;
-    font-size: 8px;
+    font-size: 7px;
     font-weight: bold;
     padding: 1px 3px;
     border-radius: 2px;
-    z-index: 10;
+    z-index: 15;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 
 /* Pending operation overlay with link to operations tab */
 .machine-card-compact.pending-operation::before {
     content: "📋";
     position: absolute;
-    bottom: 2px;
+    top: 50%;
     left: 2px;
+    transform: translateY(-50%);
     background: #007bff;
     color: white;
-    font-size: 10px;
-    padding: 2px 3px;
+    font-size: 9px;
+    padding: 1px 2px;
     border-radius: 2px;
     cursor: pointer;
-    z-index: 10;
+    z-index: 15;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
     title: "View pending operations";
 }
 
