@@ -44,6 +44,9 @@ class NewUIControls {
             // Filter the data first, then pass to render
             const filteredData = this.filterDataBeforeRender(this.currentGpuData);
 
+            // Update VM counts for old UI elements
+            this.updateVMCountsForOldUI(filteredData);
+
             // Call the original render function directly with filtered data
             // Skip our interception to avoid double filtering
             const originalRender = window.Frontend._originalRenderAggregateData || window.Frontend.renderAggregateData;
@@ -113,6 +116,43 @@ class NewUIControls {
             gpu_used: totalUsed,
             gpu_capacity: totalCapacity
         };
+    }
+
+    /**
+     * Update VM counts for old UI elements when filters change
+     */
+    updateVMCountsForOldUI(data) {
+        // Calculate VM counts from filtered data
+        let totalAvailableHosts = 0;
+        let totalInUseHosts = 0;
+
+        // Count from all filtered columns
+        const columns = ['runpod', 'ondemand', 'spot', 'contracts', 'outofstock'];
+        columns.forEach(columnType => {
+            if (data[columnType] && data[columnType].hosts) {
+                data[columnType].hosts.forEach(host => {
+                    if (host.has_vms) {
+                        totalInUseHosts++;
+                    } else {
+                        totalAvailableHosts++;
+                    }
+                });
+            }
+        });
+
+        // Update old UI elements if they exist
+        const availableHostsElement = document.getElementById('availableHostsCount');
+        const inUseHostsElement = document.getElementById('inUseHostsCount');
+
+        if (availableHostsElement) {
+            availableHostsElement.textContent = totalAvailableHosts;
+        }
+
+        if (inUseHostsElement) {
+            inUseHostsElement.textContent = totalInUseHosts;
+        }
+
+        console.log(`📊 Updated VM counts: ${totalAvailableHosts} available, ${totalInUseHosts} in use (filtered data)`);
     }
 
     /**
