@@ -161,18 +161,10 @@ class NewUIControls {
         // Use the actual data structure: owner_group field
         const ownerGroup = host.owner_group || 'unknown';
 
-        // NGC detection: check for Chris Starkey or similar patterns
-        const isNGC = ownerGroup === 'chris starkey' ||
-                      ownerGroup === 'Chris Starkey' ||
-                      ownerGroup === 'Nexgen Cloud' ||
-                      ownerGroup === 'NGC' ||
-                      (ownerGroup && ownerGroup.toLowerCase().includes('chris')) ||
-                      (ownerGroup && ownerGroup.toLowerCase().includes('starkey'));
-
-        // Investor detection: check for Investors or other patterns
-        const isInvestorOwned = ownerGroup === 'Investors' ||
-                               ownerGroup === 'investors' ||
-                               (ownerGroup && ownerGroup.toLowerCase().includes('investor'));
+        // Use the exact same logic as the rest of the codebase
+        // From script.js:2297 - owner_group: tenantName === 'Chris Starkey' ? 'Nexgen Cloud' : 'Investors'
+        const isNGC = ownerGroup === 'Nexgen Cloud';
+        const isInvestorOwned = ownerGroup === 'Investors';
 
         const shouldShow = (showInvestor && isInvestorOwned) || (showNGC && isNGC);
 
