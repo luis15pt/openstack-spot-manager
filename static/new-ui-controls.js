@@ -170,9 +170,9 @@ class NewUIControls {
         const shouldShow = (showInvestor && isInvestorOwned) || (showNGC && isNGC);
 
         // Debug the first few filter decisions
-        static debugCount = 0;
-        if (this.constructor.debugCount < 5) {
-            console.log(`🔍 shouldShowHost debug #${this.constructor.debugCount}:`, {
+        if (!this.debugCount) this.debugCount = 0;
+        if (this.debugCount < 5) {
+            console.log(`🔍 shouldShowHost debug #${this.debugCount}:`, {
                 hostname: host.name || host.hostname || 'unknown',
                 owner_group: ownerGroup,
                 isNGC,
@@ -181,7 +181,7 @@ class NewUIControls {
                 showNGC,
                 shouldShow
             });
-            this.constructor.debugCount++;
+            this.debugCount++;
         }
 
         return shouldShow;
