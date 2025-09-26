@@ -190,6 +190,11 @@ class NewUIControls {
             console.log(`🔍 All unique owner_group values:`, Array.from(this.allOwnerGroups));
         }
 
+        // Force show the values for debugging
+        if (this.ownerLogCount <= 5) {
+            console.log(`🔍 FORCE DEBUG: ownerGroup="${ownerGroup}", type=${typeof ownerGroup}, isNGC=${ownerGroup === 'Nexgen Cloud'}, isInvestor=${ownerGroup === 'Investors'}`);
+        }
+
         // Debug the first few filter decisions
         if (!this.debugCount) this.debugCount = 0;
         if (this.debugCount < 5) {
