@@ -101,9 +101,9 @@ class NewUIControls {
     }
 
     /**
-     * Recalculate GPU summary based on filtered hosts (preserve original totals when both filters enabled)
+     * Recalculate GPU summary based on filtered hosts
      */
-    recalculateGpuSummary(columnData, originalSummary) {
+    recalculateGpuSummary(columnData) {
         if (!columnData.hosts || columnData.hosts.length === 0) {
             columnData.gpu_summary = {
                 gpu_used: 0,
@@ -113,9 +113,22 @@ class NewUIControls {
             return;
         }
 
-        // For now, keep the original GPU summary since the filtering is working at the data level
-        // The original totals should be preserved until we understand the exact GPU calculation method
-        console.log(`🔍 Keeping original GPU summary for ${columnData.hosts.length} filtered hosts in ${columnData.name || 'Unknown'}: ${columnData.gpu_summary?.gpu_used || 0}/${columnData.gpu_summary?.gpu_capacity || 0}`);
+        // Recalculate GPU totals from the filtered host data
+        let totalUsed = 0;
+        let totalCapacity = 0;
+
+        columnData.hosts.forEach(host => {
+            // Use the host's direct GPU properties as shown in the API response
+            totalUsed += host.gpu_used || 0;
+            totalCapacity += host.gpu_capacity || 8;
+        });
+
+        columnData.gpu_summary = {
+            gpu_used: totalUsed,
+            gpu_capacity: totalCapacity
+        };
+
+        console.log(`🔍 Recalculated GPU summary for ${columnData.hosts.length} filtered hosts in ${columnData.name || 'Unknown'}: ${totalUsed}/${totalCapacity}`);
     }
 
     /**
