@@ -101,20 +101,35 @@ class NewUIControls {
     }
 
     /**
-     * Preserve GPU summary proportionally based on filtered hosts
+     * Recalculate GPU summary based on filtered hosts
      */
-    recalculateGpuSummary(columnData, originalHostCount) {
+    recalculateGpuSummary(columnData) {
         if (!columnData.hosts || columnData.hosts.length === 0) {
             columnData.gpu_summary = {
                 gpu_used: 0,
                 gpu_capacity: 0
             };
+            console.log(`🔍 Set GPU summary to 0/0 for ${columnData.name || 'Unknown'} (no filtered hosts)`);
             return;
         }
 
-        // Simple approach: keep the original gpu_summary since it's already calculated correctly
-        // The filtering at the data level should preserve the correct totals
-        console.log(`🔍 Preserving GPU summary for ${columnData.hosts.length} filtered hosts in ${columnData.name || 'Unknown'}`);
+        // When hosts are filtered, recalculate from the actual host data
+        let totalUsed = 0;
+        let totalCapacity = 0;
+
+        columnData.hosts.forEach(host => {
+            // Check GPU info in host data structure
+            const gpuInfo = host.gpu_info || {};
+            totalUsed += gpuInfo.gpu_used || 0;
+            totalCapacity += gpuInfo.gpu_capacity || 8; // Default 8 GPUs per host
+        });
+
+        columnData.gpu_summary = {
+            gpu_used: totalUsed,
+            gpu_capacity: totalCapacity
+        };
+
+        console.log(`🔍 Recalculated GPU summary for ${columnData.hosts.length} filtered hosts in ${columnData.name || 'Unknown'}: ${totalUsed}/${totalCapacity}`);
     }
 
     /**
@@ -177,6 +192,11 @@ class NewUIControls {
         this.ownerLogCount++;
         if (this.ownerLogCount % 50 === 0) {
             console.log(`🔍 Unique owner_group values seen so far:`, Array.from(this.allOwnerGroups));
+        }
+
+        // Always log the first few unique values we encounter
+        if (this.allOwnerGroups.size <= 3 && this.ownerLogCount <= 10) {
+            console.log(`🔍 Found owner_group: "${ownerGroup}" (${typeof ownerGroup})`);
         }
 
         // Debug the first few filter decisions
