@@ -101,9 +101,9 @@ class NewUIControls {
     }
 
     /**
-     * Recalculate GPU summary based on filtered hosts
+     * Recalculate GPU summary based on filtered hosts (preserve original totals when both filters enabled)
      */
-    recalculateGpuSummary(columnData) {
+    recalculateGpuSummary(columnData, originalSummary) {
         if (!columnData.hosts || columnData.hosts.length === 0) {
             columnData.gpu_summary = {
                 gpu_used: 0,
@@ -113,23 +113,9 @@ class NewUIControls {
             return;
         }
 
-        // When hosts are filtered, recalculate from the actual host data
-        let totalUsed = 0;
-        let totalCapacity = 0;
-
-        columnData.hosts.forEach(host => {
-            // Check GPU info in host data structure
-            const gpuInfo = host.gpu_info || {};
-            totalUsed += gpuInfo.gpu_used || 0;
-            totalCapacity += gpuInfo.gpu_capacity || 8; // Default 8 GPUs per host
-        });
-
-        columnData.gpu_summary = {
-            gpu_used: totalUsed,
-            gpu_capacity: totalCapacity
-        };
-
-        console.log(`🔍 Recalculated GPU summary for ${columnData.hosts.length} filtered hosts in ${columnData.name || 'Unknown'}: ${totalUsed}/${totalCapacity}`);
+        // For now, keep the original GPU summary since the filtering is working at the data level
+        // The original totals should be preserved until we understand the exact GPU calculation method
+        console.log(`🔍 Keeping original GPU summary for ${columnData.hosts.length} filtered hosts in ${columnData.name || 'Unknown'}: ${columnData.gpu_summary?.gpu_used || 0}/${columnData.gpu_summary?.gpu_capacity || 0}`);
     }
 
     /**
@@ -197,6 +183,11 @@ class NewUIControls {
         // Always log the first few unique values we encounter
         if (this.allOwnerGroups.size <= 3 && this.ownerLogCount <= 10) {
             console.log(`🔍 Found owner_group: "${ownerGroup}" (${typeof ownerGroup})`);
+        }
+
+        // Always show the full array when we have new values
+        if (this.ownerLogCount === 1 || this.ownerLogCount === 50) {
+            console.log(`🔍 All unique owner_group values:`, Array.from(this.allOwnerGroups));
         }
 
         // Debug the first few filter decisions
