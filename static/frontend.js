@@ -192,11 +192,10 @@ function renderAggregateData(data) {
         totalGpuCapacity += data.ondemand.gpu_summary.gpu_capacity || 0;
     }
     
-    // Add Contract GPUs (get from loaded contract data)
-    const contractGpuData = getContractGpuTotals();
-    if (contractGpuData) {
-        totalGpuUsed += contractGpuData.used || 0;
-        totalGpuCapacity += contractGpuData.capacity || 0;
+    // Add Contract GPUs (use filtered data instead of DOM elements)
+    if (data.contracts && data.contracts.gpu_summary) {
+        totalGpuUsed += data.contracts.gpu_summary.gpu_used || 0;
+        totalGpuCapacity += data.contracts.gpu_summary.gpu_capacity || 0;
     }
     
     // Add Out-of-Stock GPUs (capacity only, usage should be 0)
@@ -210,7 +209,7 @@ function renderAggregateData(data) {
     document.getElementById('totalGpuUsage').textContent = `${totalGpuUsed}/${totalGpuCapacity} GPUs`;
     document.getElementById('gpuUsagePercentage').textContent = `${totalGpuPercentage}%`;
     
-    console.log(`📊 Total GPU Usage: ${totalGpuUsed}/${totalGpuCapacity} (${totalGpuPercentage}%) - RunPod: ${data.runpod?.gpu_summary?.gpu_used || 0}, Spot: ${data.spot?.gpu_summary?.gpu_used || 0}, OnDemand: ${data.ondemand?.gpu_summary?.gpu_used || 0}, Contracts: ${contractGpuData?.used || 0}, OutOfStock: ${data.outofstock?.gpu_summary?.gpu_capacity || 0} capacity`);
+    console.log(`📊 Total GPU Usage: ${totalGpuUsed}/${totalGpuCapacity} (${totalGpuPercentage}%) - RunPod: ${data.runpod?.gpu_summary?.gpu_used || 0}, Spot: ${data.spot?.gpu_summary?.gpu_used || 0}, OnDemand: ${data.ondemand?.gpu_summary?.gpu_used || 0}, Contracts: ${data.contracts?.gpu_summary?.gpu_used || 0}, OutOfStock: ${data.outofstock?.gpu_summary?.gpu_capacity || 0} capacity`);
     
     // Update NetBox vs Columns comparison (handled by banner.js)
     if (window.updateNetBoxInventoryComparison) {
